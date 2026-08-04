@@ -532,47 +532,116 @@ input:focus {
   letter-spacing: 1px;
 }
 
-/* 竖屏手机：大厅紧凑，避免一屏装不下 */
-@media (max-width: 480px), ((orientation: portrait) and (pointer: coarse)) {
+/* 软件横屏：按旋转后的可用宽高计算，左右分栏展示完整入口 */
+#ui.rot .screen {
+  padding: 10px 16px;
+}
+
+#ui.rot .panel {
+  width: min(760px, calc(100% - 24px));
+  max-height: calc(100% - 12px);
+  padding: 14px 18px;
+}
+
+#ui.rot .lobby-panel {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.9fr) minmax(300px, 1.1fr);
+  grid-template-rows: auto auto auto auto;
+  column-gap: 20px;
+  align-items: center;
+}
+
+#ui.rot .lobby-panel .title,
+#ui.rot .lobby-panel .subtitle,
+#ui.rot .lobby-panel > .field {
+  grid-column: 1;
+}
+
+#ui.rot .lobby-panel .title {
+  margin: 0 0 2px;
+  font-size: 32px;
+  letter-spacing: 6px;
+}
+
+#ui.rot .lobby-panel .subtitle {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+#ui.rot .lobby-panel > .field {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+#ui.rot .lobby-actions {
+  grid-column: 2;
+  grid-row: 1 / span 4;
+}
+
+#ui.rot .lobby-panel .btn {
+  margin-top: 7px;
+  padding: 9px 0;
+  font-size: 15px;
+}
+
+#ui.rot .lobby-panel .seg button {
+  padding: 7px 0;
+  font-size: 14px;
+}
+
+#ui.rot .lobby-panel input {
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+#ui.rot .lobby-more .btn {
+  margin-top: 7px;
+}
+
+#ui.rot .room-panel .code-box b {
+  font-size: 34px;
+  letter-spacing: 8px;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
   .lobby-panel {
-    width: min(400px, 94vw);
-    padding: 18px 16px 14px;
-    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    width: min(760px, calc(100vw - 32px));
+    display: grid;
+    grid-template-columns: minmax(230px, 0.9fr) minmax(300px, 1.1fr);
+    grid-template-rows: auto auto auto auto;
+    column-gap: 20px;
+    padding: 14px 18px;
+  }
+
+  .lobby-panel .title,
+  .lobby-panel .subtitle,
+  .lobby-panel > .field {
+    grid-column: 1;
   }
 
   .lobby-panel .title {
-    margin: 2px 0 4px;
+    margin: 0 0 2px;
     font-size: 32px;
-    letter-spacing: 6px;
   }
 
   .lobby-panel .subtitle {
-    margin: 0 0 12px;
+    margin-bottom: 10px;
     font-size: 12px;
   }
 
-  .lobby-panel .field {
-    margin-bottom: 10px;
-    font-size: 14px;
+  .lobby-panel > .field {
+    margin-bottom: 8px;
+  }
+
+  .lobby-actions {
+    grid-column: 2;
+    grid-row: 1 / span 4;
   }
 
   .lobby-panel .btn {
-    margin-top: 8px;
-    padding: 11px 0;
-    font-size: 16px;
-  }
-
-  .lobby-panel .seg button {
-    padding: 8px 0;
-    font-size: 14px;
-  }
-
-  .lobby-panel input {
-    padding: 10px 12px;
-  }
-
-  .room-panel .code-box b {
-    font-size: 34px;
-    letter-spacing: 8px;
+    margin-top: 7px;
+    padding: 9px 0;
+    font-size: 15px;
   }
 }
