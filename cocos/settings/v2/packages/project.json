@@ -1,0 +1,15 @@
+{
+  "__version__": "1.0.6",
+  "general": {
+    "designResolution": {
+      "width": 1280,
+      "height": 720
+    },
+    "startScene": "a1b2c3d4-1111-4222-8333-444455556661"
+  },
+  "fbx": {
+    "legacyFbxImporter": {
+      "visible": true
+    }
+  }
+}

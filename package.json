@@ -1,0 +1,13 @@
+{
+  "name": "jianhongdian",
+  "private": true,
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "test": "npm run test -w shared",
+    "server": "npm run dev -w server"
+  }
+}

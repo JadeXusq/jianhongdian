@@ -1,0 +1,253 @@
+/**
+ * 网络层：封装 Colyseus 连接，向 UI 暴露状态与回调。
+ * 不含任何渲染逻辑，将来接 Cocos 时可原样复用。
+ */
+import { Client, Room } from "colyseus.js";
+import type { GameEvent } from "@jhd/shared";
+
+const WS_URL = import.meta.env.VITE_WS ?? `ws://${location.hostname}:2567`;
+const HTTP_URL = WS_URL.replace(/^ws/, "http");
+const TOKEN_KEY = "jhd.reconnect";
+const DEVICE_KEY = "jhd.device";
+
+/**
+ * 游客设备标识：本地生成并长期保留，用于累计战绩。
+ * 不能用 crypto.randomUUID：它仅在安全上下文（HTTPS / localhost）下存在，
+ * 而局域网 IP 访问是普通 HTTP。getRandomValues 无此限制，不可用时降级到 Math.random。
+ */
+export function deviceId(): string {
+  let id = localStorage.getItem(DEVICE_KEY);
+  if (!id) {
+    id = randomId();
+    localStorage.setItem(DEVICE_KEY, id);
+  }
+  return id;
+}
+
+function randomId(): string {
+  const bytes = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues)
+    globalThis.crypto.getRandomValues(bytes);
+  else
+    for (let i = 0; i < bytes.length; i++)
+      bytes[i] = Math.floor(Math.random() * 256);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export interface Profile {
+  deviceId: string;
+  accountId?: string;
+  name: string;
+  games: number;
+  wins: number;
+  totalNet: number;
+}
+
+const ACCOUNT_KEY = "jhd.accountId";
+const TOKEN_KEY_ACC = "jhd.accountToken";
+
+export function savedAccountId(): string | null {
+  return localStorage.getItem(ACCOUNT_KEY);
+}
+
+export function savedAccountToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY_ACC);
+}
+
+export function rememberAccount(accountId: string, token: string): void {
+  localStorage.setItem(ACCOUNT_KEY, accountId);
+  localStorage.setItem(TOKEN_KEY_ACC, token);
+}
+
+export interface RoundOver {
+  points: number[];
+  base: number;
+  net: number[];
+  captured: number[][];
+  round: number;
+  totalRounds: number;
+  allDone: boolean;
+}
+
+export class Net {
+  private client = new Client(WS_URL);
+  room: Room<any> | null = null;
+  mySeat = -1;
+  hand: number[] = [];
+  spectating = false;
+
+  onState?: (state: any) => void;
+  onEvents?: (events: GameEvent[]) => void;
+  onRoundStart?: () => void;
+  onRoundOver?: (r: RoundOver) => void;
+  onEmote?: (e: { seat: number; name: string; id: string }) => void;
+  onError?: (message: string) => void;
+  onLeave?: () => void;
+
+  get state(): any {
+    return this.room?.state;
+  }
+
+  async create(name: string, maxPlayers: number): Promise<void> {
+    this.bind(
+      await this.client.create("game", {
+        name,
+        maxPlayers,
+        deviceId: deviceId(),
+      })
+    );
+  }
+
+  async quickMatch(name: string, maxPlayers: number): Promise<void> {
+    this.bind(
+      await this.client.joinOrCreate("game", {
+        name,
+        maxPlayers,
+        deviceId: deviceId(),
+      })
+    );
+  }
+
+  async joinByCode(name: string, code: string): Promise<void> {
+    const res = await fetch(`${HTTP_URL}/api/room/${code}`);
+    if (!res.ok) throw new Error("房间不存在或已解散");
+    const { roomId } = await res.json();
+    this.bind(
+      await this.client.joinById(roomId, { name, deviceId: deviceId() })
+    );
+  }
+
+  async spectateByCode(name: string, code: string): Promise<void> {
+    const res = await fetch(`${HTTP_URL}/api/room/${code}`);
+    if (!res.ok) throw new Error("房间不存在或已解散");
+    const { roomId } = await res.json();
+    this.bind(
+      await this.client.joinById(roomId, {
+        name,
+        deviceId: deviceId(),
+        spectate: true,
+      })
+    );
+  }
+
+  async leaderboard(): Promise<Profile[]> {
+    const res = await fetch(`${HTTP_URL}/api/leaderboard`);
+    if (!res.ok) throw new Error("排行榜获取失败");
+    return res.json();
+  }
+
+  async createAccount(name: string): Promise<{
+    accountId: string;
+    token: string;
+    profile: Profile;
+  }> {
+    const res = await fetch(`${HTTP_URL}/api/account/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error("创建账号失败");
+    const data = await res.json();
+    rememberAccount(data.accountId, data.token);
+    await this.bindAccount(data.accountId, data.token);
+    return data;
+  }
+
+  async bindAccount(accountId: string, token: string): Promise<Profile> {
+    const res = await fetch(`${HTTP_URL}/api/account/bind`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accountId,
+        token,
+        deviceId: deviceId(),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "绑定失败");
+    }
+    const data = await res.json();
+    rememberAccount(accountId, token);
+    return data.profile;
+  }
+
+  /** 刷新页面后尝试回到原对局；无有效凭据则返回 false */
+  async tryReconnect(): Promise<boolean> {
+    const token = sessionStorage.getItem(TOKEN_KEY);
+    if (!token) return false;
+    try {
+      this.bind(await this.client.reconnect(token));
+      return true;
+    } catch {
+      sessionStorage.removeItem(TOKEN_KEY);
+      return false;
+    }
+  }
+
+  private bind(room: Room<any>): void {
+    this.room = room;
+    sessionStorage.setItem(TOKEN_KEY, room.reconnectionToken);
+
+    room.onMessage(
+      "joined",
+      (m: { seat: number; spectate?: boolean }) => {
+        this.mySeat = m.seat;
+        this.spectating = !!m.spectate || m.seat < 0;
+      }
+    );
+    room.onMessage("hand", (hand: number[]) => {
+      this.hand = hand;
+    });
+    room.onMessage("roundStart", () => this.onRoundStart?.());
+    room.onMessage("events", (e: GameEvent[]) => this.onEvents?.(e));
+    room.onMessage("roundOver", (r: RoundOver) => this.onRoundOver?.(r));
+    room.onMessage("emote", (e: { seat: number; name: string; id: string }) =>
+      this.onEmote?.(e)
+    );
+    room.onMessage("error", (e: { message: string }) =>
+      this.onError?.(e.message)
+    );
+    room.onStateChange((state) => {
+      if (this.mySeat < 0 && !this.spectating) {
+        const me = state.players.get(room.sessionId);
+        if (me) this.mySeat = me.seat;
+      }
+      this.onState?.(state);
+    });
+    room.onLeave(() => {
+      sessionStorage.removeItem(TOKEN_KEY);
+      this.room = null;
+      this.mySeat = -1;
+      this.hand = [];
+      this.spectating = false;
+      this.onLeave?.();
+    });
+  }
+
+  ready(v: boolean): void {
+    this.room?.send("ready", v);
+  }
+  addAi(difficulty?: "easy" | "normal" | "hard"): void {
+    this.room?.send("addAi", difficulty ? { difficulty } : undefined);
+  }
+  removeAi(seat: number): void {
+    this.room?.send("removeAi", seat);
+  }
+  play(cardId: number, targetId?: number): void {
+    this.room?.send("play", { cardId, targetId });
+  }
+  chooseTarget(targetId: number): void {
+    this.room?.send("chooseTarget", { targetId });
+  }
+  emote(id: string): void {
+    this.room?.send("emote", { id });
+  }
+  nextRound(): void {
+    this.room?.send("nextRound");
+  }
+  async leave(): Promise<void> {
+    sessionStorage.removeItem(TOKEN_KEY);
+    await this.room?.leave(true);
+  }
+}

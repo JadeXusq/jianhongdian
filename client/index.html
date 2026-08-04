@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>捡红点</title>
+    <link rel="icon" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <canvas id="table"></canvas>
+
+    <!-- 竖屏时这个容器会整体旋转 90°，与牌桌保持一致方向 -->
+    <div id="ui">
+      <!-- 大厅 -->
+      <section id="lobby" class="screen">
+        <div class="panel lobby-panel">
+          <h1 class="title">捡红点</h1>
+          <p class="subtitle">红鬼三十 · 红A二十 · 凑十成对</p>
+          <label class="field">
+            <span>昵称</span>
+            <input id="name" maxlength="8" placeholder="请输入昵称" />
+          </label>
+          <div class="field">
+            <span>人数</span>
+            <div id="counts" class="seg">
+              <button data-n="2">2 人</button>
+              <button data-n="3">3 人</button>
+              <button data-n="4" class="on">4 人</button>
+            </div>
+          </div>
+          <button id="btn-match" class="btn primary">快速匹配</button>
+          <div class="row">
+            <button id="btn-create" class="btn">创建房间</button>
+            <button id="btn-join" class="btn">输房号加入</button>
+          </div>
+          <button id="btn-spectate" class="btn">房号观战</button>
+          <button id="btn-account" class="btn">账号绑定</button>
+          <button id="btn-rank" class="btn">排行榜</button>
+          <button id="btn-rules" class="link">查看规则</button>
+        </div>
+      </section>
+
+      <!-- 房间等待 -->
+      <section id="room" class="screen hidden">
+        <div class="panel room-panel">
+          <div class="code-box">
+            <span>房号</span>
+            <b id="room-code">------</b>
+          </div>
+          <div id="seats" class="seats"></div>
+          <div class="field">
+            <span>电脑难度</span>
+            <div id="ai-diff" class="seg">
+              <button data-d="easy">简单</button>
+              <button data-d="normal" class="on">普通</button>
+              <button data-d="hard">困难</button>
+            </div>
+          </div>
+          <div class="row">
+            <button id="btn-ai" class="btn">＋ 添加电脑</button>
+            <button id="btn-ready" class="btn primary">准备</button>
+          </div>
+          <button id="btn-quit" class="link">离开房间</button>
+        </div>
+      </section>
+
+      <!-- 结算 -->
+      <section id="result" class="screen hidden">
+        <div class="panel result-panel">
+          <h2 class="title small">本局结算</h2>
+          <div id="result-list" class="result-list"></div>
+          <div class="row">
+            <button id="btn-again" class="btn primary">再来一局</button>
+            <button id="btn-exit" class="btn">返回大厅</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 排行榜 -->
+      <section id="rank" class="screen hidden">
+        <div class="panel">
+          <h2 class="title small">累计排行榜</h2>
+          <div id="rank-list" class="result-list"></div>
+          <button id="btn-rank-close" class="btn primary">返回</button>
+        </div>
+      </section>
+
+      <!-- 账号 -->
+      <section id="account" class="screen hidden">
+        <div class="panel">
+          <h2 class="title small">本地账号</h2>
+          <p class="subtitle" id="account-status">未绑定（游客战绩仅存本机）</p>
+          <label class="field">
+            <span>账号 ID</span>
+            <input id="acc-id" maxlength="16" placeholder="绑定已有账号时填写" />
+          </label>
+          <label class="field">
+            <span>凭证</span>
+            <input id="acc-token" maxlength="64" placeholder="创建时下发的 token" />
+          </label>
+          <div class="row">
+            <button id="btn-acc-create" class="btn primary">创建并绑定</button>
+            <button id="btn-acc-bind" class="btn">绑定已有</button>
+          </div>
+          <p class="subtitle" id="account-hint"></p>
+          <button id="btn-account-close" class="btn">返回</button>
+        </div>
+      </section>
+
+      <!-- 规则 -->
+      <section id="rules" class="screen hidden">
+        <div class="panel rules-panel">
+          <h2 class="title small">玩法规则</h2>
+          <div class="rules-body">
+            <p>
+              <b>牌与发牌</b>：54 张含大小王。手牌共 24 张按人数均分（2人12 /
+              3人8 / 4人6），桌面掀 6 张，其余 24 张为牌堆。
+            </p>
+            <p>
+              <b>配对</b>：A~9 两张相加为 10；10/J/Q/K
+              需同点数；大小王互相配对。
+            </p>
+            <p>
+              <b>流程</b>：出一张手牌 → 能配必吃（多个目标自选）→
+              再翻一张牌堆，同样能配必吃 → 换下一家。
+            </p>
+            <p>
+              <b>计分</b>：红鬼 30，红 A 各 20，红 9/10/J/Q/K 各 10，红 2~8
+              按面值，黑牌与小王 0 分，全场共 240 分。
+            </p>
+            <p><b>胜负</b>：得分减去底分（240÷人数），正为赢、负为输。</p>
+          </div>
+          <button id="btn-rules-close" class="btn primary">明白了</button>
+        </div>
+      </section>
+
+      <div id="toast" class="toast hidden"></div>
+      <div id="turn-hint" class="turn-hint hidden"></div>
+      <div id="emotes" class="emotes hidden">
+        <button data-e="加油">加油</button>
+        <button data-e="好棋">好棋</button>
+        <button data-e="厉害">厉害</button>
+        <button data-e="等等">等等</button>
+        <button data-e="哈哈哈">哈哈哈</button>
+      </div>
+      <div id="emote-bubble" class="emote-bubble hidden"></div>
+      <button id="btn-mute" class="mute" title="音效">♪</button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
