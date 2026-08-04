@@ -12,7 +12,14 @@ import {
 import { C, DESIGN } from "./Theme";
 import type { RoundOver } from "./Net";
 
-export type UiScreen = "lobby" | "room" | "result" | "account" | "none";
+export type UiScreen =
+  | "lobby"
+  | "room"
+  | "result"
+  | "account"
+  | "guide"
+  | "rules"
+  | "none";
 
 export interface LobbyCallbacks {
   onMatch(name: string, maxPlayers: number): void;
@@ -29,16 +36,23 @@ export interface LobbyCallbacks {
   onQuit(): void;
   onAgain(): void;
   onExit(): void;
+  onGuideOk(): void;
+  onRulesClose(): void;
 }
 
-/** 大厅 / 房间等待 / 结算覆盖层（Graphics + Label，无外部素材） */
+/** 大厅 / 房间等待 / 结算 / 引导 / 规则覆盖层 */
 export class LobbyUI {
   root: Node;
   private lobby!: Node;
   private room!: Node;
   private result!: Node;
   private account!: Node;
+  private guide!: Node;
+  private rules!: Node;
   private emotes!: Node;
+  private helpBtn!: Node;
+  private emoteBubble!: Label;
+  private emoteTimer = 0;
   private nameBox!: EditBox;
   private codeBox!: EditBox;
   private accIdBox!: EditBox;
@@ -53,6 +67,7 @@ export class LobbyUI {
   private aiBtn!: Node;
   private aiDiffLabels: Label[] = [];
   private resultTitle!: Label;
+  private resultDots!: Node;
   private resultList!: Node;
   private againLbl!: Label;
   private exitBtn!: Node;
@@ -74,7 +89,22 @@ export class LobbyUI {
     this.room = this.buildRoom();
     this.result = this.buildResult();
     this.account = this.buildAccount();
+    this.guide = this.buildGuide();
+    this.rules = this.buildRules();
     this.emotes = this.buildEmotes();
+    this.helpBtn = this.makeBtn(this.root, "?", DESIGN.width / 2 - 70, DESIGN.height / 2 - 36, 36, 36, () =>
+      this.show("rules")
+    );
+    this.helpBtn.active = false;
+    this.emoteBubble = this.makeLabel(
+      this.root,
+      "",
+      0,
+      DESIGN.height / 2 - 160,
+      26,
+      C.gold
+    );
+    this.emoteBubble.node.active = false;
     this.toastLbl = this.makeLabel(
       this.root,
       "",
@@ -92,6 +122,8 @@ export class LobbyUI {
     this.room.active = screen === "room";
     this.result.active = screen === "result";
     this.account.active = screen === "account";
+    this.guide.active = screen === "guide";
+    this.rules.active = screen === "rules";
     if (screen !== "none") this.setEmotesVisible(false);
   }
 
@@ -99,18 +131,43 @@ export class LobbyUI {
     this.emotes.active = v;
   }
 
+  setHelpVisible(v: boolean): void {
+    this.helpBtn.active = v;
+  }
+
+  isOverlay(): boolean {
+    return this.guide.active || this.rules.active;
+  }
+
   setAccountStatus(status: string, hint = ""): void {
     this.accStatusLbl.string = status;
     this.accHintLbl.string = hint;
   }
 
-  toast(msg: string): void {
+  toast(msg: string, ms = 2200): void {
     this.toastLbl.string = msg;
     this.toastLbl.node.active = true;
     clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => {
       this.toastLbl.node.active = false;
-    }, 2200) as unknown as number;
+    }, ms) as unknown as number;
+  }
+
+  showEmote(name: string, id: string): void {
+    const icons: Record<string, string> = {
+      加油: "💪",
+      好棋: "👏",
+      厉害: "👍",
+      等等: "⏳",
+      哈哈哈: "😄",
+    };
+    const icon = icons[id] ?? "💬";
+    this.emoteBubble.string = `${icon} ${name}：${id}`;
+    this.emoteBubble.node.active = true;
+    clearTimeout(this.emoteTimer);
+    this.emoteTimer = setTimeout(() => {
+      this.emoteBubble.node.active = false;
+    }, 3000) as unknown as number;
   }
 
   playerName(): string {
@@ -152,24 +209,47 @@ export class LobbyUI {
 
   renderResult(r: RoundOver, state: any, mySeat: number): void {
     const players = [...state.players.values()] as any[];
-    this.resultTitle.string = r.allDone
-      ? `最终结算（${r.totalRounds} 轮总分）`
-      : `第 ${r.round} / ${r.totalRounds} 轮`;
-    this.resultList.removeAllChildren();
     const rows = players
       .map((p) => ({ p, points: r.points[p.seat], net: r.net[p.seat] }))
       .sort((a, b) => b.net - a.net);
+    const winner = rows[0];
+    const iWin = winner?.p.seat === mySeat && winner.net >= 0;
+    this.resultTitle.string = r.allDone
+      ? iWin
+        ? "最终结算 · 胜"
+        : `最终结算（${r.totalRounds} 轮）`
+      : `第 ${r.round} / ${r.totalRounds} 轮`;
+
+    this.resultDots.removeAllChildren();
+    for (let i = 0; i < r.totalRounds; i++) {
+      const on = i < r.round;
+      const d = new Node("Dot");
+      d.layer = Layers.Enum.UI_2D;
+      this.resultDots.addChild(d);
+      d.setPosition(new Vec3((i - (r.totalRounds - 1) / 2) * 18, 0, 0));
+      const g = d.addComponent(Graphics);
+      g.fillColor = on ? C.gold : new Color(0, 0, 0, 0);
+      g.circle(0, 0, 5);
+      g.fill();
+      g.strokeColor = C.goldDim;
+      g.lineWidth = 1;
+      g.circle(0, 0, 5);
+      g.stroke();
+    }
+
+    this.resultList.removeAllChildren();
     rows.forEach((row, i) => {
       const mark = row.p.seat === mySeat ? " ▶" : "";
+      const rank = i === 0 ? "胜" : `${i + 1}`;
       const net =
         (row.net > 0 ? "+" : "") +
         row.net +
         (r.allDone ? ` | 总 ${row.p.totalNet}` : "");
       this.makeLabel(
         this.resultList,
-        `${i + 1}. ${row.p.name}${row.p.isAi ? "·电脑" : ""}${mark}  ${row.points}分  ${net}`,
+        `${rank}. ${row.p.name}${row.p.isAi ? "·电脑" : ""}${mark}  ${row.points}分  ${net}`,
         0,
-        60 - i * 36,
+        50 - i * 36,
         20,
         row.p.seat === mySeat ? C.gold : C.cream
       );
@@ -181,22 +261,22 @@ export class LobbyUI {
   }
 
   private buildLobby(): Node {
-    const panel = this.panel("Lobby", 420, 520);
-    this.makeLabel(panel, "捡红点", 0, 190, 42, C.gold);
-    this.makeLabel(panel, "红鬼三十 · 红A二十 · 凑十成对", 0, 145, 16, C.cream);
+    const panel = this.panel("Lobby", 420, 560);
+    this.makeLabel(panel, "捡红点", 0, 210, 42, C.gold);
+    this.makeLabel(panel, "出手牌凑十吃红分 · 红鬼最大", 0, 165, 16, C.cream);
 
-    this.makeLabel(panel, "昵称", -140, 95, 18, C.goldDim);
-    this.nameBox = this.makeEdit(panel, 0, 90, 260, 40, "请输入昵称");
+    this.makeLabel(panel, "昵称", -140, 110, 18, C.goldDim);
+    this.nameBox = this.makeEdit(panel, 0, 105, 260, 40, "请输入昵称");
     try {
       this.nameBox.string = localStorage.getItem("jhd.name") || "";
     } catch {
       /* ignore */
     }
 
-    this.makeLabel(panel, "人数", -140, 35, 18, C.goldDim);
+    this.makeLabel(panel, "人数", -140, 50, 18, C.goldDim);
     [2, 3, 4].forEach((n, i) => {
       const x = -80 + i * 90;
-      const btn = this.makeBtn(panel, `${n} 人`, x, 30, 80, 36, () => {
+      const btn = this.makeBtn(panel, `${n} 人`, x, 45, 80, 36, () => {
         this.count = n;
         this.countLabels.forEach((l, j) => {
           l.color = j === i ? C.seal : C.cream;
@@ -207,13 +287,13 @@ export class LobbyUI {
       if (n === 4) lbl.color = C.seal;
     });
 
-    this.makeBtn(panel, "快速匹配", 0, -30, 280, 44, () =>
+    this.makeBtn(panel, "快速匹配", 0, -15, 280, 44, () =>
       this.cb.onMatch(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "创建房间", -75, -90, 130, 40, () =>
+    this.makeBtn(panel, "创建房间", -75, -75, 130, 40, () =>
       this.cb.onCreate(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "输房号加入", 75, -90, 130, 40, () => {
+    this.makeBtn(panel, "输房号加入", 75, -75, 130, 40, () => {
       const code = (this.codeBox.string || "").trim();
       if (!code) {
         this.toast("请先填写房号");
@@ -221,7 +301,7 @@ export class LobbyUI {
       }
       this.cb.onJoin(this.playerName(), code);
     });
-    this.makeBtn(panel, "房号观战", -75, -140, 130, 40, () => {
+    this.makeBtn(panel, "房号观战", -75, -125, 130, 40, () => {
       const code = (this.codeBox.string || "").trim();
       if (!code) {
         this.toast("请先填写房号");
@@ -229,12 +309,13 @@ export class LobbyUI {
       }
       this.cb.onSpectate(this.playerName(), code);
     });
-    this.makeBtn(panel, "账号绑定", 75, -140, 130, 40, () =>
+    this.makeBtn(panel, "账号绑定", 75, -125, 130, 40, () =>
       this.cb.onAccount()
     );
 
-    this.makeLabel(panel, "房号", -140, -190, 18, C.goldDim);
-    this.codeBox = this.makeEdit(panel, 20, -195, 200, 36, "6位房号");
+    this.makeLabel(panel, "房号", -140, -175, 18, C.goldDim);
+    this.codeBox = this.makeEdit(panel, 20, -180, 200, 36, "6位房号");
+    this.makeBtn(panel, "查看规则", 0, -230, 120, 32, () => this.show("rules"));
     return panel;
   }
 
@@ -323,17 +404,58 @@ export class LobbyUI {
   }
 
   private buildResult(): Node {
-    const panel = this.panel("Result", 440, 400);
-    this.resultTitle = this.makeLabel(panel, "本局结算", 0, 150, 28, C.gold);
+    const panel = this.panel("Result", 440, 420);
+    this.resultTitle = this.makeLabel(panel, "本局结算", 0, 160, 28, C.gold);
+    this.resultDots = new Node("Dots");
+    this.resultDots.layer = Layers.Enum.UI_2D;
+    panel.addChild(this.resultDots);
+    this.resultDots.setPosition(new Vec3(0, 120, 0));
     this.resultList = new Node("ResultList");
     this.resultList.layer = Layers.Enum.UI_2D;
     panel.addChild(this.resultList);
-    const again = this.makeBtn(panel, "再来一局", -80, -150, 150, 40, () =>
+    const again = this.makeBtn(panel, "再来一局", -80, -160, 150, 40, () =>
       this.cb.onAgain()
     );
     this.againLbl = again.getComponentInChildren(Label)!;
-    this.exitBtn = this.makeBtn(panel, "返回大厅", 90, -150, 130, 40, () =>
+    this.exitBtn = this.makeBtn(panel, "返回大厅", 90, -160, 130, 40, () =>
       this.cb.onExit()
+    );
+    return panel;
+  }
+
+  private buildGuide(): Node {
+    const panel = this.panel("Guide", 460, 360);
+    this.makeLabel(panel, "怎么玩", 0, 130, 28, C.gold);
+    const lines = [
+      "1. 目标：吃红色分牌，比底分（240÷人数）高就赢",
+      "2. 配对：A~9 凑成 10；10/J/Q/K 同点；大小王互吃",
+      "3. 操作：点手牌 → 有目标则吃，无目标再点一次弃牌",
+      "4. 每回合出手牌后再翻牌堆，能吃也要吃",
+    ];
+    lines.forEach((t, i) =>
+      this.makeLabel(panel, t, 0, 70 - i * 36, 16, C.cream)
+    );
+    this.makeBtn(panel, "知道了，开打", 0, -140, 200, 40, () =>
+      this.cb.onGuideOk()
+    );
+    return panel;
+  }
+
+  private buildRules(): Node {
+    const panel = this.panel("Rules", 480, 420);
+    this.makeLabel(panel, "玩法规则", 0, 160, 28, C.gold);
+    const lines = [
+      "牌：54 张含大小王。手牌 24 张均分，桌面 6 张，牌堆 24。",
+      "配对：A~9 相加为 10；10/J/Q/K 同点；大小王互配。",
+      "流程：出手牌 → 能配必吃 → 翻牌堆同样能配必吃 → 下家。",
+      "计分：红鬼 30，红 A 20，红 9~K 各 10，红 2~8 按面值。",
+      "胜负：得分 − 底分（240÷人数），正为赢、负为输。",
+    ];
+    lines.forEach((t, i) =>
+      this.makeLabel(panel, t, 0, 100 - i * 42, 15, C.cream)
+    );
+    this.makeBtn(panel, "明白了", 0, -170, 140, 40, () =>
+      this.cb.onRulesClose()
     );
     return panel;
   }

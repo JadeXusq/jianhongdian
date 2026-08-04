@@ -41,6 +41,7 @@ export class GameEntry extends Component {
   private tableVisible = false;
   private matchBusy = false;
   private aiDifficulty: "easy" | "normal" | "hard" = "normal";
+  private showCaptured = false;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -95,11 +96,32 @@ export class GameEntry extends Component {
         this.ui.show("room");
       },
       onExit: () => this.guard(() => this.doQuit()),
+      onGuideOk: () => {
+        try {
+          localStorage.setItem("jhd.guided", "1");
+        } catch {
+          /* ignore */
+        }
+        this.ui.show("none");
+        this.ui.setHelpVisible(true);
+        this.ui.setEmotesVisible(true);
+      },
+      onRulesClose: () => {
+        if (this.net.state?.phase === "PLAYING") {
+          this.ui.show("none");
+          this.ui.setHelpVisible(true);
+          this.ui.setEmotesVisible(true);
+        } else {
+          this.ui.show(this.net.room ? "room" : "lobby");
+        }
+      },
     });
 
     void loadCardAtlas().then((ok) => {
       if (ok) console.log("[card] 位图图集已加载");
     });
+
+    this.matchNode.setSiblingIndex(this.node.children.length - 1);
 
     const q =
       typeof location !== "undefined" ? location.search || "" : "";
@@ -297,12 +319,16 @@ export class GameEntry extends Component {
       if (state.phase === "WAITING") {
         this.setTableVisible(false);
         this.ui.setEmotesVisible(false);
+        this.ui.setHelpVisible(false);
         this.ui.renderRoom(state, this.net.room!.sessionId);
         if (!this.lastRound) this.ui.show("room");
       } else if (state.phase === "PLAYING") {
         this.setTableVisible(true);
-        this.ui.show("none");
-        this.ui.setEmotesVisible(true);
+        if (!this.ui.isOverlay()) {
+          this.ui.show("none");
+          this.ui.setEmotesVisible(true);
+          this.ui.setHelpVisible(true);
+        }
         this.syncSelection();
         this.hintText = this.net.spectating
           ? "观战中"
@@ -313,6 +339,7 @@ export class GameEntry extends Component {
             : "对手出牌中…";
       } else if (state.phase === "ROUND_OVER" && this.lastRound) {
         this.ui.setEmotesVisible(false);
+        this.ui.setHelpVisible(false);
         this.ui.renderResult(this.lastRound, state, this.net.mySeat);
         this.ui.show("result");
       }
@@ -324,10 +351,25 @@ export class GameEntry extends Component {
       this.discardArmed = -1;
       this.targets = [];
       this.lastRound = null;
+      this.showCaptured = false;
       this.hand = this.net.hand.slice();
       this.hintText = "新一轮开始";
       this.setTableVisible(true);
-      this.ui.show("none");
+      let guided = false;
+      try {
+        guided = localStorage.getItem("jhd.guided") === "1";
+      } catch {
+        /* ignore */
+      }
+      if (!guided) {
+        this.ui.show("guide");
+        this.ui.setEmotesVisible(false);
+        this.ui.setHelpVisible(false);
+      } else {
+        this.ui.show("none");
+        this.ui.setEmotesVisible(true);
+        this.ui.setHelpVisible(true);
+      }
       this.render();
     };
 
@@ -347,10 +389,15 @@ export class GameEntry extends Component {
         if (this.net.state) {
           this.ui.renderResult(r, this.net.state, this.net.mySeat);
           this.ui.show("result");
+          this.ui.setHelpVisible(false);
+          this.ui.setEmotesVisible(false);
         }
         if (!r.allDone) {
           setTimeout(() => {
-            if (this.lastRound === r && !r.allDone) this.ui.show("none");
+            if (this.lastRound === r && !r.allDone) {
+              this.ui.show("none");
+              this.ui.setHelpVisible(true);
+            }
           }, ROUND_RESULT_AUTO_MS);
         }
       };
@@ -366,13 +413,14 @@ export class GameEntry extends Component {
     };
 
     this.net.onEmote = (e) => {
-      this.ui.toast(`${e.name}：${e.id}`);
+      this.ui.showEmote(e.name, e.id);
     };
 
     this.net.onLeave = () => {
       if (this.lastRound) return;
       this.ui.toast("已断开连接");
       this.setTableVisible(false);
+      this.ui.setHelpVisible(false);
       this.ui.show("lobby");
     };
   }
@@ -383,9 +431,31 @@ export class GameEntry extends Component {
     this.matchNode.removeAllChildren();
     this.matchNode.active = true;
 
+    const hit = new Node("MatchHit");
+    hit.layer = Layers.Enum.UI_2D;
+    this.matchNode.addChild(hit);
+    hit.addComponent(UITransform).setContentSize(
+      new Size(DESIGN.width, DESIGN.height)
+    );
+    hit.on(Node.EventType.TOUCH_END, () => this.clearMatch());
+
     const gain = cardScore(cardId) + cardScore(targetId);
     const w = TABLE_CARD_W * 1.3;
     const h = w * CARD_RATIO;
+
+    const spark = new Node("Spark");
+    spark.layer = Layers.Enum.UI_2D;
+    this.matchNode.addChild(spark);
+    const sg = spark.addComponent(Graphics);
+    const n = gain >= 30 ? 14 : 8;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2;
+      const rad = 50 + (i % 3) * 12;
+      sg.fillColor = i % 2 ? C.gold : new Color(255, 243, 196);
+      sg.circle(Math.cos(ang) * rad, Math.sin(ang) * rad * 0.55 + 20, 3);
+      sg.fill();
+    }
+
     const left = createCard(cardId, w);
     const right = createCard(targetId, w);
     left.setPosition(new Vec3(-w - 10, h / 2, 0));
@@ -400,6 +470,15 @@ export class GameEntry extends Component {
       28,
       C.gold,
       true
+    );
+    addLabel(
+      this.matchNode,
+      "点击跳过",
+      0,
+      -h / 2 - 28,
+      16,
+      new Color(243, 234, 214, 160),
+      false
     );
 
     this.render();
@@ -466,15 +545,30 @@ export class GameEntry extends Component {
   private renderTable(): void {
     this.tableNode.removeAllChildren();
     const table: number[] = this.net.state ? [...this.net.state.table] : [];
-    if (!table.length) return;
-    const cols = Math.min(9, Math.max(1, table.length));
+    const cols = Math.min(9, Math.max(1, table.length || 1));
     const gap = 12;
-    const rows = Math.ceil(table.length / cols);
+    const rows = Math.max(1, Math.ceil(table.length / cols));
     const rowH = TABLE_CARD_W * CARD_RATIO + gap;
     const totalH = rows * rowH - gap;
-    const startY = totalH / 2;
+    const startY = totalH / 2 - 20;
     const choosing =
       this.net.state?.turnPhase === "CHOOSE_STOCK_TARGET" && this.myTurn();
+    const pending = this.net.state?.pendingStockCard as number;
+
+    if (choosing && pending >= 0) {
+      const pend = createCard(pending, TABLE_CARD_W, { selected: true });
+      pend.setPosition(new Vec3(-TABLE_CARD_W / 2, DESIGN.height / 2 - 140, 0));
+      this.tableNode.addChild(pend);
+      addLabel(
+        this.tableNode,
+        "选择要吃的牌",
+        0,
+        DESIGN.height / 2 - 100,
+        22,
+        C.gold,
+        true
+      );
+    }
 
     table.forEach((id, i) => {
       const row = Math.floor(i / cols);
@@ -514,8 +608,10 @@ export class GameEntry extends Component {
     this.hand.forEach((id, i) => {
       const k = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
       const lift = this.selected === id ? 22 : 0;
+      const discarding = this.discardArmed === id;
       const card = createCard(id, HAND_W, {
-        selected: this.selected === id,
+        selected: this.selected === id && !discarding,
+        discard: discarding,
         dim: !canPlay,
       });
       card.setPosition(
@@ -532,25 +628,170 @@ export class GameEntry extends Component {
     const players = state ? ([...state.players.values()] as any[]) : [];
     const me = players.find((p) => p.seat === this.net.mySeat);
     const others = players.filter((p) => p.seat !== this.net.mySeat);
-    const myPts = me?.points ?? 0;
-    const otherTxt = others
-      .map((p) => `${p.name}${p.isAi ? "(AI)" : ""} ${p.points}分`)
-      .join(" | ");
+    const count = players.length;
+
+    // 2 人对手面板偏右，避免挡桌面中央
+    others.forEach((p, idx) => {
+      let x = 0;
+      let y = DESIGN.height / 2 - 70;
+      if (count === 2) {
+        x = 220;
+        y = DESIGN.height / 2 - 58;
+      } else if (count === 3) {
+        x = idx === 0 ? DESIGN.width / 2 - 120 : -DESIGN.width / 2 + 120;
+        y = 40;
+      } else {
+        const slots = [
+          { x: DESIGN.width / 2 - 120, y: 40 },
+          { x: 0, y: DESIGN.height / 2 - 58 },
+          { x: -DESIGN.width / 2 + 120, y: 40 },
+        ];
+        const s = slots[idx] ?? slots[0];
+        x = s.x;
+        y = s.y;
+      }
+      this.drawPlayerPanel(
+        p,
+        x,
+        y,
+        state?.currentSeat === p.seat
+      );
+    });
+
+    if (me) {
+      this.drawPlayerPanel(me, -DESIGN.width / 2 + 120, -80, true);
+    }
+
     const code = state?.code ? `房 ${state.code}` : "";
-    const text = `${code}  我 ${myPts}分${otherTxt ? " | " + otherTxt : ""}  余 ${this.hand.length}张`;
-    addLabel(this.infoNode, text, 0, DESIGN.height / 2 - 40, 20, C.cream, true);
+    addLabel(
+      this.infoNode,
+      code,
+      0,
+      DESIGN.height / 2 - 28,
+      18,
+      C.goldDim,
+      true
+    );
+
+    if (me?.captured?.length) {
+      this.drawScoreBar(me);
+    }
 
     if (this.hintText && !this.lastRound) {
       addLabel(
         this.infoNode,
         this.hintText,
         0,
-        -DESIGN.height / 2 + HAND_W * CARD_RATIO + 70,
+        -DESIGN.height / 2 + HAND_W * CARD_RATIO + 78,
         18,
         C.seal,
         true
       );
     }
+  }
+
+  private drawPlayerPanel(
+    p: any,
+    x: number,
+    y: number,
+    active: boolean
+  ): void {
+    const gNode = new Node("Panel");
+    gNode.layer = Layers.Enum.UI_2D;
+    this.infoNode.addChild(gNode);
+    gNode.setPosition(new Vec3(x, y, 0));
+    const g = gNode.addComponent(Graphics);
+    g.fillColor = new Color(8, 26, 20, 184);
+    g.roundRect(-88, -42, 176, 84, 12);
+    g.fill();
+    g.strokeColor = active ? C.gold : new Color(201, 169, 97, 80);
+    g.lineWidth = active ? 2 : 1;
+    g.roundRect(-88, -42, 176, 84, 12);
+    g.stroke();
+    addLabel(
+      gNode,
+      `${p.name}${p.isAi ? " ·电脑" : ""}`,
+      0,
+      16,
+      17,
+      C.cream,
+      true
+    );
+    addLabel(gNode, `${p.points} 分`, 0, -6, 15, C.cream);
+    addLabel(
+      gNode,
+      `余 ${p.handCount ?? "?"} 张`,
+      0,
+      -26,
+      13,
+      new Color(243, 234, 214, 160)
+    );
+  }
+
+  private drawScoreBar(me: any): void {
+    const cards: number[] = [...me.captured];
+    const score = me.points ?? 0;
+    const bar = new Node("ScoreBar");
+    bar.layer = Layers.Enum.UI_2D;
+    this.infoNode.addChild(bar);
+    const y = -DESIGN.height / 2 + HAND_W * CARD_RATIO + 110;
+    bar.setPosition(new Vec3(0, y, 0));
+    bar.addComponent(UITransform).setContentSize(new Size(180, 36));
+    const g = bar.addComponent(Graphics);
+    g.fillColor = new Color(8, 26, 20, 184);
+    g.roundRect(-90, -18, 180, 36, 10);
+    g.fill();
+    g.strokeColor = C.goldDim;
+    g.lineWidth = 1;
+    g.roundRect(-90, -18, 180, 36, 10);
+    g.stroke();
+    addLabel(
+      bar,
+      `得分 ${score} · ${cards.length}张`,
+      0,
+      0,
+      15,
+      C.cream,
+      true
+    );
+    bar.on(Node.EventType.TOUCH_END, () => {
+      this.showCaptured = !this.showCaptured;
+      this.render();
+    });
+
+    if (!this.showCaptured) return;
+    const cw = 44;
+    const gap = 6;
+    const cols = Math.min(cards.length, 8);
+    const rows = Math.ceil(cards.length / cols);
+    const panelW = cols * (cw + gap) + 16;
+    const panelH = rows * (cw * CARD_RATIO + gap) + 36;
+    const panel = new Node("CapPanel");
+    panel.layer = Layers.Enum.UI_2D;
+    this.infoNode.addChild(panel);
+    panel.setPosition(new Vec3(0, y + panelH / 2 + 24, 0));
+    const pg = panel.addComponent(Graphics);
+    pg.fillColor = new Color(8, 26, 20, 235);
+    pg.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
+    pg.fill();
+    pg.strokeColor = C.gold;
+    pg.lineWidth = 1.5;
+    pg.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
+    pg.stroke();
+    addLabel(panel, "已吃牌（再点关闭）", 0, panelH / 2 - 16, 14, C.gold, true);
+    cards.forEach((id, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const c = createCard(id, cw);
+      c.setPosition(
+        new Vec3(
+          -panelW / 2 + 8 + col * (cw + gap),
+          panelH / 2 - 28 - row * (cw * CARD_RATIO + gap),
+          0
+        )
+      );
+      panel.addChild(c);
+    });
   }
 
   onPickHand(id: number): void {
@@ -563,7 +804,8 @@ export class GameEntry extends Component {
       this.discardArmed = id;
       this.selected = id;
       this.targets = [];
-      this.hintText = "该牌无可吃目标，再点一次确认打出";
+      this.hintText = "无可吃目标 — 再点一次弃牌";
+      this.ui.toast("再点一次确认弃牌");
       this.render();
       return;
     }

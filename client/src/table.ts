@@ -48,6 +48,9 @@ interface Popup {
   text: string;
   at: Pt;
   t: number;
+  sparkle?: boolean;
+  hint?: boolean;
+  gain?: number;
 }
 
 /** 一个动画步骤，按顺序播放，让玩家看清每次吃牌 */
@@ -63,6 +66,7 @@ interface Step {
 export interface TableCallbacks {
   onPickHand(cardId: number): void;
   onPickTable(cardId: number): void;
+  onToggleCaptured?(): void;
 }
 
 export class TableView {
@@ -82,6 +86,9 @@ export class TableView {
   private steps: Step[] = [];
   private current: Step | null = null;
   private hidden = new Set<number>();
+  private animClock = 0;
+  private capturedHit: { x: number; y: number; w: number; h: number } | null =
+    null;
 
   /** 由外部每帧提供的渲染数据 */
   state: any = null;
@@ -89,6 +96,10 @@ export class TableView {
   mySeat = 0;
   selected = -1;
   targets: number[] = [];
+  /** 弃牌二次确认中的牌 id，-1 表示无 */
+  discardArmed = -1;
+  /** 展开得分堆明细 */
+  showCaptured = false;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -97,9 +108,9 @@ export class TableView {
     canvas.addEventListener("pointerdown", (e) => this.onPointer(e));
   }
 
-  /** 桌面明牌区：左右给对手面板和牌堆留位，其余横向铺满 */
+  /** 桌面明牌区：顶部给对手面板留白，避免与桌面牌重叠 */
   private get area() {
-    return { x: 236, y: 148, w: this.w - 472, h: 300 };
+    return { x: 236, y: 168, w: this.w - 472, h: 280 };
   }
 
   private resize(): void {
@@ -142,6 +153,20 @@ export class TableView {
     }
     const x = (sx - this.pad.x) / this.scale;
     const y = (sy - this.pad.y) / this.scale;
+
+    if (this.animating) {
+      this.skipHold();
+      return;
+    }
+
+    if (this.capturedHit) {
+      const h = this.capturedHit;
+      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
+        this.cb.onToggleCaptured?.();
+        return;
+      }
+    }
+
     // 手牌在上层，优先命中；同层从右往左（后绘制的在上）
     const hit = (slots: Map<number, Slot>) => {
       const entries = [...slots.entries()].reverse();
@@ -155,10 +180,18 @@ export class TableView {
           return id;
       return -1;
     };
-    const h = hit(this.handSlots);
-    if (h >= 0) return this.cb.onPickHand(h);
+    const handId = hit(this.handSlots);
+    if (handId >= 0) return this.cb.onPickHand(handId);
     const t = hit(this.tableSlots);
     if (t >= 0) this.cb.onPickTable(t);
+  }
+
+  /** 跳过当前步骤剩余停顿（MATCH 等） */
+  skipHold(): void {
+    if (!this.current) return;
+    const flying = this.current.flies.some((f) => f.t < f.dur);
+    if (flying) return;
+    this.current.hold = 0;
   }
 
   /** 把服务器事件转成动画步骤 */
@@ -195,7 +228,7 @@ export class TableView {
         continue;
       }
 
-      // 吃牌：出的牌飞向目标位置，然后两张牌居中展示 5 秒（match），再飞入得分堆
+      // 吃牌：出的牌飞向目标 → 居中 MATCH → 飞入得分堆
       const targetSlot = this.tableSlots.get(ev.target) ?? {
         x: this.w / 2,
         y: this.area.y + 100,
@@ -218,10 +251,10 @@ export class TableView {
         hide: [ev.card, ev.target],
         hold: FLY_TARGET_HOLD_S,
       });
-      // 第 2 步：两张牌飞到屏幕正中展示，停 5 秒
+      // 第 2 步：两张牌飞到屏幕正中展示
       const centerX = this.w / 2;
       const centerY = H / 2;
-      const matchW = TABLE_CARD_W * 1.3; // 稍微放大突出展示
+      const matchW = TABLE_CARD_W * 1.3;
       this.steps.push({
         flies: [
           {
@@ -243,19 +276,24 @@ export class TableView {
             faceUp: true,
           },
         ],
-        popups:
-          gain > 0
-            ? [
-                {
-                  text: `MATCH! +${gain}`,
-                  at: {
-                    x: centerX,
-                    y: centerY - matchW * CARD_RATIO * 0.5 - 20,
-                  },
-                  t: 0,
-                },
-              ]
-            : [],
+        popups: [
+          {
+            text: gain > 0 ? `MATCH! +${gain}` : "MATCH!",
+            at: {
+              x: centerX,
+              y: centerY - matchW * CARD_RATIO * 0.5 - 20,
+            },
+            t: 0,
+            sparkle: true,
+            gain,
+          },
+          {
+            text: "点击跳过",
+            at: { x: centerX, y: centerY + matchW * CARD_RATIO * 0.55 + 28 },
+            t: 0,
+            hint: true,
+          },
+        ],
         hide: [ev.card, ev.target],
         hold: MATCH_HOLD_S,
       });
@@ -293,6 +331,7 @@ export class TableView {
   }
 
   private stepAnim(dt: number): void {
+    this.animClock += dt;
     if (!this.current) {
       this.current = this.steps.shift() ?? null;
       this.hidden = new Set(this.current?.hide ?? []);
@@ -306,7 +345,6 @@ export class TableView {
     }
     for (const p of s.popups) p.t += dt;
     if (!done) return;
-    // 飞行完成后再停留 hold 秒，每一手牌都看得清
     s.hold -= dt;
     if (s.hold <= 0) {
       this.current = null;
@@ -400,7 +438,7 @@ export class TableView {
     const mid = this.w / 2;
     // 自己的面板放在左侧偏下，避开手牌区域
     if (rel === 0) return { x: 108, y: 474 };
-    if (count === 2) return { x: mid, y: 62 };
+    if (count === 2) return { x: mid + 220, y: 58 };
     if (count === 3)
       return rel === 1 ? { x: right, y: 300 } : { x: 108, y: 300 };
     return rel === 1
@@ -483,20 +521,18 @@ export class TableView {
       const isTarget = this.targets.includes(id);
       drawCard(ctx, id, s.x, s.y, s.w, {
         highlight: isTarget,
+        pulse: isTarget ? this.animClock : undefined,
         dim: (this.selected >= 0 || choosing) && !isTarget,
       });
     }
-    // 翻出待选目标的牌悬在桌面上方
     if (choosing && pending >= 0) {
-      const area = this.area;
-      const x = area.x + area.w / 2 - TABLE_CARD_W / 2;
-      drawCard(ctx, pending, x, area.y - 104, TABLE_CARD_W, {
-        selected: true,
-      });
+      const x = this.w / 2 - TABLE_CARD_W / 2;
+      const y = 118;
+      drawCard(ctx, pending, x, y, TABLE_CARD_W, { selected: true });
       ctx.fillStyle = C.gold;
       ctx.textAlign = "center";
-      ctx.font = `600 18px "Songti SC", serif`;
-      ctx.fillText("选择要吃的牌", x + TABLE_CARD_W / 2, area.y - 116);
+      ctx.font = `700 22px "Songti SC", serif`;
+      ctx.fillText("选择要吃的牌", this.w / 2, y - 18);
     }
   }
 
@@ -505,40 +541,79 @@ export class TableView {
     for (const [id, s] of this.handSlots) {
       if (this.hidden.has(id)) continue;
       drawCard(ctx, id, s.x, s.y, s.w, {
-        selected: this.selected === id,
+        selected: this.selected === id && this.discardArmed !== id,
+        discard: this.discardArmed === id,
         dim: !myTurn,
       });
     }
-    // 得分堆：在手牌上方展示已吃到的牌
     this.drawCaptured(ctx);
   }
 
-  /** 已吃到的牌展示（手牌上方，缩小牌面排列） */
+  /** 得分堆：默认显示总分，点击展开已吃牌 */
   private drawCaptured(ctx: CanvasRenderingContext2D): void {
-    const me = [...this.state.players.values()].find((p: any) => p.seat === this.mySeat) as any;
+    this.capturedHit = null;
+    const me = [...this.state.players.values()].find(
+      (p: any) => p.seat === this.mySeat
+    ) as any;
     if (!me || !me.captured || me.captured.length === 0) return;
     const cards: number[] = [...me.captured];
-    const cw = 36; // 得分堆牌尺寸更小
-    const gap = 4;
-    const step = Math.min(cw + gap, (this.w - 100) / cards.length);
-    const totalW = step * (cards.length - 1) + cw;
-    const startX = (this.w - totalW) / 2;
-    const y = H - HAND_W * CARD_RATIO - 30 - cw * CARD_RATIO - 16; // 手牌上方
-    // 背景条
+    const score = me.points ?? cards.reduce((s, id) => s + cardScore(id), 0);
+    const barW = 168;
+    const barH = 36;
+    const x = (this.w - barW) / 2;
+    const y = H - HAND_W * CARD_RATIO - 78;
+    this.capturedHit = { x, y, w: barW, h: barH };
+
     ctx.save();
-    roundRect(ctx, startX - 8, y - 4, totalW + 16, cw * CARD_RATIO + 8, 6);
-    ctx.fillStyle = 'rgba(8,26,20,0.5)';
+    roundRect(ctx, x, y, barW, barH, 10);
+    ctx.fillStyle = "rgba(8,26,20,0.72)";
     ctx.fill();
-    ctx.restore();
-    // 画每张小牌
-    cards.forEach((id, i) => {
-      drawCard(ctx, id, startX + i * step, y, cw);
-    });
-    // 标签
+    ctx.strokeStyle = C.goldDim;
+    ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.fillStyle = C.cream;
-    ctx.textAlign = 'left';
-    ctx.font = `13px "Helvetica Neue", Arial, sans-serif`;
-    ctx.fillText(`得分堆 (${cards.length}张)`, startX, y - 10);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `600 15px "Helvetica Neue", Arial, sans-serif`;
+    ctx.fillText(
+      `得分 ${score} · ${cards.length}张`,
+      x + barW / 2,
+      y + barH / 2
+    );
+    ctx.restore();
+
+    if (!this.showCaptured) return;
+    const cw = 44;
+    const gap = 6;
+    const cols = Math.min(cards.length, 8);
+    const rows = Math.ceil(cards.length / cols);
+    const panelW = cols * (cw + gap) + 16;
+    const panelH = rows * (cw * CARD_RATIO + gap) + 36;
+    const px = (this.w - panelW) / 2;
+    const py = Math.max(80, y - panelH - 12);
+    ctx.save();
+    roundRect(ctx, px, py, panelW, panelH, 12);
+    ctx.fillStyle = "rgba(8,26,20,0.92)";
+    ctx.fill();
+    ctx.strokeStyle = C.gold;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = C.gold;
+    ctx.textAlign = "center";
+    ctx.font = `600 14px "Songti SC", serif`;
+    ctx.fillText("已吃牌（再点关闭）", px + panelW / 2, py + 18);
+    cards.forEach((id, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      drawCard(
+        ctx,
+        id,
+        px + 8 + col * (cw + gap),
+        py + 28 + row * (cw * CARD_RATIO + gap),
+        cw
+      );
+    });
+    ctx.restore();
   }
 
   private drawPanels(ctx: CanvasRenderingContext2D): void {
@@ -619,7 +694,49 @@ export class TableView {
       );
     }
     for (const p of s.popups) {
+      if (p.hint) {
+        const flying = s.flies.some((f) => f.t < f.dur);
+        if (flying || s.hold <= 0) continue;
+        ctx.save();
+        ctx.globalAlpha = 0.55 + 0.25 * Math.sin(this.animClock * 4);
+        ctx.fillStyle = C.cream;
+        ctx.textAlign = "center";
+        ctx.font = `14px "Helvetica Neue", Arial, sans-serif`;
+        ctx.fillText(p.text, p.at.x, p.at.y);
+        ctx.restore();
+        continue;
+      }
       const k = Math.min(1, p.t / 0.7);
+      if (p.sparkle) {
+        const n = (p.gain ?? 0) >= 30 ? 14 : 8;
+        for (let i = 0; i < n; i++) {
+          const ang = (i / n) * Math.PI * 2 + p.t * 2.2;
+          const rad = 28 + p.t * 48 + (i % 3) * 10;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 0.85 - p.t * 0.35);
+          ctx.fillStyle = i % 2 ? C.gold : "#fff3c4";
+          ctx.beginPath();
+          ctx.arc(
+            p.at.x + Math.cos(ang) * rad,
+            p.at.y + 10 + Math.sin(ang) * rad * 0.55,
+            2.2 + (i % 3),
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.save();
+        ctx.shadowColor = C.gold;
+        ctx.shadowBlur = 18;
+        ctx.globalAlpha = 1 - k * k * 0.35;
+        ctx.fillStyle = C.gold;
+        ctx.textAlign = "center";
+        ctx.font = `700 34px "Helvetica Neue", Arial, sans-serif`;
+        ctx.fillText(p.text, p.at.x, p.at.y - 24 - k * 28);
+        ctx.restore();
+        continue;
+      }
       ctx.save();
       ctx.globalAlpha = 1 - k * k;
       ctx.fillStyle = C.gold;

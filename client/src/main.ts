@@ -27,15 +27,26 @@ void loadCardAtlas();
 const view = new TableView($<HTMLCanvasElement>("table"), {
   onPickHand: (id) => pickHand(id),
   onPickTable: (id) => pickTable(id),
+  onToggleCaptured: () => {
+    view.showCaptured = !view.showCaptured;
+  },
 });
 
 // ---------- 界面切换 ----------
 
 function show(
-  id: "lobby" | "room" | "result" | "rules" | "rank" | "account" | "none"
+  id:
+    | "lobby"
+    | "room"
+    | "result"
+    | "rules"
+    | "rank"
+    | "account"
+    | "guide"
+    | "none"
 ): void {
-  ["lobby", "room", "result", "rules", "rank", "account"].forEach((s) =>
-    $(s).classList.toggle("hidden", s !== id)
+  ["lobby", "room", "result", "rules", "rank", "account", "guide"].forEach(
+    (s) => $(s).classList.toggle("hidden", s !== id)
   );
 }
 
@@ -139,7 +150,15 @@ $("btn-spectate").onclick = () =>
   });
 
 $("btn-rules").onclick = () => show("rules");
-$("btn-rules-close").onclick = () => show(net.room ? "room" : "lobby");
+$("btn-rules-close").onclick = () => {
+  if (net.state?.phase === "PLAYING") show("none");
+  else show(net.room ? "room" : "lobby");
+};
+$("btn-guide-ok").onclick = () => {
+  localStorage.setItem("jhd.guided", "1");
+  show("none");
+};
+$("btn-help").onclick = () => show("rules");
 
 $("btn-rank").onclick = () =>
   guard(async () => {
@@ -279,17 +298,30 @@ function renderResult(r: RoundOver): void {
     .map((p) => ({ p, points: r.points[p.seat], net: r.net[p.seat] }))
     .sort((a, b) => b.net - a.net);
 
-  // 标题：显示轮次进度
   const title = $("result").querySelector(".title") as HTMLElement;
+  const winner = rows[0];
+  const iWin = winner?.p.seat === net.mySeat && winner.net >= 0;
   title.textContent = r.allDone
-    ? `最终结算（${r.totalRounds} 轮总分）`
+    ? iWin
+      ? "最终结算 · 胜"
+      : `最终结算（${r.totalRounds} 轮）`
     : `第 ${r.round} / ${r.totalRounds} 轮`;
+
+  const dots = $("result-dots");
+  if (dots) {
+    dots.innerHTML = Array.from({ length: r.totalRounds }, (_, i) => {
+      const on = i < r.round;
+      return `<span class="dot${on ? " on" : ""}"></span>`;
+    }).join("");
+  }
 
   $("result-list").innerHTML = rows
     .map(
       (row, i) => `
-      <div class="res${row.p.seat === net.mySeat ? " me" : ""}">
-        <span class="rank">${i + 1}</span>
+      <div class="res${row.p.seat === net.mySeat ? " me" : ""}${
+        i === 0 ? " top" : ""
+      }">
+        <span class="rank">${i === 0 ? "胜" : i + 1}</span>
         <span class="who">${row.p.name}${row.p.isAi ? " · 电脑" : ""}</span>
         <span class="calc">${row.points} − ${r.base}${
         r.allDone ? " | 总 " + row.p.totalNet : ""
@@ -301,7 +333,6 @@ function renderResult(r: RoundOver): void {
     )
     .join("");
 
-  // 未打完时按钮文案变为“继续下一轮”，并 3 秒后自动关闭弹窗回到牌桌
   const btnAgain = $<HTMLButtonElement>("btn-again");
   const btnExit = $<HTMLButtonElement>("btn-exit");
   if (r.allDone) {
@@ -310,7 +341,6 @@ function renderResult(r: RoundOver): void {
   } else {
     btnAgain.textContent = `继续下一轮 (${r.round}/${r.totalRounds})`;
     btnExit.style.display = "none";
-    // 3 秒后自动关闭结算弹窗（服务器会自动开下一轮）
     setTimeout(() => {
       if (shown("result")) show("none");
     }, ROUND_RESULT_AUTO_MS);
@@ -332,12 +362,12 @@ function pickHand(id: number): void {
 
   if (targets.length === 1) return send(id, targets[0]);
   if (targets.length === 0) {
-    // 二次点击同一张牌才真正弃牌
     if (discardArmed === id) return send(id);
     discardArmed = id;
     selected = id;
     syncSelection();
-    hint("该牌无可吃目标，再点一次确认打出");
+    hint("无可吃目标 — 再点一次弃牌");
+    toast("再点一次确认弃牌");
     return;
   }
   selected = id;
@@ -358,7 +388,7 @@ function pickTable(id: number): void {
 
 function send(cardId: number, targetId?: number): void {
   net.play(cardId, targetId);
-  net.hand = net.hand.filter((c) => c !== cardId); // 本地先移除，避免重复点击
+  net.hand = net.hand.filter((c) => c !== cardId);
   selected = -1;
   discardArmed = -1;
   syncSelection();
@@ -368,6 +398,7 @@ function send(cardId: number, targetId?: number): void {
 /** 同步选中态与可吃目标高亮 */
 function syncSelection(): void {
   view.selected = selected;
+  view.discardArmed = discardArmed;
   const state = net.state;
   if (!state) {
     view.targets = [];
@@ -393,22 +424,32 @@ net.onState = (state) => {
   if (state.phase === "WAITING") {
     renderRoom(state);
     $("emotes").classList.add("hidden");
-    if (!shown("result") && !shown("rules") && !shown("rank")) show("room");
+    $("btn-help").classList.add("hidden");
+    if (
+      !shown("result") &&
+      !shown("rules") &&
+      !shown("rank") &&
+      !shown("guide")
+    )
+      show("room");
   } else if (state.phase === "PLAYING") {
-    if (shown("rules") || shown("rank")) return;
-    show("none");
-    $("emotes").classList.remove("hidden");
+    const overlay = shown("rules") || shown("rank") || shown("guide");
+    if (!overlay) show("none");
+    $("emotes").classList.toggle("hidden", overlay);
+    $("btn-help").classList.toggle("hidden", overlay);
     const mine = myTurn();
     if (mine && !wasMyTurn) sfx.turn();
     wasMyTurn = mine;
-    if (net.spectating) hint("观战中");
-    else if (mine)
-      hint(
-        state.turnPhase === "CHOOSE_STOCK_TARGET"
-          ? "翻牌可吃，请选择目标"
-          : "轮到你出牌"
-      );
-    else hint(null);
+    if (!overlay) {
+      if (net.spectating) hint("观战中");
+      else if (mine)
+        hint(
+          state.turnPhase === "CHOOSE_STOCK_TARGET"
+            ? "翻牌可吃，请选择目标"
+            : "轮到你出牌"
+        );
+      else hint(null);
+    }
   }
   syncSelection();
 };
@@ -417,14 +458,21 @@ net.onRoundStart = () => {
   selected = -1;
   discardArmed = -1;
   lastRound = null;
-  show("none");
+  view.showCaptured = false;
+  if (localStorage.getItem("jhd.guided") !== "1") {
+    show("guide");
+  } else {
+    show("none");
+  }
 };
 
 net.onEvents = (events) => {
   view.pushEvents(events);
   view.hand = net.hand;
   for (const ev of events) {
-    if (ev.target === undefined) sfx.playCard();
+    if (ev.target === undefined) sfx.discard();
+    else if (ev.type === "FLIP")
+      sfx.flipCapture(cardScore(ev.card) + cardScore(ev.target));
     else sfx.capture(cardScore(ev.card) + cardScore(ev.target));
   }
 };
@@ -447,13 +495,22 @@ $("emotes").addEventListener("click", (e) => {
   if (id) net.emote(id);
 });
 
+const EMOTE_ICON: Record<string, string> = {
+  加油: "💪",
+  好棋: "👏",
+  厉害: "👍",
+  等等: "⏳",
+  哈哈哈: "😄",
+};
+
 let emoteTimer = 0;
 net.onEmote = (e) => {
   const el = $("emote-bubble");
-  el.textContent = `${e.name}：${e.id}`;
+  const icon = EMOTE_ICON[e.id] ?? "💬";
+  el.textContent = `${icon} ${e.name}：${e.id}`;
   el.classList.remove("hidden");
   clearTimeout(emoteTimer);
-  emoteTimer = window.setTimeout(() => el.classList.add("hidden"), 2200);
+  emoteTimer = window.setTimeout(() => el.classList.add("hidden"), 3000);
 };
 
 net.onError = (msg) => {

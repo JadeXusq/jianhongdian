@@ -32,6 +32,10 @@ export interface CardStyle {
   dim?: boolean;
   highlight?: boolean;
   selected?: boolean;
+  /** 弃牌二次确认态：红色边框 */
+  discard?: boolean;
+  /** 可选目标脉冲高亮用时间戳（秒） */
+  pulse?: number;
 }
 
 interface AtlasMeta {
@@ -136,20 +140,40 @@ export function drawCard(
 
   ctx.save();
   roundRect(ctx, x, y, w, h, r);
-  if (style.selected) {
+  if (style.discard) {
+    ctx.strokeStyle = C.seal;
+    ctx.lineWidth = Math.max(3, w * 0.055);
+    ctx.shadowColor = C.seal;
+    ctx.shadowBlur = w * 0.25;
+  } else if (style.selected) {
     ctx.strokeStyle = C.seal;
     ctx.lineWidth = Math.max(2, w * 0.045);
   } else if (style.highlight) {
+    const pulse =
+      style.pulse !== undefined
+        ? 0.55 + 0.45 * Math.sin(style.pulse * Math.PI * 2)
+        : 1;
     ctx.strokeStyle = C.gold;
     ctx.lineWidth = Math.max(2, w * 0.045);
     ctx.shadowColor = C.gold;
-    ctx.shadowBlur = w * 0.3;
+    ctx.shadowBlur = w * 0.3 * pulse;
+    ctx.globalAlpha = 0.65 + 0.35 * pulse;
   } else {
     ctx.strokeStyle = faceUp ? "rgba(125,103,57,0.5)" : C.goldDim;
     ctx.lineWidth = Math.max(1, w * 0.018);
   }
   ctx.stroke();
   ctx.restore();
+
+  if (style.discard) {
+    ctx.save();
+    ctx.fillStyle = "rgba(184,53,43,0.78)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${w * 0.28}px "Songti SC", "STSong", serif`;
+    ctx.fillText("弃", x + w / 2, y + h / 2);
+    ctx.restore();
+  }
 }
 
 function blitAtlas(

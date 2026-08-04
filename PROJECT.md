@@ -181,15 +181,15 @@ games/
 | 参数 | 常量（`shared/src/timing.ts`） | 当前值 |
 |---|---|---|
 | 人类回合超时（超时 AI 代打） | `TURN_MS` | 60 秒 |
-| 服务器 AI 出牌间隔 | `AI_DELAY_MS` | 9 秒 |
+| 服务器 AI 出牌间隔 | `AI_DELAY_MS` | **2 秒**（另加吃牌动画垫时）|
 | 断线保留座位 | `RECONNECT_MS` | 60 秒 |
 | 默认总轮数 | `server/state.ts` `totalRounds` | 5（可配 1~20）|
 | Web 出牌飞向目标后停顿 | `FLY_TARGET_HOLD_S` | 0.3 秒 |
-| Web **MATCH 居中展示**停顿 | `MATCH_HOLD_S` | **5 秒** |
-| Web 飞入得分堆后停顿 | `FLY_PILE_HOLD_S` | 1.0 秒 |
-| 轮间结算弹窗自动关闭 | `ROUND_RESULT_AUTO_MS` | 3 秒 |
+| Web **MATCH 居中展示**停顿 | `MATCH_HOLD_S` | **2.2 秒**（可点击跳过）|
+| Web 飞入得分堆后停顿 | `FLY_PILE_HOLD_S` | 0.6 秒 |
+| 轮间结算弹窗自动关闭 | `ROUND_RESULT_AUTO_MS` | 5 秒 |
 
-**MATCH 动效**（用户重点需求）：吃牌成功后，两张牌飞到**屏幕正中央放大**，上方显示「MATCH! +得分」，**停留 5 秒**再飞入得分堆。此期间服务器 AI 不出牌（`AI_DELAY_MS` 9 秒 > 展示 5 秒 + 动画）。
+**MATCH 动效**：吃牌成功后两张牌居中放大，显示「MATCH! +得分」，停留约 2.2 秒（可点击跳过）再飞入得分堆。服务端 AI 会在吃牌动画估算时长 + `AI_DELAY_MS` 后再出牌。
 
 ---
 
@@ -311,6 +311,6 @@ PW=/tmp/jhd-shot/node_modules/playwright-core/index.js node tools/visualCheck.mj
 - **目标**：Cocos 大厅补「账号绑定」，对局中显示表情快捷栏（与 Web 一致）。
 - **验收**：✅ LobbyUI 已含账号页与表情栏；对局 `PLAYING` 时 `setEmotesVisible(true)`。
 
-### ✅ TODO-7 [P2] Cocos MATCH 动画 + AI 难度 UI
-- **目标**：Cocos 吃牌居中 MATCH 展示（`MATCH_HOLD_S`）；房间可选 AI 简单/普通/困难（Web+Cocos）。
-- **验收**：✅ `GameEntry.playMatch` 使用 `MATCH_HOLD_S`；房间难度选择后 `addAi(difficulty)`。
+### ✅ TODO-8 [P2] Cocos UX 对齐 Web 评审修复
+- **目标**：将 reviews 中 Web 端体验修复同步到 Cocos（引导、弃牌视觉、MATCH 跳过、得分堆、结算、表情气泡、2 人布局等）。
+- **验收**：✅ LobbyUI 含 guide/rules/表情气泡/结算圆点；GameEntry 含 MATCH 跳过与粒子、弃牌「弃」态、得分条展开、翻牌居中提示、2 人对手偏右。

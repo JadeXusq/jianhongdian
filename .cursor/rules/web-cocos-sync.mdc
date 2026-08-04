@@ -1,0 +1,25 @@
+---
+description: Web 与 Cocos 双端体验/交互改动必须同步
+alwaysApply: true
+---
+
+# Web ↔ Cocos 双端同步
+
+本仓库有两套客户端：`client/`（Web）与 `cocos/`（Cocos）。凡影响**玩法交互、节奏、大厅/房间/结算/引导、表情、布局反馈**的改动，必须两端同时落地，禁止只改一侧。
+
+## 同步范围
+
+| 类型 | Web | Cocos | 同步方式 |
+|------|-----|-------|----------|
+| 规则 / 节奏常量 | `shared/` | `cocos/.../rules/` | 改 `shared/` 后执行 `node tools/syncCocosLib.mjs` |
+| 联机协议 / API | `client/src/net.ts` | `cocos/.../Net.ts` | 接口同名同语义 |
+| 大厅/房间/结算/引导 UI | `client/index.html` + `main.ts` | `LobbyUI.ts` | 能力对齐（不必像素级一致） |
+| 牌桌交互与反馈 | `client/src/table.ts` + `main.ts` | `GameEntry.ts` + `CardNode.ts` | 行为对齐（弃牌态、MATCH 跳过、得分堆、选目标等） |
+| 音效 / BGM | `client/src/audio.ts` | （可选） | Web 有则优先实现；Cocos 无音频基建时可暂缓，但须在回复中标明 |
+
+## 执行要求
+
+1. 改 Web 交互/体验时，同一轮任务内补齐 Cocos；改 Cocos 时亦然。
+2. 改 `shared/src/timing.ts` 或规则后，必须跑 `node tools/syncCocosLib.mjs`。
+3. 若某能力因引擎限制无法对等实现，在回复中显式说明差距，不得静默漏改。
+4. 服务端权威逻辑只改 `server/` + `shared/`，两端客户端只发意图、只做展示。

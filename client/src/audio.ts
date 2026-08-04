@@ -65,6 +65,12 @@ class Sfx {
     src.start();
   }
 
+  /** 弃牌落桌：更低沉的放置音 */
+  discard(): void {
+    this.playCard();
+    this.tone(180, 0.14, "triangle", 0.06);
+  }
+
   /** 吃牌：清脆双音；高分牌额外加一段上行琶音 */
   capture(score: number): void {
     this.tone(880, 0.12, "triangle", 0.1);
@@ -74,6 +80,17 @@ class Sfx {
       this.tone(1318, 0.14, "sine", 0.09, 0.24);
       this.tone(1568, 0.28, "sine", 0.1, 0.32);
     }
+    if (score >= 30) {
+      this.tone(1760, 0.2, "sine", 0.08, 0.4);
+      this.tone(2093, 0.28, "sine", 0.07, 0.5);
+    }
+  }
+
+  /** 翻牌吃牌：略带翻页感再接吃牌音 */
+  flipCapture(score: number): void {
+    this.tone(420, 0.08, "square", 0.04);
+    this.tone(620, 0.1, "triangle", 0.05, 0.05);
+    this.capture(score);
   }
 
   /** 轮到自己 */
@@ -98,7 +115,8 @@ class Sfx {
     if (this.muted || !this.ctx || this.bgmTimer) return;
     const tick = () => {
       this.bgmNote();
-      this.bgmTimer = window.setTimeout(tick, 1600);
+      const gap = this.bgmStep % 32 < 16 ? 1500 : 1900;
+      this.bgmTimer = window.setTimeout(tick, gap);
     };
     tick();
   }
@@ -109,10 +127,13 @@ class Sfx {
   }
 
   private bgmNote(): void {
-    const scale = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25];
+    const A = [261.63, 293.66, 329.63, 392.0, 440.0];
+    const B = [293.66, 329.63, 392.0, 440.0, 523.25];
+    const scale = this.bgmStep % 32 < 16 ? A : B;
     const f = scale[Math.floor(Math.random() * scale.length)];
     this.pad(f, 2.8, 0.03);
     if (this.bgmStep % 4 === 0) this.pad(f / 2, 5, 0.022);
+    if (this.bgmStep % 32 === 16) this.pad(196.0, 4.5, 0.018);
     this.bgmStep++;
   }
 

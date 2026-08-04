@@ -16,6 +16,8 @@ import {
   TURN_MS,
   AI_DELAY_MS,
   RECONNECT_MS,
+  captureAnimMs,
+  discardAnimMs,
   parseAiDifficulty,
   type AiDifficulty,
 } from "@jhd/shared";
@@ -50,6 +52,8 @@ export class GameRoom extends Room<RoomState> {
   private aiLevels = new Map<number, AiDifficulty>();
   /** 观战者 sessionId */
   private spectators = new Set<string>();
+  /** 上一手客户端动画垫时，叠加到下一次 AI 出牌等待 */
+  private animPadMs = 0;
 
   onCreate(options: JoinOptions): void {
     const maxPlayers = clampPlayers(options.maxPlayers ?? 4);
@@ -255,6 +259,11 @@ export class GameRoom extends Room<RoomState> {
   }
 
   private afterMove(events: GameEvent[], seat: number): void {
+    this.animPadMs = events.reduce(
+      (sum, ev) =>
+        sum + (ev.target === undefined ? discardAnimMs() : captureAnimMs()),
+      0
+    );
     this.syncGame();
     this.sendHand(seat);
     if (events.length) this.broadcast("events", events);
@@ -268,7 +277,8 @@ export class GameRoom extends Room<RoomState> {
     const seat = g.currentPlayer;
     const p = this.playerBySeat(seat);
     const auto = !p || p.isAi || !p.connected;
-    const wait = auto ? AI_DELAY_MS : TURN_MS;
+    const wait = auto ? AI_DELAY_MS + this.animPadMs : TURN_MS;
+    this.animPadMs = 0;
 
     this.state.currentSeat = seat;
     this.state.turnPhase = g.phase as TurnPhase;

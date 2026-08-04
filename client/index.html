@@ -19,7 +19,7 @@
       <section id="lobby" class="screen">
         <div class="panel lobby-panel">
           <h1 class="title">捡红点</h1>
-          <p class="subtitle">红鬼三十 · 红A二十 · 凑十成对</p>
+          <p class="subtitle">出手牌凑十吃红分 · 红鬼最大</p>
           <label class="field">
             <span>昵称</span>
             <input id="name" maxlength="8" placeholder="请输入昵称" />
@@ -72,11 +72,26 @@
       <section id="result" class="screen hidden">
         <div class="panel result-panel">
           <h2 class="title small">本局结算</h2>
+          <div id="result-dots" class="result-dots"></div>
           <div id="result-list" class="result-list"></div>
           <div class="row">
             <button id="btn-again" class="btn primary">再来一局</button>
             <button id="btn-exit" class="btn">返回大厅</button>
           </div>
+        </div>
+      </section>
+
+      <!-- 首局引导 -->
+      <section id="guide" class="screen hidden">
+        <div class="panel guide-panel">
+          <h2 class="title small">怎么玩</h2>
+          <ol class="guide-list">
+            <li>目标：吃红色分牌，比底分（240÷人数）高就赢。</li>
+            <li>配对：A~9 凑成 10；10/J/Q/K 同点；大小王互吃。</li>
+            <li>操作：点手牌 → 有目标则吃，无目标再点一次弃牌。</li>
+            <li>每回合：出手牌后还会翻一张牌堆，能吃也要吃。</li>
+          </ol>
+          <button id="btn-guide-ok" class="btn primary">知道了，开打</button>
         </div>
       </section>
 
@@ -148,6 +163,7 @@
         <button data-e="哈哈哈">哈哈哈</button>
       </div>
       <div id="emote-bubble" class="emote-bubble hidden"></div>
+      <button id="btn-help" class="help hidden" title="规则">?</button>
       <button id="btn-mute" class="mute" title="音效">♪</button>
     </div>
 

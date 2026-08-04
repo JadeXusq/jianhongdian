@@ -38,6 +38,8 @@ export interface CardStyle {
   dim?: boolean;
   highlight?: boolean;
   selected?: boolean;
+  /** 弃牌二次确认 */
+  discard?: boolean;
 }
 
 interface AtlasMeta {
@@ -139,6 +141,9 @@ function createCardAtlas(id: number, w: number, style: CardStyle): Node {
     g.fill();
   }
   strokeCard(g, w, h, style, faceUp);
+  if (style.discard) {
+    addLabel(node, "弃", w / 2, -h / 2, w * 0.28, new Color(184, 53, 43, 200), true);
+  }
   return node;
 }
 
@@ -171,6 +176,9 @@ function createCardProcedural(
     g.fill();
   }
   strokeCard(g, w, h, style, faceUp);
+  if (style.discard) {
+    addLabel(node, "弃", w / 2, -h / 2, w * 0.28, new Color(184, 53, 43, 200), true);
+  }
   return node;
 }
 
@@ -182,11 +190,14 @@ function strokeCard(
   faceUp: boolean
 ): void {
   const r = w * 0.09;
-  if (style.selected) {
+  if (style.discard) {
+    g.lineWidth = Math.max(3, w * 0.06);
+    g.strokeColor = C.seal;
+  } else if (style.selected) {
     g.lineWidth = Math.max(2, w * 0.05);
     g.strokeColor = C.seal;
   } else if (style.highlight) {
-    g.lineWidth = Math.max(2, w * 0.05);
+    g.lineWidth = Math.max(3, w * 0.06);
     g.strokeColor = C.gold;
   } else {
     g.lineWidth = Math.max(1, w * 0.02);
