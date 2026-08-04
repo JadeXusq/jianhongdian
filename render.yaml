@@ -1,0 +1,14 @@
+# Render Blueprint：免费 Web Service 跑 Colyseus
+# 文档：https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: jhd-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production

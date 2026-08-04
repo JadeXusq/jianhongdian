@@ -81,5 +81,5 @@ app.get("/api/account/:accountId", (req, res) => {
 });
 
 gameServer.listen(PORT).then(() => {
-  console.log(`[捡红点] 服务器已启动 ws://localhost:${PORT}`);
+  console.log(`[捡红点] 服务器已启动 port=${PORT}`);
 });

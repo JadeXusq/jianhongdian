@@ -80,18 +80,30 @@ npx tsx tools/spectateSmoke.ts
 ### GitHub Pages（静态站 + 离线人机）
 
 1. 仓库 Settings → Pages → Source 选 **GitHub Actions**
-2. 推送 `main` 后自动构建；地址一般为  
-   `https://<user>.github.io/jianhongdian/`
+2. 推送 `main` 后自动构建；地址：  
+   https://jadexusq.github.io/jianhongdian/
 3. 打开后点 **「人机练习（可离线）」** 即可玩（不依赖服务器）
 
-可选联网对战：先把 Colyseus 部署到云（见下），再在仓库 Secrets 增加  
-`VITE_WS=wss://你的服务域名`，重新跑 Pages 工作流。
+### Render 免费档（联网对战服务端）
 
-### 云服务端（Docker）
+1. 打开 [Render](https://render.com) 用 GitHub 登录
+2. **New → Blueprint**，选仓库 `JadeXusq/jianhongdian`（会读根目录 `render.yaml`）
+3. 创建后得到地址，形如：`https://jhd-server.onrender.com`
+4. 仓库 Settings → Secrets and variables → Actions，新增：
+   - Name: `VITE_WS`
+   - Value: `wss://jhd-server.onrender.com`（把域名换成你的）
+5. 再跑一次 Pages 工作流（Actions → Deploy GitHub Pages → Run workflow）
+
+说明：
+- 免费实例**闲置约 15 分钟会休眠**，首次进房可能要等几十秒冷启动
+- 战绩落盘在容器内，休眠/重建可能丢失（够试用）
+- 健康检查：`GET /api/health`
+
+### 云服务端（Docker 自建）
 
 ```bash
 docker build -t jhd-server .
 docker run -p 2567:2567 jhd-server
 ```
 
-需开放 WebSocket（`ws`/`wss`）。HTTPS 站点必须用 `wss://`。
+HTTPS 站点必须配 `wss://`。
