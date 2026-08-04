@@ -75,9 +75,23 @@ npx tsx tools/emoteSmoke.ts
 npx tsx tools/spectateSmoke.ts
 ```
 
-## 红线
+## 部署
 
-- 计分 / 配对只在服务端用 `shared/` 裁决，客户端不做权威计算。
-- 节奏参数只改 `shared/src/timing.ts`，再 `node tools/syncCocosLib.mjs`。
-- 改规则后必须 `npm run test -w shared` 全绿。
-- **Web（`client/`）与 Cocos（`cocos/`）体验/交互改动须同轮同步**，详见 `.cursor/rules/web-cocos-sync.mdc`。
+### GitHub Pages（静态站 + 离线人机）
+
+1. 仓库 Settings → Pages → Source 选 **GitHub Actions**
+2. 推送 `main` 后自动构建；地址一般为  
+   `https://<user>.github.io/jianhongdian/`
+3. 打开后点 **「人机练习（可离线）」** 即可玩（不依赖服务器）
+
+可选联网对战：先把 Colyseus 部署到云（见下），再在仓库 Secrets 增加  
+`VITE_WS=wss://你的服务域名`，重新跑 Pages 工作流。
+
+### 云服务端（Docker）
+
+```bash
+docker build -t jhd-server .
+docker run -p 2567:2567 jhd-server
+```
+
+需开放 WebSocket（`ws`/`wss`）。HTTPS 站点必须用 `wss://`。

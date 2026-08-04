@@ -26,6 +26,7 @@ export interface LobbyCallbacks {
   onCreate(name: string, maxPlayers: number): void;
   onJoin(name: string, code: string): void;
   onSpectate(name: string, code: string): void;
+  onPractice(name: string): void;
   onAccount(): void;
   onAccCreate(name: string): void;
   onAccBind(accountId: string, token: string): void;
@@ -261,22 +262,22 @@ export class LobbyUI {
   }
 
   private buildLobby(): Node {
-    const panel = this.panel("Lobby", 420, 560);
-    this.makeLabel(panel, "捡红点", 0, 210, 42, C.gold);
-    this.makeLabel(panel, "出手牌凑十吃红分 · 红鬼最大", 0, 165, 16, C.cream);
+    const panel = this.panel("Lobby", 420, 600);
+    this.makeLabel(panel, "捡红点", 0, 230, 42, C.gold);
+    this.makeLabel(panel, "出手牌凑十吃红分 · 红鬼最大", 0, 185, 16, C.cream);
 
-    this.makeLabel(panel, "昵称", -140, 110, 18, C.goldDim);
-    this.nameBox = this.makeEdit(panel, 0, 105, 260, 40, "请输入昵称");
+    this.makeLabel(panel, "昵称", -140, 130, 18, C.goldDim);
+    this.nameBox = this.makeEdit(panel, 0, 125, 260, 40, "请输入昵称");
     try {
       this.nameBox.string = localStorage.getItem("jhd.name") || "";
     } catch {
       /* ignore */
     }
 
-    this.makeLabel(panel, "人数", -140, 50, 18, C.goldDim);
+    this.makeLabel(panel, "人数", -140, 70, 18, C.goldDim);
     [2, 3, 4].forEach((n, i) => {
       const x = -80 + i * 90;
-      const btn = this.makeBtn(panel, `${n} 人`, x, 45, 80, 36, () => {
+      const btn = this.makeBtn(panel, `${n} 人`, x, 65, 80, 36, () => {
         this.count = n;
         this.countLabels.forEach((l, j) => {
           l.color = j === i ? C.seal : C.cream;
@@ -287,13 +288,16 @@ export class LobbyUI {
       if (n === 4) lbl.color = C.seal;
     });
 
-    this.makeBtn(panel, "快速匹配", 0, -15, 280, 44, () =>
+    this.makeBtn(panel, "人机练习", 0, -15, 280, 44, () =>
+      this.cb.onPractice(this.playerName())
+    );
+    this.makeBtn(panel, "快速匹配", 0, -70, 280, 44, () =>
       this.cb.onMatch(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "创建房间", -75, -75, 130, 40, () =>
+    this.makeBtn(panel, "创建房间", -75, -125, 130, 40, () =>
       this.cb.onCreate(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "输房号加入", 75, -75, 130, 40, () => {
+    this.makeBtn(panel, "输房号加入", 75, -125, 130, 40, () => {
       const code = (this.codeBox.string || "").trim();
       if (!code) {
         this.toast("请先填写房号");
@@ -301,7 +305,7 @@ export class LobbyUI {
       }
       this.cb.onJoin(this.playerName(), code);
     });
-    this.makeBtn(panel, "房号观战", -75, -125, 130, 40, () => {
+    this.makeBtn(panel, "房号观战", -75, -175, 130, 40, () => {
       const code = (this.codeBox.string || "").trim();
       if (!code) {
         this.toast("请先填写房号");
@@ -309,13 +313,13 @@ export class LobbyUI {
       }
       this.cb.onSpectate(this.playerName(), code);
     });
-    this.makeBtn(panel, "账号绑定", 75, -125, 130, 40, () =>
+    this.makeBtn(panel, "账号绑定", 75, -175, 130, 40, () =>
       this.cb.onAccount()
     );
 
-    this.makeLabel(panel, "房号", -140, -175, 18, C.goldDim);
-    this.codeBox = this.makeEdit(panel, 20, -180, 200, 36, "6位房号");
-    this.makeBtn(panel, "查看规则", 0, -230, 120, 32, () => this.show("rules"));
+    this.makeLabel(panel, "房号", -140, -220, 18, C.goldDim);
+    this.codeBox = this.makeEdit(panel, 20, -225, 200, 36, "6位房号");
+    this.makeBtn(panel, "查看规则", 0, -270, 120, 32, () => this.show("rules"));
     return panel;
   }
 

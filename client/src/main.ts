@@ -7,6 +7,7 @@ import { ROUND_RESULT_AUTO_MS } from "@jhd/shared";
 import { sfx } from "./audio";
 import { loadCardAtlas } from "./cardRender";
 import { onOrientationChange, shouldRotate } from "./layout";
+import { LocalPlay } from "./localPlay";
 import { Net, RoundOver, deviceId, savedAccountId } from "./net";
 import { TableView } from "./table";
 
@@ -14,7 +15,10 @@ const $ = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 
 const net = new Net();
+/** 离线人机会话；有值时走浏览器内规则，不连服务器 */
+let offline: LocalPlay | null = null;
 let maxPlayers = 4;
+let aiDifficulty: "easy" | "normal" | "hard" = "normal";
 let selected = -1;
 /** 无目标的牌需二次点击确认弃牌，避免误操作 */
 let discardArmed = -1;
@@ -22,7 +26,8 @@ let lastRound: RoundOver | null = null;
 /** 用于判断“刚轮到我”的边沿，避免每帧重复提醒 */
 let wasMyTurn = false;
 
-void loadCardAtlas();
+const assetBase = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+void loadCardAtlas(assetBase);
 
 const view = new TableView($<HTMLCanvasElement>("table"), {
   onPickHand: (id) => pickHand(id),
@@ -121,13 +126,19 @@ async function guard(fn: () => Promise<void>): Promise<void> {
 
 $("btn-match").onclick = () =>
   guard(async () => {
+    stopOffline();
     await net.quickMatch(playerName(), maxPlayers);
-    net.ready(true); // 快速匹配默认自动准备
+    net.ready(true);
     show("room");
   });
 
+$("btn-practice").onclick = () => {
+  startOffline();
+};
+
 $("btn-create").onclick = () =>
   guard(async () => {
+    stopOffline();
     await net.create(playerName(), maxPlayers);
     show("room");
   });
@@ -151,7 +162,8 @@ $("btn-spectate").onclick = () =>
 
 $("btn-rules").onclick = () => show("rules");
 $("btn-rules-close").onclick = () => {
-  if (net.state?.phase === "PLAYING") show("none");
+  if (offline?.state.phase === "PLAYING" || net.state?.phase === "PLAYING")
+    show("none");
   else show(net.room ? "room" : "lobby");
 };
 $("btn-guide-ok").onclick = () => {
@@ -226,8 +238,6 @@ $("btn-acc-bind").onclick = () =>
 
 // ---------- 房间 ----------
 
-let aiDifficulty: "easy" | "normal" | "hard" = "normal";
-
 $("ai-diff").addEventListener("click", (e) => {
   const btn = (e.target as HTMLElement).closest("button");
   if (!btn) return;
@@ -283,24 +293,39 @@ function renderRoom(state: any): void {
 // ---------- 结算 ----------
 
 $("btn-again").onclick = () => {
+  if (offline) {
+    if (lastRound?.allDone) offline.start();
+    else offline.continueRound();
+    show("none");
+    return;
+  }
   net.nextRound();
   show("room");
 };
-$("btn-exit").onclick = () =>
+$("btn-exit").onclick = () => {
+  if (offline) {
+    stopOffline();
+    show("lobby");
+    return;
+  }
   guard(async () => {
     await net.leave();
     show("lobby");
   });
+};
 
 function renderResult(r: RoundOver): void {
-  const players = [...net.state.players.values()] as any[];
+  const state = offline?.state ?? net.state;
+  const mySeat = offline ? offline.mySeat : net.mySeat;
+  if (!state) return;
+  const players = [...state.players.values()] as any[];
   const rows = players
     .map((p) => ({ p, points: r.points[p.seat], net: r.net[p.seat] }))
     .sort((a, b) => b.net - a.net);
 
   const title = $("result").querySelector(".title") as HTMLElement;
   const winner = rows[0];
-  const iWin = winner?.p.seat === net.mySeat && winner.net >= 0;
+  const iWin = winner?.p.seat === mySeat && winner.net >= 0;
   title.textContent = r.allDone
     ? iWin
       ? "最终结算 · 胜"
@@ -318,7 +343,7 @@ function renderResult(r: RoundOver): void {
   $("result-list").innerHTML = rows
     .map(
       (row, i) => `
-      <div class="res${row.p.seat === net.mySeat ? " me" : ""}${
+      <div class="res${row.p.seat === mySeat ? " me" : ""}${
         i === 0 ? " top" : ""
       }">
         <span class="rank">${i === 0 ? "胜" : i + 1}</span>
@@ -336,7 +361,7 @@ function renderResult(r: RoundOver): void {
   const btnAgain = $<HTMLButtonElement>("btn-again");
   const btnExit = $<HTMLButtonElement>("btn-exit");
   if (r.allDone) {
-    btnAgain.textContent = "再来一局";
+    btnAgain.textContent = offline ? "再练一局" : "再来一局";
     btnExit.style.display = "";
   } else {
     btnAgain.textContent = `继续下一轮 (${r.round}/${r.totalRounds})`;
@@ -350,15 +375,24 @@ function renderResult(r: RoundOver): void {
 
 // ---------- 出牌交互 ----------
 
+function playState(): any {
+  return offline?.state ?? net.state;
+}
+
 function myTurn(): boolean {
+  if (offline) {
+    const s = offline.state;
+    return s.phase === "PLAYING" && s.currentSeat === offline.mySeat;
+  }
   if (net.spectating) return false;
   return net.state?.phase === "PLAYING" && net.state.currentSeat === net.mySeat;
 }
 
 function pickHand(id: number): void {
-  if (!myTurn() || net.state.turnPhase !== "PLAY_HAND" || view.animating)
+  const state = playState();
+  if (!myTurn() || !state || state.turnPhase !== "PLAY_HAND" || view.animating)
     return;
-  const targets = findTargets(id, [...net.state.table]);
+  const targets = findTargets(id, [...state.table]);
 
   if (targets.length === 1) return send(id, targets[0]);
   if (targets.length === 0) {
@@ -377,9 +411,13 @@ function pickHand(id: number): void {
 }
 
 function pickTable(id: number): void {
-  if (!myTurn() || view.animating) return;
-  if (net.state.turnPhase === "CHOOSE_STOCK_TARGET") {
-    if (view.targets.includes(id)) net.chooseTarget(id);
+  const state = playState();
+  if (!myTurn() || !state || view.animating) return;
+  if (state.turnPhase === "CHOOSE_STOCK_TARGET") {
+    if (view.targets.includes(id)) {
+      if (offline) offline.chooseTarget(id);
+      else net.chooseTarget(id);
+    }
     return;
   }
   if (selected < 0 || !view.targets.includes(id)) return;
@@ -387,8 +425,13 @@ function pickTable(id: number): void {
 }
 
 function send(cardId: number, targetId?: number): void {
-  net.play(cardId, targetId);
-  net.hand = net.hand.filter((c) => c !== cardId);
+  if (offline) {
+    offline.play(cardId, targetId);
+    offline.hand = offline.hand.filter((c) => c !== cardId);
+  } else {
+    net.play(cardId, targetId);
+    net.hand = net.hand.filter((c) => c !== cardId);
+  }
   selected = -1;
   discardArmed = -1;
   syncSelection();
@@ -399,24 +442,92 @@ function send(cardId: number, targetId?: number): void {
 function syncSelection(): void {
   view.selected = selected;
   view.discardArmed = discardArmed;
-  const state = net.state;
+  const state = playState();
+  const mySeat = offline ? offline.mySeat : net.mySeat;
   if (!state) {
     view.targets = [];
     return;
   }
-  if (
-    state.turnPhase === "CHOOSE_STOCK_TARGET" &&
-    state.currentSeat === net.mySeat
-  )
+  if (state.turnPhase === "CHOOSE_STOCK_TARGET" && state.currentSeat === mySeat)
     view.targets = findTargets(state.pendingStockCard, [...state.table]);
   else if (selected >= 0)
     view.targets = findTargets(selected, [...state.table]);
   else view.targets = [];
 }
 
+function stopOffline(): void {
+  offline?.stop();
+  offline = null;
+  $("emotes").classList.add("hidden");
+}
+
+function startOffline(): void {
+  stopOffline();
+  void net.leave().catch(() => undefined);
+  const session = new LocalPlay(playerName(), aiDifficulty, 5);
+  offline = session;
+  session.onState = (state) => {
+    view.state = state;
+    view.hand = session.hand;
+    view.mySeat = session.mySeat;
+    if (state.phase === "PLAYING") {
+      const overlay = shown("rules") || shown("guide");
+      if (!overlay) show("none");
+      $("emotes").classList.add("hidden");
+      $("btn-help").classList.toggle("hidden", overlay);
+      const mine = myTurn();
+      if (mine && !wasMyTurn) sfx.turn();
+      wasMyTurn = mine;
+      if (!overlay) {
+        if (mine)
+          hint(
+            state.turnPhase === "CHOOSE_STOCK_TARGET"
+              ? "翻牌可吃，请选择目标"
+              : "轮到你出牌"
+          );
+        else hint("电脑出牌中…");
+      }
+    }
+    syncSelection();
+  };
+  session.onEvents = (events) => {
+    view.pushEvents(events);
+    view.hand = session.hand;
+    for (const ev of events) {
+      if (ev.target === undefined) sfx.discard();
+      else if (ev.type === "FLIP")
+        sfx.flipCapture(cardScore(ev.card) + cardScore(ev.target));
+      else sfx.capture(cardScore(ev.card) + cardScore(ev.target));
+    }
+  };
+  session.onRoundStart = () => {
+    selected = -1;
+    discardArmed = -1;
+    lastRound = null;
+    view.showCaptured = false;
+    if (localStorage.getItem("jhd.guided") !== "1") show("guide");
+    else show("none");
+  };
+  session.onRoundOver = (r) => {
+    lastRound = {
+      ...r,
+      captured: [[], []],
+    };
+    const wait = () => {
+      if (view.animating) return void setTimeout(wait, 120);
+      sfx.roundOver();
+      renderResult(lastRound!);
+    };
+    setTimeout(wait, 200);
+  };
+  session.start();
+  toast("人机练习（离线）");
+}
+
 // ---------- 网络回调 ----------
 
 net.onState = (state) => {
+  if (offline) return;
   view.state = state;
   view.hand = net.hand;
   view.mySeat = net.mySeat;
@@ -467,6 +578,7 @@ net.onRoundStart = () => {
 };
 
 net.onEvents = (events) => {
+  if (offline) return;
   view.pushEvents(events);
   view.hand = net.hand;
   for (const ev of events) {
@@ -478,8 +590,8 @@ net.onEvents = (events) => {
 };
 
 net.onRoundOver = (r) => {
+  if (offline) return;
   lastRound = r;
-  // 等最后一次吃牌动画播完再弹结算
   const wait = () => {
     if (view.animating) return void setTimeout(wait, 120);
     sfx.roundOver();
@@ -521,26 +633,24 @@ net.onError = (msg) => {
 };
 
 net.onLeave = () => {
-  if (lastRound) return; // 结算界面里主动退出，不再提示
+  if (offline || lastRound) return;
   toast("已断开连接");
   show("lobby");
 };
 
-// 刷新页面后尝试回到原对局
-net.tryReconnect().then((ok) => {
-  if (ok) toast("已重连回到对局");
-});
+// 刷新页面后尝试回到原对局（纯静态托管时会静默失败）
+if (!import.meta.env.VITE_OFFLINE_ONLY)
+  net.tryReconnect().then((ok) => {
+    if (ok) toast("已重连回到对局");
+  });
 
-// 开发期调试钩子，供自动化视觉校验脚本精确定位牌位
-if (import.meta.env.DEV) (window as any).__jhd = { net, view };
-
-// ---------- 主循环 ----------
+if (import.meta.env.DEV) (window as any).__jhd = { net, view, get offline() { return offline; } };
 
 let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  view.hand = net.hand;
+  view.hand = offline ? offline.hand : net.hand;
   view.render(dt);
   requestAnimationFrame(frame);
 }

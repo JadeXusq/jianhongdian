@@ -67,6 +67,13 @@ export class GameEntry extends Component {
       onCreate: (name, n) => this.guard(() => this.doCreate(name, n)),
       onJoin: (name, code) => this.guard(() => this.doJoin(name, code)),
       onSpectate: (name, code) => this.guard(() => this.doSpectate(name, code)),
+      onPractice: (name) =>
+        this.guard(async () => {
+          await this.doCreate(name, 2, true);
+          this.net.addAi(this.aiDifficulty);
+          this.net.ready(true);
+          this.ui.toast("已开人机（需服务器）");
+        }),
       onAccount: () => {
         try {
           const acc = localStorage.getItem("jhd.accountId");

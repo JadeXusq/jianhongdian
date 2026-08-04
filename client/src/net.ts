@@ -5,7 +5,9 @@
 import { Client, Room } from "colyseus.js";
 import type { GameEvent } from "@jhd/shared";
 
-const WS_URL = import.meta.env.VITE_WS ?? `ws://${location.hostname}:2567`;
+const WS_URL =
+  (import.meta.env.VITE_WS as string | undefined)?.trim() ||
+  `ws://${location.hostname}:2567`;
 const HTTP_URL = WS_URL.replace(/^ws/, "http");
 const TOKEN_KEY = "jhd.reconnect";
 const DEVICE_KEY = "jhd.device";
