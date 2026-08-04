@@ -473,12 +473,12 @@ export class GameEntry extends Component {
     );
     addLabel(
       this.matchNode,
-      "点击跳过",
+      "点击任意处跳过",
       0,
-      -h / 2 - 28,
-      16,
-      new Color(243, 234, 214, 160),
-      false
+      -DESIGN.height / 2 + 48,
+      18,
+      C.gold,
+      true
     );
 
     this.render();
@@ -747,7 +747,7 @@ export class GameEntry extends Component {
     g.stroke();
     addLabel(
       bar,
-      `得分 ${score} · ${cards.length}张`,
+      `得分 ${score} · ${cards.length}张${this.showCaptured ? " ∧" : " ∨"}`,
       0,
       0,
       15,
@@ -765,7 +765,7 @@ export class GameEntry extends Component {
     const cols = Math.min(cards.length, 8);
     const rows = Math.ceil(cards.length / cols);
     const panelW = cols * (cw + gap) + 16;
-    const panelH = rows * (cw * CARD_RATIO + gap) + 36;
+    const panelH = rows * (cw * CARD_RATIO + gap) + 48;
     const panel = new Node("CapPanel");
     panel.layer = Layers.Enum.UI_2D;
     this.infoNode.addChild(panel);
@@ -792,6 +792,7 @@ export class GameEntry extends Component {
       );
       panel.addChild(c);
     });
+    addLabel(panel, "∧", 0, -panelH / 2 + 14, 18, C.gold, true);
   }
 
   onPickHand(id: number): void {

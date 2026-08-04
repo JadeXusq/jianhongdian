@@ -288,8 +288,8 @@ export class TableView {
             gain,
           },
           {
-            text: "点击跳过",
-            at: { x: centerX, y: centerY + matchW * CARD_RATIO * 0.55 + 28 },
+            text: "点击任意处跳过",
+            at: { x: centerX, y: H - 48 },
             t: 0,
             hint: true,
           },
@@ -576,7 +576,7 @@ export class TableView {
     ctx.textBaseline = "middle";
     ctx.font = `600 15px "Helvetica Neue", Arial, sans-serif`;
     ctx.fillText(
-      `得分 ${score} · ${cards.length}张`,
+      `得分 ${score} · ${cards.length}张${this.showCaptured ? " ∧" : " ∨"}`,
       x + barW / 2,
       y + barH / 2
     );
@@ -588,7 +588,7 @@ export class TableView {
     const cols = Math.min(cards.length, 8);
     const rows = Math.ceil(cards.length / cols);
     const panelW = cols * (cw + gap) + 16;
-    const panelH = rows * (cw * CARD_RATIO + gap) + 36;
+    const panelH = rows * (cw * CARD_RATIO + gap) + 48;
     const px = (this.w - panelW) / 2;
     const py = Math.max(80, y - panelH - 12);
     ctx.save();
@@ -613,6 +613,9 @@ export class TableView {
         cw
       );
     });
+    ctx.fillStyle = C.gold;
+    ctx.font = `700 18px "Helvetica Neue", Arial, sans-serif`;
+    ctx.fillText("∧", px + panelW / 2, py + panelH - 12);
     ctx.restore();
   }
 
@@ -697,11 +700,19 @@ export class TableView {
       if (p.hint) {
         const flying = s.flies.some((f) => f.t < f.dur);
         if (flying || s.hold <= 0) continue;
+        const pulse = 0.65 + 0.35 * Math.sin(this.animClock * 4);
         ctx.save();
-        ctx.globalAlpha = 0.55 + 0.25 * Math.sin(this.animClock * 4);
-        ctx.fillStyle = C.cream;
+        ctx.globalAlpha = pulse;
+        roundRect(ctx, p.at.x - 110, p.at.y - 18, 220, 36, 18);
+        ctx.fillStyle = "rgba(8,26,20,0.82)";
+        ctx.fill();
+        ctx.strokeStyle = C.gold;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = C.gold;
         ctx.textAlign = "center";
-        ctx.font = `14px "Helvetica Neue", Arial, sans-serif`;
+        ctx.textBaseline = "middle";
+        ctx.font = `600 16px "Songti SC", "STSong", serif`;
         ctx.fillText(p.text, p.at.x, p.at.y);
         ctx.restore();
         continue;

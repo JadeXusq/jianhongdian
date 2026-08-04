@@ -424,18 +424,26 @@ export class LobbyUI {
   }
 
   private buildGuide(): Node {
-    const panel = this.panel("Guide", 460, 360);
-    this.makeLabel(panel, "怎么玩", 0, 130, 28, C.gold);
+    const panel = this.panel("Guide", 480, 400);
+    this.makeLabel(panel, "怎么玩", 0, 150, 28, C.gold);
     const lines = [
       "1. 目标：吃红色分牌，比底分（240÷人数）高就赢",
+      "红鬼 30 · 红A 20 · 红9~K 10 · 红2~8 面值",
       "2. 配对：A~9 凑成 10；10/J/Q/K 同点；大小王互吃",
       "3. 操作：点手牌 → 有目标则吃，无目标再点一次弃牌",
       "4. 每回合出手牌后再翻牌堆，能吃也要吃",
     ];
     lines.forEach((t, i) =>
-      this.makeLabel(panel, t, 0, 70 - i * 36, 16, C.cream)
+      this.makeLabel(
+        panel,
+        t,
+        0,
+        95 - i * 34,
+        i === 1 ? 14 : 16,
+        i === 1 ? C.gold : C.cream
+      )
     );
-    this.makeBtn(panel, "知道了，开打", 0, -140, 200, 40, () =>
+    this.makeBtn(panel, "知道了，开打", 0, -160, 200, 40, () =>
       this.cb.onGuideOk()
     );
     return panel;

@@ -387,6 +387,16 @@ input:focus {
   margin-bottom: 8px;
 }
 
+.guide-list li.guide-score {
+  list-style: none;
+  margin-left: -1.2em;
+  margin-top: -4px;
+  margin-bottom: 10px;
+  color: var(--gold);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
 .rules-body {
   text-align: left;
   font-size: 14px;
