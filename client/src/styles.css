@@ -34,6 +34,19 @@ body {
   touch-action: manipulation;
 }
 
+/* 默认不拦截牌桌点击；仅可交互子元素重新开启 pointer-events。
+   竖屏软件旋转时 #ui 会铺满屏幕，若不关闭会挡住下层 canvas 出牌。*/
+#ui {
+  pointer-events: none;
+}
+
+#ui .screen,
+#ui .mute,
+#ui .help,
+#ui .emotes {
+  pointer-events: auto;
+}
+
 /* 竖屏手机：整个 UI 层顺时针旋 90°，与 canvas 的软件旋转对齐。
    transform 会成为子元素 position:fixed 的包含块，因此内部遮罩层会跟着旋转；
    浏览器会自行处理旋转后的点击命中，无需手动换算坐标。*/
