@@ -8,6 +8,8 @@ import {
   Layers,
   Size,
   EditBox,
+  Mask,
+  ScrollView,
 } from "cc";
 import { C, DESIGN } from "./Theme";
 import type { RoundOver } from "./Net";
@@ -456,6 +458,24 @@ export class LobbyUI {
   private buildRules(): Node {
     const panel = this.panel("Rules", 480, 420);
     this.makeLabel(panel, "玩法规则", 0, 160, 28, C.gold);
+    const viewport = new Node("RulesViewport");
+    viewport.layer = Layers.Enum.UI_2D;
+    panel.addChild(viewport);
+    viewport.setPosition(new Vec3(0, 10, 0));
+    viewport.addComponent(UITransform).setContentSize(new Size(430, 250));
+    viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
+
+    const content = new Node("RulesContent");
+    content.layer = Layers.Enum.UI_2D;
+    viewport.addChild(content);
+    content.addComponent(UITransform).setContentSize(new Size(430, 340));
+    content.setPosition(new Vec3(0, -45, 0));
+
+    const scroll = viewport.addComponent(ScrollView);
+    scroll.content = content;
+    scroll.horizontal = false;
+    scroll.vertical = true;
+
     const lines = [
       "牌：54 张含大小王。手牌 24 张均分，桌面 6 张，牌堆 24。",
       "配对：A~9 相加为 10；10/J/Q/K 同点；大小王互配。",
@@ -464,7 +484,7 @@ export class LobbyUI {
       "胜负：得分 − 底分（240÷人数），正为赢、负为输。",
     ];
     lines.forEach((t, i) =>
-      this.makeLabel(panel, t, 0, 100 - i * 42, 15, C.cream)
+      this.makeLabel(content, t, 0, 125 - i * 68, 15, C.cream)
     );
     this.makeBtn(panel, "明白了", 0, -170, 140, 40, () =>
       this.cb.onRulesClose()

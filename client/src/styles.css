@@ -412,14 +412,31 @@ input:focus {
 }
 
 .rules-body {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 4px;
   text-align: left;
   font-size: 14px;
   line-height: 1.8;
   color: rgba(243, 234, 214, 0.85);
+  touch-action: pan-y;
 }
 
 .rules-body b {
   color: var(--gold);
+}
+
+.rules-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rules-panel .title,
+.rules-panel .btn {
+  flex: none;
 }
 
 /* 提示 */
@@ -615,6 +632,19 @@ input:focus {
 #ui.rot .room-panel .code-box b {
   font-size: 34px;
   letter-spacing: 8px;
+}
+
+#ui.rot .rules-panel {
+  height: calc(100% - 12px);
+}
+
+#ui.rot .rules-panel .title {
+  margin: 0 0 4px;
+}
+
+#ui.rot .rules-panel .btn {
+  margin-top: 8px;
+  padding: 9px 0;
 }
 
 @media (orientation: landscape) and (max-height: 500px) {
