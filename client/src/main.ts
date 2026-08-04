@@ -54,13 +54,20 @@ function show(
   ["lobby", "room", "result", "rules", "rank", "account", "guide"].forEach(
     (s) => $(s).classList.toggle("hidden", s !== id)
   );
+  applyOrientation();
 }
 
 const shown = (id: string) => !$(id).classList.contains("hidden");
 
-// 竖屏手机下把 UI 层一起旋转，与牌桌方向保持一致
+/** 大厅/房间等菜单保持竖屏；仅对局中（含引导/规则叠在牌桌上）才软件旋转 */
 function applyOrientation(): void {
-  $("ui").classList.toggle("rot", shouldRotate());
+  const menu =
+    shown("lobby") ||
+    shown("room") ||
+    shown("result") ||
+    shown("rank") ||
+    shown("account");
+  $("ui").classList.toggle("rot", shouldRotate() && !menu);
 }
 applyOrientation();
 onOrientationChange(applyOrientation);
