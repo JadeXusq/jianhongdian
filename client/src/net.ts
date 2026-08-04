@@ -12,6 +12,63 @@ const HTTP_URL = WS_URL.replace(/^ws/, "http");
 const TOKEN_KEY = "jhd.reconnect";
 const DEVICE_KEY = "jhd.device";
 
+/** 是否已配置远程 WebSocket（GitHub Pages 联网依赖此项） */
+export function hasRemoteWs(): boolean {
+  return !!(import.meta.env.VITE_WS as string | undefined)?.trim();
+}
+
+export function wsEndpoint(): string {
+  return WS_URL;
+}
+
+/**
+ * 免费云（如 Render）休眠后首连需先打 HTTP 唤醒。
+ * 最长约 90s；成功或最终失败后返回。
+ */
+async function wakeServer(
+  onProgress?: (msg: string) => void
+): Promise<void> {
+  const deadline = Date.now() + 90_000;
+  let attempt = 0;
+  while (Date.now() < deadline) {
+    attempt++;
+    onProgress?.(
+      attempt === 1
+        ? "正在连接服务器…"
+        : `服务器唤醒中（约需 30~60 秒）… ${attempt}`
+    );
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 12_000);
+      const res = await fetch(`${HTTP_URL}/api/health`, {
+        signal: ctrl.signal,
+        cache: "no-store",
+      });
+      clearTimeout(t);
+      if (res.ok) return;
+    } catch {
+      /* 休眠或网络未就绪，继续重试 */
+    }
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  throw new Error("服务器未响应，请稍后重试或先用人机练习");
+}
+
+function assertOnlineReady(): void {
+  if (location.protocol === "https:" && !hasRemoteWs()) {
+    throw new Error("联网未配置，请先用人机练习；或部署服务端后设置 VITE_WS");
+  }
+}
+
+async function withWake<T>(
+  fn: () => Promise<T>,
+  onProgress?: (msg: string) => void
+): Promise<T> {
+  assertOnlineReady();
+  if (hasRemoteWs()) await wakeServer(onProgress);
+  return fn();
+}
+
 /**
  * 游客设备标识：本地生成并长期保留，用于累计战绩。
  * 不能用 crypto.randomUUID：它仅在安全上下文（HTTPS / localhost）下存在，
@@ -90,52 +147,68 @@ export class Net {
     return this.room?.state;
   }
 
+  onProgress?: (msg: string) => void;
+
   async create(name: string, maxPlayers: number): Promise<void> {
     this.bind(
-      await this.client.create("game", {
-        name,
-        maxPlayers,
-        deviceId: deviceId(),
-      })
+      await withWake(
+        () =>
+          this.client.create("game", {
+            name,
+            maxPlayers,
+            deviceId: deviceId(),
+          }),
+        this.onProgress
+      )
     );
   }
 
   async quickMatch(name: string, maxPlayers: number): Promise<void> {
     this.bind(
-      await this.client.joinOrCreate("game", {
-        name,
-        maxPlayers,
-        deviceId: deviceId(),
-      })
+      await withWake(
+        () =>
+          this.client.joinOrCreate("game", {
+            name,
+            maxPlayers,
+            deviceId: deviceId(),
+          }),
+        this.onProgress
+      )
     );
   }
 
   async joinByCode(name: string, code: string): Promise<void> {
-    const res = await fetch(`${HTTP_URL}/api/room/${code}`);
-    if (!res.ok) throw new Error("房间不存在或已解散");
-    const { roomId } = await res.json();
-    this.bind(
-      await this.client.joinById(roomId, { name, deviceId: deviceId() })
-    );
+    await withWake(async () => {
+      const res = await fetch(`${HTTP_URL}/api/room/${code}`);
+      if (!res.ok) throw new Error("房间不存在或已解散");
+      const { roomId } = await res.json();
+      this.bind(
+        await this.client.joinById(roomId, { name, deviceId: deviceId() })
+      );
+    }, this.onProgress);
   }
 
   async spectateByCode(name: string, code: string): Promise<void> {
-    const res = await fetch(`${HTTP_URL}/api/room/${code}`);
-    if (!res.ok) throw new Error("房间不存在或已解散");
-    const { roomId } = await res.json();
-    this.bind(
-      await this.client.joinById(roomId, {
-        name,
-        deviceId: deviceId(),
-        spectate: true,
-      })
-    );
+    await withWake(async () => {
+      const res = await fetch(`${HTTP_URL}/api/room/${code}`);
+      if (!res.ok) throw new Error("房间不存在或已解散");
+      const { roomId } = await res.json();
+      this.bind(
+        await this.client.joinById(roomId, {
+          name,
+          deviceId: deviceId(),
+          spectate: true,
+        })
+      );
+    }, this.onProgress);
   }
 
   async leaderboard(): Promise<Profile[]> {
-    const res = await fetch(`${HTTP_URL}/api/leaderboard`);
-    if (!res.ok) throw new Error("排行榜获取失败");
-    return res.json();
+    return withWake(async () => {
+      const res = await fetch(`${HTTP_URL}/api/leaderboard`);
+      if (!res.ok) throw new Error("排行榜获取失败");
+      return res.json();
+    }, this.onProgress);
   }
 
   async createAccount(name: string): Promise<{
@@ -143,35 +216,39 @@ export class Net {
     token: string;
     profile: Profile;
   }> {
-    const res = await fetch(`${HTTP_URL}/api/account/create`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) throw new Error("创建账号失败");
-    const data = await res.json();
-    rememberAccount(data.accountId, data.token);
-    await this.bindAccount(data.accountId, data.token);
-    return data;
+    return withWake(async () => {
+      const res = await fetch(`${HTTP_URL}/api/account/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error("创建账号失败");
+      const data = await res.json();
+      rememberAccount(data.accountId, data.token);
+      await this.bindAccount(data.accountId, data.token);
+      return data;
+    }, this.onProgress);
   }
 
   async bindAccount(accountId: string, token: string): Promise<Profile> {
-    const res = await fetch(`${HTTP_URL}/api/account/bind`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accountId,
-        token,
-        deviceId: deviceId(),
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "绑定失败");
-    }
-    const data = await res.json();
-    rememberAccount(accountId, token);
-    return data.profile;
+    return withWake(async () => {
+      const res = await fetch(`${HTTP_URL}/api/account/bind`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId,
+          token,
+          deviceId: deviceId(),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "绑定失败");
+      }
+      const data = await res.json();
+      rememberAccount(accountId, token);
+      return data.profile;
+    }, this.onProgress);
   }
 
   /** 刷新页面后尝试回到原对局；无有效凭据则返回 false */

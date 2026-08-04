@@ -15,6 +15,7 @@ const $ = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 
 const net = new Net();
+net.onProgress = (msg) => toast(msg, 5000);
 /** 离线人机会话；有值时走浏览器内规则，不连服务器 */
 let offline: LocalPlay | null = null;
 let maxPlayers = 4;
@@ -82,12 +83,12 @@ muteBtn.onclick = () => {
 };
 
 let toastTimer = 0;
-function toast(msg: string): void {
+function toast(msg: string, ms = 2200): void {
   const el = $("toast");
   el.textContent = msg;
   el.classList.remove("hidden");
   clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => el.classList.add("hidden"), 2200);
+  toastTimer = window.setTimeout(() => el.classList.add("hidden"), ms);
 }
 
 function hint(msg: string | null): void {
@@ -120,7 +121,12 @@ async function guard(fn: () => Promise<void>): Promise<void> {
   try {
     await fn();
   } catch (e) {
-    toast((e as Error).message || "连接失败，请确认服务器已启动");
+    const msg = (e as Error).message || "连接失败";
+    toast(
+      /fetch|network|failed|ECONN|timeout|abort/i.test(msg)
+        ? "连接失败，服务器可能在休眠，请稍后重试或先用人机练习"
+        : msg
+    );
   }
 }
 
