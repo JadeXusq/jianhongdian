@@ -22,8 +22,15 @@ export const DISCARD_HOLD_MS = 800;
 export const ROUND_RESULT_AUTO_MS = 5_000;
 /** 刚切到自己回合时的提示短锁（墙钟，不依赖 RAF 帧计数） */
 export const TURN_UI_LOCK_MS = 150;
-/** 等动画结束后再弹结算的最长等待（防 RAF/定时器节流卡死） */
-export const ROUND_RESULT_MAX_WAIT_MS = 3_000;
+/** 等动画结束后再弹结算的最长等待（须盖住完整吃牌动画，防提前结算） */
+export const ROUND_RESULT_MAX_WAIT_MS =
+  320 +
+  FLY_TARGET_HOLD_MS +
+  350 +
+  MATCH_HOLD_MS +
+  420 +
+  FLY_PILE_HOLD_MS +
+  1_500;
 
 export const MATCH_HOLD_S = MATCH_HOLD_MS / 1000;
 export const FLY_TARGET_HOLD_S = FLY_TARGET_HOLD_MS / 1000;

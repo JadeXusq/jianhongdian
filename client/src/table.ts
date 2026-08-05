@@ -65,6 +65,10 @@ interface Step {
   decStock?: boolean;
   /** 本步结束后才允许这些牌出现在桌面/待选位 */
   revealOnDone?: number[];
+  /** 飞入得分堆结束后才把分/牌计入面板（所见即所得） */
+  commitCapture?: { seat: number; cards: number[]; gain: number };
+  /** 本步结束后才扣减余牌数显示 */
+  commitHand?: number;
 }
 
 export interface TableCallbacks {
@@ -96,6 +100,12 @@ export class TableView {
   private animClock = 0;
   /** 已同步但翻牌动画未开始的牌堆张数，用于延后扣减显示 */
   private stockAnimCredit = 0;
+  /** 状态已加分但入堆动画未完：面板先扣回这些分 */
+  private pendingGain = new Map<number, number>();
+  /** 状态已入堆但飞行动画未完：得分条先不展示这些牌 */
+  private pendingCards = new Map<number, Set<number>>();
+  /** 状态已扣手牌但出牌动画未完：余牌数先加回 */
+  private pendingHand = new Map<number, number>();
   private capturedHit: { x: number; y: number; w: number; h: number } | null =
     null;
 
@@ -263,6 +273,7 @@ export class TableView {
                 x: this.area.x + this.area.w / 2,
                 y: this.area.y,
               };
+        if (ev.type === "PLAY") this.deferHand(ev.player);
         this.steps.push({
           flies: [
             {
@@ -280,6 +291,7 @@ export class TableView {
           hold: DISCARD_HOLD_S,
           decStock: fromStock,
           revealOnDone: [ev.card],
+          commitHand: ev.type === "PLAY" ? ev.player : undefined,
         });
         continue;
       }
@@ -290,6 +302,8 @@ export class TableView {
         y: this.area.y + 100,
       };
       const gain = cardScore(ev.card) + cardScore(ev.target);
+      this.deferCapture(ev.player, [ev.card, ev.target], gain);
+      if (ev.type === "PLAY") this.deferHand(ev.player);
       // 第 1 步：出的牌飞向目标牌位置
       this.steps.push({
         flies: [
@@ -380,12 +394,82 @@ export class TableView {
         hide: [ev.card, ev.target],
         hold: FLY_PILE_HOLD_S,
         revealOnDone: ev.type === "FLIP" ? [ev.card] : undefined,
+        commitCapture: {
+          seat: ev.player,
+          cards: [ev.card, ev.target],
+          gain,
+        },
+        commitHand: ev.type === "PLAY" ? ev.player : undefined,
       });
     }
   }
 
+  private deferHand(seat: number): void {
+    this.pendingHand.set(seat, (this.pendingHand.get(seat) ?? 0) + 1);
+  }
+
+  private applyHandCommit(seat: number): void {
+    const left = (this.pendingHand.get(seat) ?? 0) - 1;
+    if (left <= 0) this.pendingHand.delete(seat);
+    else this.pendingHand.set(seat, left);
+  }
+
+  private displayHandCount(p: { seat: number; handCount?: number }): number {
+    return (p.handCount ?? 0) + (this.pendingHand.get(p.seat) ?? 0);
+  }
+
+  private deferCapture(seat: number, cards: number[], gain: number): void {
+    this.pendingGain.set(seat, (this.pendingGain.get(seat) ?? 0) + gain);
+    let set = this.pendingCards.get(seat);
+    if (!set) {
+      set = new Set();
+      this.pendingCards.set(seat, set);
+    }
+    for (const id of cards) set.add(id);
+  }
+
+  private applyCaptureCommit(info: {
+    seat: number;
+    cards: number[];
+    gain: number;
+  }): void {
+    const left = (this.pendingGain.get(info.seat) ?? 0) - info.gain;
+    if (left <= 0) this.pendingGain.delete(info.seat);
+    else this.pendingGain.set(info.seat, left);
+    const set = this.pendingCards.get(info.seat);
+    if (!set) return;
+    for (const id of info.cards) set.delete(id);
+    if (set.size === 0) this.pendingCards.delete(info.seat);
+  }
+
+  private displayPoints(p: { seat: number; points?: number }): number {
+    return Math.max(0, (p.points ?? 0) - (this.pendingGain.get(p.seat) ?? 0));
+  }
+
+  private displayCaptured(me: {
+    seat: number;
+    captured?: number[];
+  }): number[] {
+    const cards: number[] = me.captured ? [...me.captured] : [];
+    const pending = this.pendingCards.get(me.seat);
+    if (!pending?.size) return cards;
+    return cards.filter((id) => !pending.has(id));
+  }
+
   get animating(): boolean {
     return this.current !== null || this.steps.length > 0;
+  }
+
+  /** 新一轮开始时清掉未提交的显示延迟 */
+  resetAnimVisuals(): void {
+    this.steps.length = 0;
+    this.current = null;
+    this.hidden.clear();
+    this.deferredReveal.clear();
+    this.stockAnimCredit = 0;
+    this.pendingGain.clear();
+    this.pendingCards.clear();
+    this.pendingHand.clear();
   }
 
   private stepAnim(dt: number): void {
@@ -410,6 +494,8 @@ export class TableView {
       if (s.revealOnDone) {
         for (const id of s.revealOnDone) this.deferredReveal.delete(id);
       }
+      if (s.commitCapture) this.applyCaptureCommit(s.commitCapture);
+      if (s.commitHand !== undefined) this.applyHandCommit(s.commitHand);
       this.current = null;
       this.hidden.clear();
     }
@@ -646,9 +732,13 @@ export class TableView {
     const me = [...this.state.players.values()].find(
       (p: any) => p.seat === this.mySeat
     ) as any;
-    if (!me || !me.captured || me.captured.length === 0) return;
-    const cards: number[] = [...me.captured];
-    const score = me.points ?? cards.reduce((s, id) => s + cardScore(id), 0);
+    if (!me) return;
+    const cards = this.displayCaptured(me);
+    if (cards.length === 0) return;
+    const score =
+      me.points != null
+        ? this.displayPoints(me)
+        : cards.reduce((s, id) => s + cardScore(id), 0);
     const barW = 168;
     const barH = 36;
     const x = (this.w - barW) / 2;
@@ -780,10 +870,10 @@ export class TableView {
       );
       ctx.fillStyle = C.cream;
       ctx.font = `600 15px "Helvetica Neue", Arial, sans-serif`;
-      ctx.fillText(`${p.points} 分`, pos.x - 22, pos.y + 6);
+      ctx.fillText(`${this.displayPoints(p)} 分`, pos.x - 22, pos.y + 6);
       ctx.fillStyle = "rgba(243,234,214,0.65)";
       ctx.font = `13px "Helvetica Neue", Arial, sans-serif`;
-      ctx.fillText(`余 ${p.handCount} 张`, pos.x - 22, pos.y + 26);
+      ctx.fillText(`余 ${this.displayHandCount(p)} 张`, pos.x - 22, pos.y + 26);
       if (!p.connected) {
         ctx.fillStyle = C.seal;
         ctx.font = `600 13px "Songti SC", serif`;

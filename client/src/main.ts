@@ -779,6 +779,7 @@ function startOffline(): void {
     discardArmed = -1;
     lastRound = null;
     view.showCaptured = false;
+    view.resetAnimVisuals();
     if (localStorage.getItem("jhd.guided") !== "1") show("guide");
     else show("none");
   };
@@ -839,6 +840,7 @@ net.onRoundStart = () => {
   discardArmed = -1;
   lastRound = null;
   view.showCaptured = false;
+  view.resetAnimVisuals();
   if (localStorage.getItem("jhd.guided") !== "1") {
     show("guide");
   } else {

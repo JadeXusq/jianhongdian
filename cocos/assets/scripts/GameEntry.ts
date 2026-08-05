@@ -52,6 +52,15 @@ export class GameEntry extends Component {
   private lastPending = -1;
   private pendingRoundOver: RoundOver | null = null;
   private roundOverWaitStarted = 0;
+  private pendingGain = new Map<number, number>();
+  private pendingCards = new Map<number, Set<number>>();
+  private pendingHand = new Map<number, number>();
+  private matchCommit: {
+    seat: number;
+    cards: number[];
+    gain: number;
+    hand?: boolean;
+  } | null = null;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -362,6 +371,11 @@ export class GameEntry extends Component {
       this.targets = [];
       this.lastRound = null;
       this.showCaptured = false;
+      this.pendingGain.clear();
+      this.pendingCards.clear();
+      this.pendingHand.clear();
+      this.matchCommit = null;
+      this.matchBusy = false;
       this.hand = session.hand.slice();
       this.hintText = "新一轮开始";
       this.setTableVisible(true);
@@ -393,7 +407,12 @@ export class GameEntry extends Component {
       }
       const capture = events.find((e) => e.target !== undefined);
       if (capture && capture.target !== undefined) {
-        this.playMatch(capture.card, capture.target);
+        this.playMatch(
+          capture.card,
+          capture.target,
+          capture.player,
+          capture.type === "PLAY"
+        );
         return;
       }
       const stockFlip = events.find((e) => e.type === "FLIP" && e.fromStock);
@@ -557,6 +576,11 @@ export class GameEntry extends Component {
     this.targets = [];
     this.lastRound = null;
     this.hintText = "";
+    this.pendingGain.clear();
+    this.pendingCards.clear();
+    this.pendingHand.clear();
+    this.matchCommit = null;
+    this.matchBusy = false;
   }
 
   private bindNet(): void {
@@ -614,6 +638,11 @@ export class GameEntry extends Component {
       this.targets = [];
       this.lastRound = null;
       this.showCaptured = false;
+      this.pendingGain.clear();
+      this.pendingCards.clear();
+      this.pendingHand.clear();
+      this.matchCommit = null;
+      this.matchBusy = false;
       this.hand = this.net.hand.slice();
       this.hintText = "新一轮开始";
       this.setTableVisible(true);
@@ -644,7 +673,12 @@ export class GameEntry extends Component {
       }
       const capture = events.find((e) => e.target !== undefined);
       if (capture && capture.target !== undefined) {
-        this.playMatch(capture.card, capture.target);
+        this.playMatch(
+          capture.card,
+          capture.target,
+          capture.player,
+          capture.type === "PLAY"
+        );
         return;
       }
       const stockFlip = events.find((e) => e.type === "FLIP" && e.fromStock);
@@ -683,9 +717,23 @@ export class GameEntry extends Component {
     };
   }
 
-  private playMatch(cardId: number, targetId: number): void {
+  private playMatch(
+    cardId: number,
+    targetId: number,
+    seat: number,
+    fromHand: boolean
+  ): void {
     this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
     this.matchBusy = true;
+    const gain = cardScore(cardId) + cardScore(targetId);
+    this.deferCapture(seat, [cardId, targetId], gain);
+    if (fromHand) this.deferHand(seat);
+    this.matchCommit = {
+      seat,
+      cards: [cardId, targetId],
+      gain,
+      hand: fromHand,
+    };
     this.unschedule(this.clearMatch);
     this.matchNode.removeAllChildren();
     this.matchNode.active = true;
@@ -698,7 +746,6 @@ export class GameEntry extends Component {
     );
     hit.on(Node.EventType.TOUCH_END, () => this.clearMatch());
 
-    const gain = cardScore(cardId) + cardScore(targetId);
     const w = TABLE_CARD_W * 1.3;
     const h = w * CARD_RATIO;
 
@@ -745,6 +792,11 @@ export class GameEntry extends Component {
   }
 
   private clearMatch = (): void => {
+    if (this.matchCommit) {
+      this.applyCaptureCommit(this.matchCommit);
+      if (this.matchCommit.hand) this.applyHandCommit(this.matchCommit.seat);
+      this.matchCommit = null;
+    }
     this.matchNode.removeAllChildren();
     this.matchNode.active = false;
     this.matchBusy = false;
@@ -753,6 +805,58 @@ export class GameEntry extends Component {
     if (this.tableVisible) this.render();
     this.tryFlushRoundOver();
   };
+
+  private deferCapture(seat: number, cards: number[], gain: number): void {
+    this.pendingGain.set(seat, (this.pendingGain.get(seat) ?? 0) + gain);
+    let set = this.pendingCards.get(seat);
+    if (!set) {
+      set = new Set();
+      this.pendingCards.set(seat, set);
+    }
+    for (const id of cards) set.add(id);
+  }
+
+  private deferHand(seat: number): void {
+    this.pendingHand.set(seat, (this.pendingHand.get(seat) ?? 0) + 1);
+  }
+
+  private applyHandCommit(seat: number): void {
+    const left = (this.pendingHand.get(seat) ?? 0) - 1;
+    if (left <= 0) this.pendingHand.delete(seat);
+    else this.pendingHand.set(seat, left);
+  }
+
+  private displayHandCount(p: { seat: number; handCount?: number }): number {
+    return (p.handCount ?? 0) + (this.pendingHand.get(p.seat) ?? 0);
+  }
+
+  private applyCaptureCommit(info: {
+    seat: number;
+    cards: number[];
+    gain: number;
+  }): void {
+    const left = (this.pendingGain.get(info.seat) ?? 0) - info.gain;
+    if (left <= 0) this.pendingGain.delete(info.seat);
+    else this.pendingGain.set(info.seat, left);
+    const set = this.pendingCards.get(info.seat);
+    if (!set) return;
+    for (const id of info.cards) set.delete(id);
+    if (set.size === 0) this.pendingCards.delete(info.seat);
+  }
+
+  private displayPoints(p: { seat: number; points?: number }): number {
+    return Math.max(0, (p.points ?? 0) - (this.pendingGain.get(p.seat) ?? 0));
+  }
+
+  private displayCaptured(me: {
+    seat: number;
+    captured?: number[];
+  }): number[] {
+    const cards: number[] = me.captured ? [...me.captured] : [];
+    const pending = this.pendingCards.get(me.seat);
+    if (!pending?.size) return cards;
+    return cards.filter((id) => !pending.has(id));
+  }
 
   private revealDeferredFlips = (): void => {
     this.deferredReveal.clear();
@@ -999,8 +1103,9 @@ export class GameEntry extends Component {
       true
     );
 
-    if (me?.captured?.length) {
-      this.drawScoreBar(me);
+    if (me) {
+      const shownCards = this.displayCaptured(me);
+      if (shownCards.length) this.drawScoreBar(me, shownCards);
     }
 
     if (this.hintText && !this.lastRound) {
@@ -1044,10 +1149,10 @@ export class GameEntry extends Component {
       C.cream,
       true
     );
-    addLabel(gNode, `${p.points} 分`, 0, -6, 15, C.cream);
+    addLabel(gNode, `${this.displayPoints(p)} 分`, 0, -6, 15, C.cream);
     addLabel(
       gNode,
-      `余 ${p.handCount ?? "?"} 张`,
+      `余 ${this.displayHandCount(p)} 张`,
       0,
       -26,
       13,
@@ -1055,9 +1160,11 @@ export class GameEntry extends Component {
     );
   }
 
-  private drawScoreBar(me: any): void {
-    const cards: number[] = [...me.captured];
-    const score = me.points ?? 0;
+  private drawScoreBar(me: any, cards: number[]): void {
+    const score =
+      me.points != null
+        ? this.displayPoints(me)
+        : cards.reduce((s, id) => s + cardScore(id), 0);
     const bar = new Node("ScoreBar");
     bar.layer = Layers.Enum.UI_2D;
     this.infoNode.addChild(bar);
