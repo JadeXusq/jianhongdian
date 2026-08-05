@@ -268,6 +268,40 @@ input:focus {
   margin-bottom: 16px;
 }
 
+.room-panel,
+.result-panel,
+.guide-panel,
+#rank > .panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.room-panel .seats,
+.result-panel .result-list,
+.guide-panel .guide-list,
+#rank .result-list {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.room-panel .code-box,
+.room-panel > .field,
+.room-panel > .row,
+.room-panel > .link,
+.result-panel > .title,
+.result-panel > .result-dots,
+.result-panel > .row,
+.guide-panel > .title,
+.guide-panel > .btn,
+#rank .title,
+#rank .btn {
+  flex: none;
+}
+
 .seat {
   display: flex;
   align-items: center;
@@ -638,6 +672,77 @@ input:focus {
   height: calc(100% - 12px);
 }
 
+#ui.rot .room-panel,
+#ui.rot .result-panel,
+#ui.rot .guide-panel,
+#ui.rot #rank > .panel {
+  height: calc(100% - 12px);
+}
+
+#ui.rot .room-panel .code-box {
+  margin-bottom: 8px;
+}
+
+#ui.rot .room-panel .seats {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+#ui.rot .room-panel .seat {
+  padding: 7px 10px;
+}
+
+#ui.rot .room-panel > .field {
+  margin-bottom: 4px;
+}
+
+#ui.rot .guide-panel .title,
+#ui.rot .result-panel .title,
+#ui.rot #rank .title {
+  margin: 0 0 4px;
+}
+
+#ui.rot .guide-list {
+  margin-bottom: 8px;
+  line-height: 1.55;
+}
+
+#ui.rot .guide-list li {
+  margin-bottom: 4px;
+}
+
+#ui.rot .result-list,
+#ui.rot #rank .result-list {
+  margin-bottom: 8px;
+}
+
+#ui.rot #account .panel {
+  padding: 10px 18px;
+}
+
+#ui.rot #account .title {
+  margin: 0;
+  font-size: 22px;
+}
+
+#ui.rot #account .subtitle {
+  margin-bottom: 4px;
+}
+
+#ui.rot #account .field {
+  margin-bottom: 4px;
+}
+
+#ui.rot #account input {
+  padding: 6px 10px;
+}
+
+#ui.rot #account .btn {
+  margin-top: 4px;
+  padding: 6px 0;
+  font-size: 15px;
+}
+
 #ui.rot .rules-panel .title {
   margin: 0 0 4px;
 }
@@ -648,6 +753,15 @@ input:focus {
 }
 
 @media (orientation: landscape) and (max-height: 500px) {
+  .room-panel,
+  .result-panel,
+  .guide-panel,
+  .rules-panel,
+  #rank > .panel {
+    height: calc(100dvh - 20px);
+    padding: 14px 18px;
+  }
+
   .lobby-panel {
     width: min(760px, calc(100vw - 32px));
     display: grid;
@@ -685,6 +799,33 @@ input:focus {
   .lobby-panel .btn {
     margin-top: 7px;
     padding: 9px 0;
+    font-size: 15px;
+  }
+
+  #account .panel {
+    padding: 10px 18px;
+  }
+
+  #account .title {
+    margin: 0;
+    font-size: 22px;
+  }
+
+  #account .subtitle {
+    margin-bottom: 4px;
+  }
+
+  #account .field {
+    margin-bottom: 4px;
+  }
+
+  #account input {
+    padding: 6px 10px;
+  }
+
+  #account .btn {
+    margin-top: 4px;
+    padding: 6px 0;
     font-size: 15px;
   }
 }
