@@ -23,6 +23,7 @@ export type UiScreen =
   | "rules"
   | "menu"
   | "scores"
+  | "settle-confirm"
   | "none";
 
 export interface LobbyCallbacks {
@@ -59,6 +60,7 @@ export class LobbyUI {
   private rules!: Node;
   private menu!: Node;
   private scores!: Node;
+  private settleConfirm!: Node;
   private emotes!: Node;
   private helpBtn!: Node;
   private menuBtn!: Node;
@@ -107,6 +109,7 @@ export class LobbyUI {
     this.rules = this.buildRules();
     this.menu = this.buildMenu();
     this.scores = this.buildScores();
+    this.settleConfirm = this.buildSettleConfirm();
     this.emotes = this.buildEmotes();
     this.menuBtn = this.makeBtn(
       this.root,
@@ -152,6 +155,7 @@ export class LobbyUI {
     this.rules.active = screen === "rules";
     this.menu.active = screen === "menu";
     this.scores.active = screen === "scores";
+    this.settleConfirm.active = screen === "settle-confirm";
     if (screen !== "none") this.setEmotesVisible(false);
   }
 
@@ -172,7 +176,8 @@ export class LobbyUI {
       this.guide.active ||
       this.rules.active ||
       this.menu.active ||
-      this.scores.active
+      this.scores.active ||
+      this.settleConfirm.active
     );
   }
 
@@ -563,7 +568,7 @@ export class LobbyUI {
       this.cb.onMenuScores()
     );
     this.settleBtn = this.makeBtn(panel, "结算对局", 0, -20, 220, 42, () =>
-      this.cb.onMenuSettle()
+      this.show("settle-confirm")
     );
     this.makeBtn(panel, "查看规则", 0, -80, 220, 42, () => this.show("rules"));
     this.makeBtn(panel, "关闭", 0, -140, 160, 40, () => this.show("none"));
@@ -578,6 +583,17 @@ export class LobbyUI {
     this.scoresList.layer = Layers.Enum.UI_2D;
     panel.addChild(this.scoresList);
     this.makeBtn(panel, "关闭", 0, -150, 140, 40, () => this.show("none"));
+    return panel;
+  }
+
+  private buildSettleConfirm(): Node {
+    const panel = this.panel("SettleConfirm", 360, 240);
+    this.makeLabel(panel, "结算对局", 0, 70, 26, C.gold);
+    this.makeLabel(panel, "确定结算本场对局？", 0, 20, 18, C.cream);
+    this.makeBtn(panel, "确定结算", -80, -70, 140, 42, () =>
+      this.cb.onMenuSettle()
+    );
+    this.makeBtn(panel, "取消", 80, -70, 120, 42, () => this.show("menu"));
     return panel;
   }
 

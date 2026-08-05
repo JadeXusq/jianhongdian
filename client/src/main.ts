@@ -290,6 +290,7 @@ $("btn-menu-rules").onclick = () => show("rules");
 $("btn-menu-scores").onclick = () => renderScores();
 $("btn-scores-close").onclick = () => show("none");
 $("btn-menu-settle").onclick = () => {
+  if (!confirm("确定结算本场对局？")) return;
   if (offline) {
     const r = offline.endMatch();
     show("none");
