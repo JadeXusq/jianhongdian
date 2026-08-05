@@ -513,13 +513,19 @@ export class GameEntry extends Component {
       return;
     }
     const mine = this.myTurn();
+    if (this.matchBusy) {
+      this.wasMyTurn = false;
+      this.hintText =
+        mine && state.turnPhase === "CHOOSE_STOCK_TARGET"
+          ? "翻牌中…"
+          : "对手出牌中…";
+      return;
+    }
     if (!mine) {
       this.wasMyTurn = false;
       this.hintText = "对手出牌中…";
       return;
     }
-    // 轮到自己但上家 MATCH 动画未结束：先不催出牌
-    if (this.matchBusy) return;
     this.wasMyTurn = true;
     this.hintText =
       state.turnPhase === "CHOOSE_STOCK_TARGET"
@@ -638,7 +644,9 @@ export class GameEntry extends Component {
     const startX = -totalW / 2;
     const baseY = -DESIGN.height / 2 + HAND_W * CARD_RATIO + 30;
     const canPlay =
-      this.myTurn() && this.net.state?.turnPhase === "PLAY_HAND";
+      this.myTurn() &&
+      this.net.state?.turnPhase === "PLAY_HAND" &&
+      !this.matchBusy;
 
     this.hand.forEach((id, i) => {
       const k = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
@@ -831,7 +839,12 @@ export class GameEntry extends Component {
   }
 
   onPickHand(id: number): void {
-    if (!this.myTurn() || this.net.state?.turnPhase !== "PLAY_HAND") return;
+    if (
+      !this.myTurn() ||
+      this.matchBusy ||
+      this.net.state?.turnPhase !== "PLAY_HAND"
+    )
+      return;
     const targets = findTargets(id, [...this.net.state.table]);
 
     if (targets.length === 1) return this.send(id, targets[0]);
@@ -853,7 +866,7 @@ export class GameEntry extends Component {
   }
 
   onPickTable(id: number): void {
-    if (!this.myTurn()) return;
+    if (!this.myTurn() || this.matchBusy) return;
     if (this.net.state.turnPhase === "CHOOSE_STOCK_TARGET") {
       if (this.targets.indexOf(id) >= 0) this.net.chooseTarget(id);
       return;

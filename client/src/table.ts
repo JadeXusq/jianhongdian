@@ -105,6 +105,8 @@ export class TableView {
   discardArmed = -1;
   /** 展开得分堆明细 */
   showCaptured = false;
+  /** 外部置位：上家动画/状态抖动期间锁手牌与回合 UI */
+  turnBlocked = false;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -540,7 +542,10 @@ export class TableView {
 
   private drawTable(ctx: CanvasRenderingContext2D): void {
     const pending = this.state.pendingStockCard as number;
-    const choosing = this.state.turnPhase === "CHOOSE_STOCK_TARGET";
+    const choosing =
+      this.state.turnPhase === "CHOOSE_STOCK_TARGET" &&
+      !this.animating &&
+      !this.turnBlocked;
     for (const [id, s] of this.tableSlots) {
       if (this.hidden.has(id)) continue;
       const isTarget = this.targets.includes(id);
@@ -562,12 +567,16 @@ export class TableView {
   }
 
   private drawHand(ctx: CanvasRenderingContext2D): void {
-    const myTurn = this.state.currentSeat === this.mySeat;
+    // 状态可能已轮到自己，但上家动画未完：手牌保持熄灭
+    const myTurn =
+      this.state.currentSeat === this.mySeat &&
+      !this.animating &&
+      !this.turnBlocked;
     for (const [id, s] of this.handSlots) {
       if (this.hidden.has(id)) continue;
       drawCard(ctx, id, s.x, s.y, s.w, {
-        selected: this.selected === id && this.discardArmed !== id,
-        discard: this.discardArmed === id,
+        selected: this.selected === id && this.discardArmed !== id && myTurn,
+        discard: this.discardArmed === id && myTurn,
         dim: !myTurn,
       });
     }
@@ -648,7 +657,12 @@ export class TableView {
     const players = [...this.state.players.values()] as any[];
     for (const p of players) {
       const pos = this.panelPos(p.seat);
-      const active = this.state.currentSeat === p.seat;
+      const active =
+        this.state.currentSeat === p.seat &&
+        !(
+          (this.animating || this.turnBlocked) &&
+          p.seat === this.mySeat
+        );
       const isMe = p.seat === this.mySeat;
 
       // 底板

@@ -26,6 +26,8 @@ let discardArmed = -1;
 let lastRound: RoundOver | null = null;
 /** 用于判断“刚轮到我”的边沿，避免每帧重复提醒 */
 let wasMyTurn = false;
+/** 刚切到自己回合、事件动画尚未入队时的短锁（防闪「可出牌」） */
+let turnUiLockFrames = 0;
 
 const assetBase = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
 void loadCardAtlas(assetBase);
@@ -111,18 +113,34 @@ function refreshTurnHint(): void {
     return;
   if (!offline && net.spectating) {
     hint("观战中");
+    view.turnBlocked = false;
     return;
   }
 
   const mine = myTurn();
+
+  // 状态已切到自己，但 onEvents 可能晚一拍：先锁几帧等动画入队
+  if (mine && !wasMyTurn && !view.animating && turnUiLockFrames <= 0)
+    turnUiLockFrames = 8;
+  if (view.animating) turnUiLockFrames = 0;
+  if (turnUiLockFrames > 0) turnUiLockFrames--;
+
+  const blocked = view.animating || turnUiLockFrames > 0;
+  view.turnBlocked = blocked;
+
+  if (blocked) {
+    wasMyTurn = false;
+    if (mine && state.turnPhase === "CHOOSE_STOCK_TARGET" && view.animating)
+      hint("翻牌中…");
+    else hint(offline ? "电脑出牌中…" : "对手出牌中…");
+    return;
+  }
+
   if (!mine) {
     wasMyTurn = false;
     hint(offline ? "电脑出牌中…" : "对手出牌中…");
     return;
   }
-
-  // 状态已轮到自己，但上家动画未结束：先不催出牌
-  if (view.animating) return;
 
   if (!wasMyTurn) sfx.turn();
   wasMyTurn = true;
@@ -432,7 +450,7 @@ function myTurn(): boolean {
 
 function pickHand(id: number): void {
   const state = playState();
-  if (!myTurn() || !state || state.turnPhase !== "PLAY_HAND" || view.animating)
+  if (!myTurn() || !state || state.turnPhase !== "PLAY_HAND" || view.animating || view.turnBlocked)
     return;
   const targets = findTargets(id, [...state.table]);
 
@@ -454,7 +472,7 @@ function pickHand(id: number): void {
 
 function pickTable(id: number): void {
   const state = playState();
-  if (!state || view.animating) return;
+  if (!state || view.animating || view.turnBlocked) return;
   if (state.turnPhase === "CHOOSE_STOCK_TARGET") {
     if (!myTurn()) return;
     if (view.targets.includes(id)) {
@@ -497,6 +515,11 @@ function syncSelection(): void {
   const state = playState();
   const mySeat = offline ? offline.mySeat : net.mySeat;
   if (!state) {
+    view.targets = [];
+    return;
+  }
+  // 动画中不亮可出/可吃，避免“已轮到你”的错觉
+  if (view.animating || view.turnBlocked) {
     view.targets = [];
     return;
   }
@@ -681,7 +704,10 @@ function frame(now: number): void {
   last = now;
   view.hand = offline ? offline.hand : net.hand;
   view.render(dt);
-  if (playState()?.phase === "PLAYING") refreshTurnHint();
+  if (playState()?.phase === "PLAYING") {
+    syncSelection();
+    refreshTurnHint();
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
