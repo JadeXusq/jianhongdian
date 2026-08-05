@@ -98,6 +98,8 @@ export class GameRoom extends Room<RoomState> {
     if (this.state.phase !== "WAITING") {
       throw new Error("对局已开始，请选择观战加入");
     }
+    // 同设备重复进房（iOS 双击/重连）时挤掉旧座位，避免占两席
+    if (options.deviceId) this.evictDevice(options.deviceId, client.sessionId);
     const seat = this.freeSeat();
     if (seat < 0) throw new Error("房间已满");
     const p = new PlayerSchema();
@@ -444,6 +446,20 @@ export class GameRoom extends Room<RoomState> {
     const taken = new Set([...this.state.players.values()].map((p) => p.seat));
     for (let i = 0; i < this.state.maxPlayers; i++) if (!taken.has(i)) return i;
     return -1;
+  }
+
+  /** 等待阶段：同 deviceId 只保留最新连接 */
+  private evictDevice(deviceId: string, keepSessionId: string): void {
+    if (this.state.phase !== "WAITING") return;
+    for (const p of [...this.state.players.values()]) {
+      if (p.isAi || p.sessionId === keepSessionId) continue;
+      if (this.devices.get(p) !== deviceId) continue;
+      this.devices.delete(p);
+      this.state.players.delete(p.sessionId);
+      const old = this.clients.find((c) => c.sessionId === p.sessionId);
+      old?.leave(4000);
+      if (this.state.hostSessionId === p.sessionId) this.reassignHost();
+    }
   }
 
   /** 把座位号压缩为 0..n-1 连续（有人在等待阶段离开时会出现空缺） */

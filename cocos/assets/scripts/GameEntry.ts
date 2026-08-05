@@ -16,7 +16,6 @@ import {
   findTargets,
   cardScore,
   MATCH_HOLD_S,
-  ROUND_RESULT_AUTO_MS,
   ROUND_RESULT_MAX_WAIT_MS,
   turnHint,
   type GameEvent,
@@ -113,7 +112,7 @@ export class GameEntry extends Component {
           return;
         }
         this.net.nextRound();
-        this.lastRound = null;
+        this.ui.toast("已确认，等待其他玩家…");
         this.ui.show("none");
       },
       onExit: () => this.guard(() => this.doQuit()),
@@ -142,6 +141,17 @@ export class GameEntry extends Component {
         const state = this.playState();
         if (state) this.ui.renderScores(state, this.mySeatNum());
       },
+      onMenuContinue: () => {
+        if (this.offline) {
+          this.offline.continueRound();
+          this.lastRound = null;
+          this.ui.show("none");
+          return;
+        }
+        this.net.nextRound();
+        this.ui.toast("已确认，等待其他玩家…");
+        this.ui.show("none");
+      },
       onMenuSettle: () => {
         if (this.offline) {
           const r = this.offline.endMatch();
@@ -157,6 +167,10 @@ export class GameEntry extends Component {
         if (!this.net.room || !this.net.state) return false;
         return this.net.state.hostSessionId === this.net.room.sessionId;
       },
+      canContinueRound: () =>
+        !!this.lastRound &&
+        !this.lastRound.allDone &&
+        this.playState()?.phase === "ROUND_OVER",
     });
 
     void loadCardAtlas().then((ok) => {
@@ -334,17 +348,10 @@ export class GameEntry extends Component {
         }
         this.syncSelection();
         this.refreshTurnHint();
-      } else if (state.phase === "ROUND_OVER" && this.lastRound) {
+      } else if (state.phase === "ROUND_OVER") {
         this.ui.setEmotesVisible(false);
-        this.ui.setHelpVisible(false);
-        this.ui.setMenuVisible(false);
-        this.ui.renderResult(
-          this.lastRound,
-          state,
-          session.mySeat,
-          "再练一局"
-        );
-        this.ui.show("result");
+        this.ui.setHelpVisible(true);
+        this.ui.setMenuVisible(true);
       }
       if (this.tableVisible && !this.matchBusy) this.render();
     };
@@ -455,8 +462,8 @@ export class GameEntry extends Component {
     const state = this.playState();
     if (!state) return;
     this.ui.setEmotesVisible(false);
-    this.ui.setHelpVisible(false);
-    this.ui.setMenuVisible(false);
+    this.ui.setHelpVisible(true);
+    this.ui.setMenuVisible(!!this.offline || !this.net.spectating);
     this.ui.renderResult(
       r,
       state,
@@ -464,16 +471,6 @@ export class GameEntry extends Component {
       this.offline ? "再练一局" : "再来一局"
     );
     this.ui.show("result");
-    if (!r.allDone) {
-      const snap = this.lastRound;
-      setTimeout(() => {
-        if (this.lastRound === snap && !r.allDone) {
-          this.ui.show("none");
-          this.ui.setHelpVisible(true);
-          this.ui.setMenuVisible(!!this.offline || !this.net.spectating);
-        }
-      }, ROUND_RESULT_AUTO_MS);
-    }
   }
 
   async joinByCode(name: string, code: string): Promise<void> {
@@ -602,12 +599,10 @@ export class GameEntry extends Component {
         }
         this.syncSelection();
         this.refreshTurnHint();
-      } else if (state.phase === "ROUND_OVER" && this.lastRound) {
+      } else if (state.phase === "ROUND_OVER") {
         this.ui.setEmotesVisible(false);
-        this.ui.setHelpVisible(false);
-        this.ui.setMenuVisible(false);
-        this.ui.renderResult(this.lastRound, state, this.net.mySeat);
-        this.ui.show("result");
+        this.ui.setHelpVisible(true);
+        this.ui.setMenuVisible(!this.net.spectating);
       }
       if (this.tableVisible && !this.matchBusy) this.render();
     };

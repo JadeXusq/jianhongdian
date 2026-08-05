@@ -45,8 +45,10 @@ export interface LobbyCallbacks {
   onGuideOk(): void;
   onRulesClose(): void;
   onMenuScores(): void;
+  onMenuContinue(): void;
   onMenuSettle(): void;
   isHost(): boolean;
+  canContinueRound(): boolean;
 }
 
 /** 大厅 / 房间等待 / 结算 / 引导 / 规则覆盖层 */
@@ -66,6 +68,7 @@ export class LobbyUI {
   private helpBtn!: Node;
   private menuBtn!: Node;
   private settleBtn!: Node;
+  private continueBtn!: Node;
   private scoresList!: Node;
   private scoresRound!: Label;
   private emoteBubble!: Label;
@@ -188,6 +191,7 @@ export class LobbyUI {
 
   private openMenu(): void {
     this.settleBtn.active = this.cb.isHost();
+    this.continueBtn.active = this.cb.canContinueRound();
     this.show("menu");
   }
 
@@ -625,16 +629,19 @@ export class LobbyUI {
   }
 
   private buildMenu(): Node {
-    const panel = this.panel("Menu", 320, 320);
-    this.makeLabel(panel, "菜单", 0, 110, 28, C.gold);
-    this.makeBtn(panel, "查看当前积分", 0, 40, 220, 42, () =>
+    const panel = this.panel("Menu", 320, 380);
+    this.makeLabel(panel, "菜单", 0, 140, 28, C.gold);
+    this.makeBtn(panel, "查看当前积分", 0, 70, 220, 42, () =>
       this.cb.onMenuScores()
     );
-    this.settleBtn = this.makeBtn(panel, "结算对局", 0, -20, 220, 42, () =>
+    this.continueBtn = this.makeBtn(panel, "继续下一轮", 0, 10, 220, 42, () =>
+      this.cb.onMenuContinue()
+    );
+    this.settleBtn = this.makeBtn(panel, "结算对局", 0, -50, 220, 42, () =>
       this.show("settle-confirm")
     );
-    this.makeBtn(panel, "查看规则", 0, -80, 220, 42, () => this.show("rules"));
-    this.makeBtn(panel, "关闭", 0, -140, 160, 40, () => this.show("none"));
+    this.makeBtn(panel, "查看规则", 0, -110, 220, 42, () => this.show("rules"));
+    this.makeBtn(panel, "关闭", 0, -170, 160, 40, () => this.show("none"));
     return panel;
   }
 

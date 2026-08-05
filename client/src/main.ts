@@ -4,7 +4,6 @@
  */
 import { cardScore, findTargets, turnHint } from "@jhd/shared";
 import {
-  ROUND_RESULT_AUTO_MS,
   ROUND_RESULT_MAX_WAIT_MS,
   TURN_UI_LOCK_MS,
 } from "@jhd/shared";
@@ -328,6 +327,9 @@ function setMenuVisible(v: boolean): void {
 }
 
 function openGameMenu(): void {
+  const midRound =
+    !!lastRound && !lastRound.allDone && playState()?.phase === "ROUND_OVER";
+  $("btn-menu-continue").classList.toggle("hidden", !midRound);
   $("btn-menu-settle").classList.toggle("hidden", !isHost());
   show("game-menu");
 }
@@ -362,6 +364,16 @@ $("btn-menu-close").onclick = () => show("none");
 $("btn-menu-rules").onclick = () => show("rules");
 $("btn-menu-scores").onclick = () => renderScores();
 $("btn-scores-close").onclick = () => show("none");
+$("btn-menu-continue").onclick = () => {
+  if (offline) {
+    offline.continueRound();
+    show("none");
+    return;
+  }
+  net.nextRound();
+  toast("已确认，等待其他玩家…");
+  show("none");
+};
 $("btn-menu-settle").onclick = () => show("settle-confirm");
 $("btn-settle-cancel").onclick = () => show("game-menu");
 $("btn-settle-ok").onclick = () => {
@@ -543,6 +555,7 @@ $("btn-again").onclick = () => {
     return;
   }
   net.nextRound();
+  if (lastRound && !lastRound.allDone) toast("已确认，等待其他玩家…");
   show("none");
 };
 $("btn-exit").onclick = () => {
@@ -614,11 +627,9 @@ function renderResult(r: RoundOver): void {
   } else {
     btnAgain.textContent = "继续下一轮";
     btnExit.style.display = "none";
-    setTimeout(() => {
-      if (shown("result")) show("none");
-    }, ROUND_RESULT_AUTO_MS);
   }
   show("result");
+  if (!r.allDone) setMenuVisible(!net.spectating || !!offline);
 }
 
 // ---------- 出牌交互 ----------
@@ -747,6 +758,9 @@ function startOffline(): void {
       $("btn-help").classList.toggle("hidden", overlay);
       setMenuVisible(!overlay);
       if (!overlay) refreshTurnHint();
+    } else if (state.phase === "ROUND_OVER") {
+      $("emotes").classList.add("hidden");
+      setMenuVisible(true);
     }
     syncSelection();
   };
@@ -813,7 +827,9 @@ net.onState = (state) => {
     setMenuVisible(!overlay && !net.spectating);
     if (!overlay) refreshTurnHint();
   } else if (state.phase === "ROUND_OVER") {
-    setMenuVisible(false);
+    $("emotes").classList.add("hidden");
+    $("btn-help").classList.toggle("hidden", net.spectating);
+    setMenuVisible(!net.spectating);
   }
   syncSelection();
 };

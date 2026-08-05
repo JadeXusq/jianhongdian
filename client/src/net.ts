@@ -149,58 +149,61 @@ export class Net {
 
   onProgress?: (msg: string) => void;
 
+  private joining = false;
+
   async create(name: string, maxPlayers: number): Promise<void> {
-    this.bind(
-      await withWake(
-        () =>
-          this.client.create("game", {
-            name,
-            maxPlayers,
-            deviceId: deviceId(),
-          }),
-        this.onProgress
-      )
+    await this.enterRoom(() =>
+      this.client.create("game", {
+        name,
+        maxPlayers,
+        deviceId: deviceId(),
+      })
     );
   }
 
   async quickMatch(name: string, maxPlayers: number): Promise<void> {
-    this.bind(
-      await withWake(
-        () =>
-          this.client.joinOrCreate("game", {
-            name,
-            maxPlayers,
-            deviceId: deviceId(),
-          }),
-        this.onProgress
-      )
+    await this.enterRoom(() =>
+      this.client.joinOrCreate("game", {
+        name,
+        maxPlayers,
+        deviceId: deviceId(),
+      })
     );
   }
 
   async joinByCode(name: string, code: string): Promise<void> {
-    await withWake(async () => {
+    await this.enterRoom(async () => {
       const res = await fetch(`${HTTP_URL}/api/room/${code}`);
       if (!res.ok) throw new Error("房间不存在或已解散");
       const { roomId } = await res.json();
-      this.bind(
-        await this.client.joinById(roomId, { name, deviceId: deviceId() })
-      );
-    }, this.onProgress);
+      return this.client.joinById(roomId, { name, deviceId: deviceId() });
+    });
   }
 
   async spectateByCode(name: string, code: string): Promise<void> {
-    await withWake(async () => {
+    await this.enterRoom(async () => {
       const res = await fetch(`${HTTP_URL}/api/room/${code}`);
       if (!res.ok) throw new Error("房间不存在或已解散");
       const { roomId } = await res.json();
+      return this.client.joinById(roomId, {
+        name,
+        deviceId: deviceId(),
+        spectate: true,
+      });
+    });
+  }
+
+  private async enterRoom(connect: () => Promise<Room<any>>): Promise<void> {
+    if (this.joining) throw new Error("正在进入房间，请稍候");
+    this.joining = true;
+    try {
+      await this.leave().catch(() => undefined);
       this.bind(
-        await this.client.joinById(roomId, {
-          name,
-          deviceId: deviceId(),
-          spectate: true,
-        })
+        await withWake(connect, this.onProgress)
       );
-    }, this.onProgress);
+    } finally {
+      this.joining = false;
+    }
   }
 
   async leaderboard(): Promise<Profile[]> {

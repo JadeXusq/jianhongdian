@@ -101,9 +101,11 @@ export class Net {
     return this.room?.state;
   }
 
+  private joining = false;
+
   async create(name: string, maxPlayers: number): Promise<void> {
-    this.bind(
-      await this.client.create("game", {
+    await this.enterRoom(() =>
+      this.client.create("game", {
         name,
         maxPlayers,
         deviceId: deviceId(),
@@ -112,8 +114,8 @@ export class Net {
   }
 
   async quickMatch(name: string, maxPlayers: number): Promise<void> {
-    this.bind(
-      await this.client.joinOrCreate("game", {
+    await this.enterRoom(() =>
+      this.client.joinOrCreate("game", {
         name,
         maxPlayers,
         deviceId: deviceId(),
@@ -122,25 +124,36 @@ export class Net {
   }
 
   async joinByCode(name: string, code: string): Promise<void> {
-    const res = await fetch(`${this.httpUrl}/api/room/${code}`);
-    if (!res.ok) throw new Error("房间不存在或已解散");
-    const { roomId } = await res.json();
-    this.bind(
-      await this.client.joinById(roomId, { name, deviceId: deviceId() })
-    );
+    await this.enterRoom(async () => {
+      const res = await fetch(`${this.httpUrl}/api/room/${code}`);
+      if (!res.ok) throw new Error("房间不存在或已解散");
+      const { roomId } = await res.json();
+      return this.client.joinById(roomId, { name, deviceId: deviceId() });
+    });
   }
 
   async spectateByCode(name: string, code: string): Promise<void> {
-    const res = await fetch(`${this.httpUrl}/api/room/${code}`);
-    if (!res.ok) throw new Error("房间不存在或已解散");
-    const { roomId } = await res.json();
-    this.bind(
-      await this.client.joinById(roomId, {
+    await this.enterRoom(async () => {
+      const res = await fetch(`${this.httpUrl}/api/room/${code}`);
+      if (!res.ok) throw new Error("房间不存在或已解散");
+      const { roomId } = await res.json();
+      return this.client.joinById(roomId, {
         name,
         deviceId: deviceId(),
         spectate: true,
-      })
-    );
+      });
+    });
+  }
+
+  private async enterRoom(connect: () => Promise<RoomLike>): Promise<void> {
+    if (this.joining) throw new Error("正在进入房间，请稍候");
+    this.joining = true;
+    try {
+      await this.leave().catch(() => undefined);
+      this.bind(await connect());
+    } finally {
+      this.joining = false;
+    }
   }
 
   async leaderboard(): Promise<Profile[]> {
