@@ -347,6 +347,39 @@ input:focus {
 .seat .who {
   flex: 1;
   text-align: left;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat .ai-tag,
+.res .ai-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--seal, #c45c48);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+  line-height: 16px;
+}
+
+.res .who {
+  flex: 1;
+  text-align: left;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-actions {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }
 
 .seat .tag {
@@ -385,11 +418,6 @@ input:focus {
 .res.top .rank {
   color: #f0c96a;
   font-weight: 700;
-}
-
-.res .who {
-  flex: 1;
-  text-align: left;
 }
 
 .res .calc {

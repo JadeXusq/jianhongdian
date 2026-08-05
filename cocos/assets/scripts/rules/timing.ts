@@ -15,10 +15,14 @@ export const RECONNECT_MS = 60_000;
 export const MATCH_HOLD_MS = 2_200;
 /** 出牌飞向目标后停顿 */
 export const FLY_TARGET_HOLD_MS = 300;
+/** 命中目标后的短反馈（再进 MATCH） */
+export const HIT_HOLD_MS = 280;
 /** 飞入得分堆后停顿 */
 export const FLY_PILE_HOLD_MS = 600;
 /** 弃牌落桌后停顿 */
 export const DISCARD_HOLD_MS = 800;
+/** 昵称最长字数 */
+export const NAME_MAX_LEN = 10;
 /** 轮间结算弹窗自动关闭（未打满时） */
 export const ROUND_RESULT_AUTO_MS = 5_000;
 /** 刚切到自己回合时的提示短锁（墙钟，不依赖 RAF 帧计数） */
@@ -27,6 +31,7 @@ export const TURN_UI_LOCK_MS = 150;
 export const ROUND_RESULT_MAX_WAIT_MS =
   320 +
   FLY_TARGET_HOLD_MS +
+  HIT_HOLD_MS +
   350 +
   MATCH_HOLD_MS +
   420 +
@@ -35,14 +40,16 @@ export const ROUND_RESULT_MAX_WAIT_MS =
 
 export const MATCH_HOLD_S = MATCH_HOLD_MS / 1000;
 export const FLY_TARGET_HOLD_S = FLY_TARGET_HOLD_MS / 1000;
+export const HIT_HOLD_S = HIT_HOLD_MS / 1000;
 export const FLY_PILE_HOLD_S = FLY_PILE_HOLD_MS / 1000;
 export const DISCARD_HOLD_S = DISCARD_HOLD_MS / 1000;
 
-/** 客户端吃牌动画总时长估算（飞向目标 + MATCH + 飞入堆） */
+/** 客户端吃牌动画总时长估算（飞向目标 + 命中 + MATCH + 飞入堆） */
 export function captureAnimMs(): number {
   return (
     320 +
     FLY_TARGET_HOLD_MS +
+    HIT_HOLD_MS +
     350 +
     MATCH_HOLD_MS +
     420 +

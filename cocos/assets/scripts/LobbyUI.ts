@@ -69,6 +69,7 @@ export class LobbyUI {
   private menuBtn!: Node;
   private settleBtn!: Node;
   private continueBtn!: Node;
+  private resultSettleBtn!: Node;
   private scoresList!: Node;
   private scoresRound!: Label;
   private emoteBubble!: Label;
@@ -95,6 +96,7 @@ export class LobbyUI {
   private exitBtn!: Node;
   private toastLbl!: Label;
   private toastTimer = 0;
+  private settleBack: UiScreen = "menu";
 
   constructor(
     private parent: Node,
@@ -208,7 +210,7 @@ export class LobbyUI {
         (p.totalNet > 0 ? "+" : "") + p.totalNet;
       this.makeLabel(
         this.scoresList,
-        `${i + 1}. ${p.name}${p.isAi ? "·电脑" : ""}${mark}  本轮${p.points}  总${net}`,
+        `${i + 1}. ${p.name}${p.isAi ? "〔机〕" : ""}${mark}  本轮${p.points}  总${net}`,
         0,
         50 - i * 36,
         18,
@@ -250,13 +252,15 @@ export class LobbyUI {
   }
 
   playerName(): string {
-    const v = (this.nameBox.string || "").trim() || "无名客";
+    const raw = (this.nameBox.string || "").trim().slice(0, 10);
+    this.nameBox.string = raw;
+    const v = raw || "无名客";
     try {
-      localStorage.setItem("jhd.name", v);
+      localStorage.setItem("jhd.name", raw);
     } catch {
       /* ignore */
     }
-    return v.slice(0, 12);
+    return v;
   }
 
   renderRoom(state: any, mySessionId: string): void {
@@ -295,7 +299,7 @@ export class LobbyUI {
       if (p) {
         const dup = (nameCount.get(p.name) ?? 0) > 1;
         const label = dup ? `${p.name}·座${i + 1}` : p.name;
-        line = `${label}${p.isAi ? " · 电脑" : ""}${
+        line = `${label}${p.isAi ? "〔机〕" : ""}${
           p.sessionId === mySessionId ? "（我）" : ""
         }  ${p.ready ? "已准备" : "等待中"}`;
       }
@@ -314,7 +318,7 @@ export class LobbyUI {
     if (this.roomStatusLbl) {
       this.roomStatusLbl.string =
         need > 0
-          ? `还差 ${need} 人（可添加电脑）`
+          ? `还差 ${need} 人（可添加机器人）`
           : unready > 0
             ? `人数已满 · 还有 ${unready} 人未准备`
             : "全员已准备 · 即将开局";
@@ -371,7 +375,7 @@ export class LobbyUI {
         (r.allDone ? ` | 总 ${row.p.totalNet}` : ` | 总 ${row.p.totalNet}`);
       this.makeLabel(
         this.resultList,
-        `${rank}. ${row.p.name}${row.p.isAi ? "·电脑" : ""}${mark}  ${row.points}分  ${net}`,
+        `${rank}. ${row.p.name}${row.p.isAi ? "〔机〕" : ""}${mark}  ${row.points}分  ${net}`,
         0,
         50 - i * 36,
         20,
@@ -382,6 +386,7 @@ export class LobbyUI {
       ? againAllDone
       : "继续下一轮";
     this.exitBtn.active = !!r.allDone;
+    this.resultSettleBtn.active = !r.allDone && this.cb.isHost();
   }
 
   private buildLobby(): Node {
@@ -532,7 +537,7 @@ export class LobbyUI {
     this.seatsNode.layer = Layers.Enum.UI_2D;
     panel.addChild(this.seatsNode);
 
-    this.aiBtn = this.makeBtn(panel, "＋ 添加电脑", -90, -150, 150, 40, () =>
+    this.aiBtn = this.makeBtn(panel, "＋ 添加机器人", -90, -150, 150, 40, () =>
       this.cb.onAddAi()
     );
     const readyBtn = this.makeBtn(panel, "准备", 90, -150, 120, 40, () =>
@@ -544,20 +549,33 @@ export class LobbyUI {
   }
 
   private buildResult(): Node {
-    const panel = this.panel("Result", 440, 420);
-    this.resultTitle = this.makeLabel(panel, "本局结算", 0, 160, 28, C.gold);
+    const panel = this.panel("Result", 440, 460);
+    this.resultTitle = this.makeLabel(panel, "本局结算", 0, 170, 28, C.gold);
     this.resultDots = new Node("Dots");
     this.resultDots.layer = Layers.Enum.UI_2D;
     panel.addChild(this.resultDots);
-    this.resultDots.setPosition(new Vec3(0, 120, 0));
+    this.resultDots.setPosition(new Vec3(0, 130, 0));
     this.resultList = new Node("ResultList");
     this.resultList.layer = Layers.Enum.UI_2D;
     panel.addChild(this.resultList);
-    const again = this.makeBtn(panel, "再来一局", -80, -160, 150, 40, () =>
+    const again = this.makeBtn(panel, "再来一局", -90, -140, 150, 40, () =>
       this.cb.onAgain()
     );
     this.againLbl = again.getComponentInChildren(Label)!;
-    this.exitBtn = this.makeBtn(panel, "返回大厅", 90, -160, 130, 40, () =>
+    this.resultSettleBtn = this.makeBtn(
+      panel,
+      "结算本场",
+      90,
+      -140,
+      130,
+      40,
+      () => {
+        this.settleBack = "result";
+        this.show("settle-confirm");
+      }
+    );
+    this.resultSettleBtn.active = false;
+    this.exitBtn = this.makeBtn(panel, "返回大厅", 0, -195, 160, 40, () =>
       this.cb.onExit()
     );
     return panel;
@@ -637,9 +655,10 @@ export class LobbyUI {
     this.continueBtn = this.makeBtn(panel, "继续下一轮", 0, 10, 220, 42, () =>
       this.cb.onMenuContinue()
     );
-    this.settleBtn = this.makeBtn(panel, "结算对局", 0, -50, 220, 42, () =>
-      this.show("settle-confirm")
-    );
+    this.settleBtn = this.makeBtn(panel, "结算对局", 0, -50, 220, 42, () => {
+      this.settleBack = "menu";
+      this.show("settle-confirm");
+    });
     this.makeBtn(panel, "查看规则", 0, -110, 220, 42, () => this.show("rules"));
     this.makeBtn(panel, "关闭", 0, -170, 160, 40, () => this.show("none"));
     return panel;
@@ -663,7 +682,9 @@ export class LobbyUI {
     this.makeBtn(panel, "确定结算", -80, -70, 140, 42, () =>
       this.cb.onMenuSettle()
     );
-    this.makeBtn(panel, "取消", 80, -70, 120, 42, () => this.show("menu"));
+    this.makeBtn(panel, "取消", 80, -70, 120, 42, () =>
+      this.show(this.settleBack)
+    );
     return panel;
   }
 
@@ -777,7 +798,7 @@ export class LobbyUI {
 
     const eb = n.addComponent(EditBox);
     eb.inputMode = EditBox.InputMode.SINGLE_LINE;
-    eb.maxLength = 12;
+    eb.maxLength = 10;
     eb.placeholder = placeholder;
     eb.textLabel = textLabel;
     eb.placeholderLabel = phLabel;

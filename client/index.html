@@ -22,7 +22,7 @@
           <p class="subtitle">出手牌凑十吃红分 · 红鬼最大</p>
           <label class="field">
             <span>昵称</span>
-            <input id="name" maxlength="8" placeholder="请输入昵称" />
+            <input id="name" maxlength="10" placeholder="请输入昵称" />
           </label>
           <div class="field">
             <span>人数</span>
@@ -61,7 +61,7 @@
           <p id="room-status" class="subtitle room-status"></p>
           <div id="seats" class="seats"></div>
           <div class="row">
-            <button id="btn-ai" class="btn">＋ 添加电脑</button>
+            <button id="btn-ai" class="btn">＋ 添加机器人</button>
             <button id="btn-ready" class="btn primary">准备</button>
           </div>
           <button id="btn-quit" class="link">离开房间</button>
@@ -94,8 +94,9 @@
           <h2 class="title small">本局结算</h2>
           <div id="result-dots" class="result-dots"></div>
           <div id="result-list" class="result-list"></div>
-          <div class="row">
+          <div class="row result-actions">
             <button id="btn-again" class="btn primary">再来一局</button>
+            <button id="btn-result-settle" class="btn hidden">结算本场</button>
             <button id="btn-exit" class="btn">返回大厅</button>
           </div>
         </div>

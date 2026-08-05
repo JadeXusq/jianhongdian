@@ -18,7 +18,7 @@ export function turnHint(opts: {
 }): string {
   if (opts.spectating) return "观战中";
 
-  const other = opts.offline ? "电脑出牌中…" : "对手出牌中…";
+  const other = opts.offline ? "机器人出牌中…" : "对手出牌中…";
   const choosing = opts.turnPhase === "CHOOSE_STOCK_TARGET";
 
   if (opts.busy) {

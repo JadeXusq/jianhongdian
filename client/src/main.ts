@@ -120,6 +120,7 @@ muteBtn.onclick = () => {
 };
 
 let toastTimer = 0;
+let settleBack: "result" | "game-menu" = "game-menu";
 function toast(msg: string, ms = 2200): void {
   const el = $("toast");
   el.textContent = msg;
@@ -212,8 +213,10 @@ const nameInput = $<HTMLInputElement>("name");
 nameInput.value = localStorage.getItem("jhd.name") ?? "";
 
 function playerName(): string {
-  const v = nameInput.value.trim() || "无名客";
-  localStorage.setItem("jhd.name", v);
+  const raw = nameInput.value.trim().slice(0, 10);
+  const v = raw || "无名客";
+  if (nameInput.value !== raw) nameInput.value = raw;
+  localStorage.setItem("jhd.name", v === "无名客" ? raw : v);
   return v;
 }
 
@@ -348,7 +351,9 @@ function renderScores(): void {
       (p, i) => `
       <div class="res${p.seat === mySeat ? " me" : ""}${i === 0 ? " top" : ""}">
         <span class="rank">${i + 1}</span>
-        <span class="who">${p.name}${p.isAi ? " · 电脑" : ""}</span>
+        <span class="who">${p.name}${
+          p.isAi ? '<span class="ai-tag">机</span>' : ""
+        }</span>
         <span class="calc">本轮 ${p.points}</span>
         <span class="net ${p.totalNet > 0 ? "win" : p.totalNet < 0 ? "lose" : ""}">${
           p.totalNet > 0 ? "+" : ""
@@ -374,8 +379,15 @@ $("btn-menu-continue").onclick = () => {
   toast("已确认，等待其他玩家…");
   show("none");
 };
-$("btn-menu-settle").onclick = () => show("settle-confirm");
-$("btn-settle-cancel").onclick = () => show("game-menu");
+$("btn-menu-settle").onclick = () => {
+  settleBack = "game-menu";
+  show("settle-confirm");
+};
+$("btn-result-settle").onclick = () => {
+  settleBack = "result";
+  show("settle-confirm");
+};
+$("btn-settle-cancel").onclick = () => show(settleBack);
 $("btn-settle-ok").onclick = () => {
   if (offline) {
     const r = offline.endMatch();
@@ -513,7 +525,9 @@ function renderRoom(state: any): void {
       const label = dup ? `${p.name}·座${i + 1}` : p.name;
       const mine = p.sessionId === net.room?.sessionId;
       div.innerHTML = `<div class="avatar">${label.slice(0, 1)}</div>
-         <div class="who">${label}${p.isAi ? " · 电脑" : ""}${
+         <div class="who">${label}${
+           p.isAi ? '<span class="ai-tag">机</span>' : ""
+         }${
            mine ? "（我）" : ""
          }</div>
          <div class="tag">${p.ready ? "已准备" : "等待中"}</div>`;
@@ -529,7 +543,7 @@ function renderRoom(state: any): void {
   const unready = players.filter((p) => !p.ready).length;
   const status = $("room-status");
   if (need > 0) {
-    status.textContent = `还差 ${need} 人（可点「添加电脑」补位）`;
+    status.textContent = `还差 ${need} 人（可点「添加机器人」补位）`;
   } else if (unready > 0) {
     status.textContent = `人数已满 · 还有 ${unready} 人未准备`;
   } else {
@@ -606,7 +620,9 @@ function renderResult(r: RoundOver): void {
         i === 0 ? " top" : ""
       }">
         <span class="rank">${i === 0 ? "胜" : i + 1}</span>
-        <span class="who">${row.p.name}${row.p.isAi ? " · 电脑" : ""}</span>
+        <span class="who">${row.p.name}${
+          row.p.isAi ? '<span class="ai-tag">机</span>' : ""
+        }</span>
         <span class="calc">${row.points} − ${r.base}${
         r.allDone || row.p.totalNet !== undefined
           ? " | 总 " + row.p.totalNet
@@ -621,12 +637,15 @@ function renderResult(r: RoundOver): void {
 
   const btnAgain = $<HTMLButtonElement>("btn-again");
   const btnExit = $<HTMLButtonElement>("btn-exit");
+  const btnSettle = $<HTMLButtonElement>("btn-result-settle");
   if (r.allDone) {
     btnAgain.textContent = offline ? "再练一局" : "再来一局";
     btnExit.style.display = "";
+    btnSettle.classList.add("hidden");
   } else {
     btnAgain.textContent = "继续下一轮";
     btnExit.style.display = "none";
+    btnSettle.classList.toggle("hidden", !offline && !isHost());
   }
   show("result");
   if (!r.allDone) setMenuVisible(!net.spectating || !!offline);

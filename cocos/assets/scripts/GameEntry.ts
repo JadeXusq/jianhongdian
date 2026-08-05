@@ -16,6 +16,8 @@ import {
   findTargets,
   cardScore,
   MATCH_HOLD_S,
+  HIT_HOLD_S,
+  FLY_TARGET_HOLD_S,
   DISCARD_HOLD_S,
   ROUND_RESULT_MAX_WAIT_MS,
   turnHint,
@@ -71,6 +73,9 @@ export class GameEntry extends Component {
     fromStock: boolean;
     commitHand: boolean;
   }> = [];
+  private lingerCards = new Set<number>();
+  private lastTablePos = new Map<number, { x: number; y: number }>();
+  private hitTargetId = -1;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -389,6 +394,9 @@ export class GameEntry extends Component {
       this.visualTurnSeat = null;
       this.matchCommit = null;
       this.matchQueue = [];
+      this.lingerCards.clear();
+      this.lastTablePos.clear();
+      this.hitTargetId = -1;
       this.matchBusy = false;
       this.hand = session.hand.slice();
       this.hintText = "新一轮开始";
@@ -577,6 +585,9 @@ export class GameEntry extends Component {
     this.visualTurnSeat = null;
     this.matchCommit = null;
     this.matchQueue = [];
+    this.lingerCards.clear();
+    this.lastTablePos.clear();
+    this.hitTargetId = -1;
     this.matchBusy = false;
   }
 
@@ -642,6 +653,9 @@ export class GameEntry extends Component {
       this.visualTurnSeat = null;
       this.matchCommit = null;
       this.matchQueue = [];
+      this.lingerCards.clear();
+      this.lastTablePos.clear();
+      this.hitTargetId = -1;
       this.matchBusy = false;
       this.hand = this.net.hand.slice();
       this.hintText = "新一轮开始";
@@ -714,6 +728,7 @@ export class GameEntry extends Component {
           [capture.card, capture.target],
           gain
         );
+        this.lingerCards.add(capture.target);
         this.matchQueue.push({
           cardId: capture.card,
           targetId: capture.target,
@@ -722,7 +737,7 @@ export class GameEntry extends Component {
           commitHand: index === 0 && !!handPlay,
         });
       });
-      if (!this.matchBusy) this.playNextMatch();
+      if (!this.matchBusy && this.hitTargetId < 0) this.playNextMatch();
       return;
     }
     if (events.length) this.visualTurnSeat = events[0].player;
@@ -743,8 +758,29 @@ export class GameEntry extends Component {
   }
 
   private playNextMatch(): void {
-    const next = this.matchQueue.shift();
+    const next = this.matchQueue[0];
     if (!next) return;
+    this.matchBusy = true;
+    this.visualTurnSeat = next.seat;
+    this.lingerCards.add(next.targetId);
+    this.hitTargetId = next.targetId;
+    if (this.tableVisible) this.render();
+    this.unschedule(this.finishHitThenMatch);
+    this.scheduleOnce(
+      this.finishHitThenMatch,
+      FLY_TARGET_HOLD_S + HIT_HOLD_S
+    );
+  }
+
+  private finishHitThenMatch = (): void => {
+    const next = this.matchQueue.shift();
+    this.hitTargetId = -1;
+    if (!next) {
+      this.matchBusy = false;
+      this.lingerCards.clear();
+      return;
+    }
+    this.lingerCards.delete(next.targetId);
     this.playMatch(
       next.cardId,
       next.targetId,
@@ -752,7 +788,7 @@ export class GameEntry extends Component {
       next.fromStock,
       next.commitHand
     );
-  }
+  };
 
   private playMatch(
     cardId: number,
@@ -1040,12 +1076,14 @@ export class GameEntry extends Component {
       const rowW = inRow * TABLE_CARD_W + (inRow - 1) * gap;
       const startX = -rowW / 2;
       const isTarget = this.targets.indexOf(id) >= 0;
+      const isHit = id === this.hitTargetId;
       const card = createCard(id, TABLE_CARD_W, {
-        highlight: isTarget,
-        dim: (this.selected >= 0 || choosing) && !isTarget,
+        highlight: isTarget || isHit,
+        dim: (this.selected >= 0 || choosing) && !isTarget && !isHit,
       });
       const x = startX + (i % cols) * (TABLE_CARD_W + gap);
       const y = startY - row * rowH;
+      this.lastTablePos.set(id, { x, y });
       card.setPosition(new Vec3(x, y, 0));
       if (isTarget) {
         card
@@ -1055,6 +1093,27 @@ export class GameEntry extends Component {
       }
       this.tableNode.addChild(card);
     });
+
+    for (const id of this.lingerCards) {
+      if (table.indexOf(id) >= 0) continue;
+      const pos = this.lastTablePos.get(id);
+      if (!pos) continue;
+      const isHit = id === this.hitTargetId;
+      const card = createCard(id, TABLE_CARD_W, { highlight: isHit });
+      card.setPosition(new Vec3(pos.x, pos.y, 0));
+      this.tableNode.addChild(card);
+      if (isHit) {
+        addLabel(
+          this.tableNode,
+          "命中",
+          pos.x + TABLE_CARD_W / 2,
+          pos.y + TABLE_CARD_W * CARD_RATIO * 0.5 + 18,
+          20,
+          C.gold,
+          true
+        );
+      }
+    }
   }
 
   private renderHand(): void {
@@ -1194,27 +1253,28 @@ export class GameEntry extends Component {
     active: boolean,
     isStarter = false
   ): void {
+    const name = String(p.name ?? "").slice(0, 10);
+    const nameW = Math.min(160, Math.max(40, name.length * 17));
+    const tagW = (p.isAi ? 22 : 0) + (isStarter ? 28 : 0);
+    const panelW = Math.min(220, Math.max(148, 56 + nameW + tagW));
+    const panelH = 84;
     const gNode = new Node("Panel");
     gNode.layer = Layers.Enum.UI_2D;
     this.infoNode.addChild(gNode);
     gNode.setPosition(new Vec3(x, y, 0));
     const g = gNode.addComponent(Graphics);
     g.fillColor = new Color(8, 26, 20, 184);
-    g.roundRect(-88, -42, 176, 84, 12);
+    g.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
     g.fill();
     g.strokeColor = active ? C.gold : new Color(201, 169, 97, 80);
     g.lineWidth = active ? 2 : 1;
-    g.roundRect(-88, -42, 176, 84, 12);
+    g.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
     g.stroke();
-    addLabel(
-      gNode,
-      `${p.name}${p.isAi ? " ·电脑" : ""}${isStarter ? " ·庄" : ""}`,
-      0,
-      16,
-      17,
-      C.cream,
-      true
-    );
+    const title = `${name}${isStarter ? " ·庄" : ""}`;
+    addLabel(gNode, title, 0, 16, 17, C.cream, true);
+    if (p.isAi) {
+      addLabel(gNode, "机", panelW / 2 - 18, 28, 12, C.seal, true);
+    }
     addLabel(gNode, `${this.displayPoints(p)} 分`, 0, -6, 15, C.cream);
     addLabel(
       gNode,

@@ -10,6 +10,7 @@ import type { GameEvent } from "@jhd/shared";
 import {
   DISCARD_HOLD_S,
   FLY_TARGET_HOLD_S,
+  HIT_HOLD_S,
   MATCH_HOLD_S,
   FLY_PILE_HOLD_S,
 } from "@jhd/shared";
@@ -50,6 +51,7 @@ interface Popup {
   t: number;
   sparkle?: boolean;
   hint?: boolean;
+  hit?: boolean;
   gain?: number;
 }
 
@@ -65,6 +67,8 @@ interface Step {
   decStock?: boolean;
   /** 本步结束后才允许这些牌出现在桌面/待选位 */
   revealOnDone?: number[];
+  /** 本步开始时从桌面暂留中移除（进入 MATCH） */
+  clearLinger?: number[];
   /** 飞入得分堆结束后才把分/牌计入面板（所见即所得） */
   commitCapture?: { seat: number; cards: number[]; gain: number };
   /** 本步结束后才扣减余牌数显示 */
@@ -99,6 +103,8 @@ export class TableView {
   private hidden = new Set<number>();
   /** 翻牌动画未完成前，不把牌堆牌画到桌面/待选 */
   private deferredReveal = new Set<number>();
+  /** 状态已移走但仍需画在桌面的牌（等命中/MATCH） */
+  private lingerTable = new Map<number, Slot>();
   private animClock = 0;
   /** 已同步但翻牌动画未开始的牌堆张数，用于延后扣减显示 */
   private stockAnimCredit = 0;
@@ -301,15 +307,19 @@ export class TableView {
         continue;
       }
 
-      // 吃牌：出的牌飞向目标 → 居中 MATCH → 飞入得分堆
-      const targetSlot = this.tableSlots.get(ev.target) ?? {
-        x: this.w / 2,
-        y: this.area.y + 100,
-      };
+      // 吃牌：出的牌飞到目标（目标仍留桌面）→ 命中反馈 → MATCH → 飞入得分堆
+      const targetSlot = this.tableSlots.get(ev.target) ??
+        this.lingerTable.get(ev.target) ?? {
+          x: this.w / 2,
+          y: this.area.y + 100,
+          w: TABLE_CARD_W,
+        };
+      if (this.tableSlots.has(ev.target))
+        this.lingerTable.set(ev.target, { ...this.tableSlots.get(ev.target)! });
       const gain = cardScore(ev.card) + cardScore(ev.target);
       this.deferCapture(ev.player, [ev.card, ev.target], gain);
       if (ev.type === "PLAY") this.deferHand(ev.player);
-      // 第 1 步：出的牌飞向目标牌位置
+      // 第 1 步：出的牌飞向目标，目标牌仍留在桌面
       this.steps.push({
         flies: [
           {
@@ -323,12 +333,32 @@ export class TableView {
           },
         ],
         popups: [],
-        hide: [ev.card, ev.target],
+        hide: [ev.card],
         hold: FLY_TARGET_HOLD_S,
         decStock: fromStock,
         visualSeat: ev.player,
       });
-      // 第 2 步：两张牌飞到屏幕正中展示
+      // 第 2 步：命中反馈
+      this.steps.push({
+        flies: [],
+        popups: [
+          {
+            text: "命中",
+            at: {
+              x: targetSlot.x + TABLE_CARD_W / 2,
+              y: targetSlot.y - 12,
+            },
+            t: 0,
+            hit: true,
+            sparkle: true,
+            gain,
+          },
+        ],
+        hide: [ev.card],
+        hold: HIT_HOLD_S,
+        visualSeat: ev.player,
+      });
+      // 第 3 步：两张牌飞到屏幕正中展示
       const centerX = this.w / 2;
       const centerY = H / 2;
       const matchW = TABLE_CARD_W * 1.3;
@@ -373,9 +403,10 @@ export class TableView {
         ],
         hide: [ev.card, ev.target],
         hold: MATCH_HOLD_S,
+        clearLinger: [ev.target],
         visualSeat: ev.player,
       });
-      // 第 3 步：两张牌飞入得分堆
+      // 第 4 步：两张牌飞入得分堆
       this.steps.push({
         flies: [
           {
@@ -474,6 +505,7 @@ export class TableView {
     this.current = null;
     this.hidden.clear();
     this.deferredReveal.clear();
+    this.lingerTable.clear();
     this.stockAnimCredit = 0;
     this.pendingGain.clear();
     this.pendingCards.clear();
@@ -489,6 +521,9 @@ export class TableView {
       if (!this.current) return;
       if (this.current.visualSeat !== undefined)
         this.visualTurnSeat = this.current.visualSeat;
+      if (this.current.clearLinger) {
+        for (const id of this.current.clearLinger) this.lingerTable.delete(id);
+      }
       if (this.current.decStock)
         this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
     }
@@ -705,6 +740,10 @@ export class TableView {
         dim: (this.selected >= 0 || choosing) && !isTarget,
       });
     }
+    for (const [id, s] of this.lingerTable) {
+      if (this.hidden.has(id) || this.tableSlots.has(id)) continue;
+      drawCard(ctx, id, s.x, s.y, s.w);
+    }
     if (
       choosing &&
       pending >= 0 &&
@@ -832,10 +871,17 @@ export class TableView {
       const pos = this.panelPos(p.seat);
       const active = turnSeat === p.seat;
       const isMe = p.seat === this.mySeat;
+      const starter = this.state.roundStarter === p.seat;
+      const name = String(p.name ?? "");
+      ctx.font = `600 17px "Songti SC", serif`;
+      const nameW = ctx.measureText(name).width;
+      const tagW = (p.isAi ? 22 : 0) + (starter ? 22 : 0);
+      const panelW = Math.min(220, Math.max(148, 78 + nameW + tagW));
+      const panelH = 84;
+      const left = pos.x - panelW / 2;
 
-      // 底板
       ctx.save();
-      roundRect(ctx, pos.x - 88, pos.y - 42, 176, 84, 12);
+      roundRect(ctx, left, pos.y - panelH / 2, panelW, panelH, 12);
       ctx.fillStyle = "rgba(8,26,20,0.72)";
       ctx.fill();
       ctx.strokeStyle = active ? C.gold : "rgba(201,169,97,0.3)";
@@ -843,11 +889,10 @@ export class TableView {
       ctx.stroke();
       ctx.restore();
 
-      // 头像与倒计时环
-      const ax = pos.x - 54;
+      const ax = left + 28;
       const ay = pos.y;
       ctx.beginPath();
-      ctx.arc(ax, ay, 24, 0, Math.PI * 2);
+      ctx.arc(ax, ay, 22, 0, Math.PI * 2);
       ctx.fillStyle = p.connected ? "#2b5c48" : "#4a4a4a";
       ctx.fill();
       ctx.strokeStyle = C.goldDim;
@@ -856,41 +901,67 @@ export class TableView {
       ctx.fillStyle = C.cream;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.font = `600 20px "Songti SC", serif`;
-      ctx.fillText(p.name.slice(0, 1), ax, ay + 1);
+      ctx.font = `600 18px "Songti SC", serif`;
+      ctx.fillText(name.slice(0, 1) || "?", ax, ay + 1);
+      if (p.isAi) {
+        roundRect(ctx, ax + 10, ay - 26, 18, 14, 4);
+        ctx.fillStyle = C.seal;
+        ctx.fill();
+        ctx.fillStyle = C.cream;
+        ctx.font = `700 10px "Songti SC", serif`;
+        ctx.fillText("机", ax + 19, ay - 19);
+      }
       if (active && !this.animating && this.state.turnDeadline > 0) {
-        const left = Math.max(0, this.state.turnDeadline - Date.now());
-        const ratio = Math.min(1, left / 20000);
+        const leftMs = Math.max(0, this.state.turnDeadline - Date.now());
+        const ratio = Math.min(1, leftMs / 20000);
         ctx.beginPath();
-        ctx.arc(ax, ay, 30, -Math.PI / 2, -Math.PI / 2 + ratio * Math.PI * 2);
+        ctx.arc(ax, ay, 28, -Math.PI / 2, -Math.PI / 2 + ratio * Math.PI * 2);
         ctx.strokeStyle = ratio < 0.25 ? C.seal : C.gold;
         ctx.lineWidth = 4;
         ctx.stroke();
       }
 
-      // 名字 / 分数 / 剩牌
+      const tx = ax + 34;
+      const maxTextW = left + panelW - 10 - tx;
       ctx.textAlign = "left";
       ctx.fillStyle = isMe ? C.gold : C.cream;
       ctx.font = `600 17px "Songti SC", serif`;
-      ctx.fillText(
-        p.name +
-          (p.isAi ? " ·电脑" : "") +
-          (this.state.roundStarter === p.seat ? " ·庄" : ""),
-        pos.x - 22,
-        pos.y - 16
-      );
+      this.fillFitText(ctx, name, tx, pos.y - 16, maxTextW);
+      if (starter) {
+        const nw = Math.min(ctx.measureText(name).width, maxTextW);
+        ctx.fillStyle = C.goldDim;
+        ctx.font = `600 12px "Songti SC", serif`;
+        ctx.fillText("庄", tx + nw + 6, pos.y - 16);
+      }
       ctx.fillStyle = C.cream;
       ctx.font = `600 15px "Helvetica Neue", Arial, sans-serif`;
-      ctx.fillText(`${this.displayPoints(p)} 分`, pos.x - 22, pos.y + 6);
+      ctx.fillText(`${this.displayPoints(p)} 分`, tx, pos.y + 6);
       ctx.fillStyle = "rgba(243,234,214,0.65)";
       ctx.font = `13px "Helvetica Neue", Arial, sans-serif`;
-      ctx.fillText(`余 ${this.displayHandCount(p)} 张`, pos.x - 22, pos.y + 26);
+      ctx.fillText(`余 ${this.displayHandCount(p)} 张`, tx, pos.y + 26);
       if (!p.connected) {
         ctx.fillStyle = C.seal;
-        ctx.font = `600 13px "Songti SC", serif`;
-        ctx.fillText("掉线托管", pos.x + 40, pos.y - 16);
+        ctx.font = `600 12px "Songti SC", serif`;
+        ctx.fillText("掉线", left + panelW - 36, pos.y - 28);
       }
     }
+  }
+
+  private fillFitText(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxW: number
+  ): void {
+    if (ctx.measureText(text).width <= maxW) {
+      ctx.fillText(text, x, y);
+      return;
+    }
+    let s = text;
+    while (s.length > 1 && ctx.measureText(s + "…").width > maxW)
+      s = s.slice(0, -1);
+    ctx.fillText(s + "…", x, y);
   }
 
   private drawFlies(ctx: CanvasRenderingContext2D): void {
@@ -934,6 +1005,23 @@ export class TableView {
         continue;
       }
       const k = Math.min(1, p.t / 0.7);
+      if (p.hit) {
+        const pulse = 0.55 + 0.45 * Math.sin(this.animClock * 10);
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = C.seal;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p.at.x, p.at.y + 40, 28 + pulse * 8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = C.gold;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `700 16px "Songti SC", serif`;
+        ctx.fillText(p.text, p.at.x, p.at.y);
+        ctx.restore();
+        continue;
+      }
       if (p.sparkle) {
         const n = (p.gain ?? 0) >= 30 ? 14 : 8;
         for (let i = 0; i < n; i++) {

@@ -18,6 +18,7 @@ import {
   RECONNECT_MS,
   captureAnimMs,
   discardAnimMs,
+  NAME_MAX_LEN,
 } from "@jhd/shared";
 import { registerCode, unregisterCode } from "./roomCodes";
 import { recordResult } from "./store";
@@ -105,7 +106,7 @@ export class GameRoom extends Room<RoomState> {
     const p = new PlayerSchema();
     p.sessionId = client.sessionId;
     p.seat = seat;
-    p.name = (options.name || `玩家${seat + 1}`).slice(0, 12);
+    p.name = (options.name || `玩家${seat + 1}`).slice(0, NAME_MAX_LEN);
     p.avatar = options.avatar ?? "";
     if (options.deviceId) this.devices.set(p, options.deviceId);
     this.state.players.set(client.sessionId, p);
@@ -162,7 +163,7 @@ export class GameRoom extends Room<RoomState> {
     const p = new PlayerSchema();
     p.sessionId = `ai:${++this.aiCounter}`;
     p.seat = seat;
-    p.name = `电脑${seat + 1}`;
+    p.name = `机${seat + 1}`;
     p.isAi = true;
     p.ready = true;
     this.state.players.set(p.sessionId, p);
