@@ -61,6 +61,8 @@ interface Step {
   hide: number[];
   /** 飞行结束后的停顿，给眼睛一点反应时间 */
   hold: number;
+  /** 本步开始时牌堆显示数 -1（对应一次 fromStock 翻牌） */
+  decStock?: boolean;
 }
 
 export interface TableCallbacks {
@@ -88,6 +90,8 @@ export class TableView {
   private current: Step | null = null;
   private hidden = new Set<number>();
   private animClock = 0;
+  /** 已同步但翻牌动画未开始的牌堆张数，用于延后扣减显示 */
+  private stockAnimCredit = 0;
   private capturedHit: { x: number; y: number; w: number; h: number } | null =
     null;
 
@@ -200,19 +204,31 @@ export class TableView {
 
   /** 把服务器事件转成动画步骤 */
   pushEvents(events: GameEvent[]): void {
+    const pendingPos = () => ({
+      x: this.w / 2 - TABLE_CARD_W / 2,
+      y: 118,
+    });
     for (const ev of events) {
+      const fromStock = ev.type === "FLIP" && !!ev.fromStock;
+      if (fromStock) this.stockAnimCredit++;
+
       const from =
         ev.type === "FLIP"
-          ? { x: DECK.x, y: DECK.y }
+          ? fromStock
+            ? { x: DECK.x, y: DECK.y }
+            : pendingPos()
           : this.handSlots.get(ev.card) ?? this.panelPos(ev.player);
       const pile = this.pilePos.get(ev.player) ?? { x: this.w / 2, y: H / 2 };
 
       if (ev.target === undefined) {
-        // 弃牌：从来源飞到桌面槽位（槽位在下一帧才确定，先飞向桌面中心附近）
-        const to = this.tableSlots.get(ev.card) ?? {
-          x: this.area.x + this.area.w / 2,
-          y: this.area.y,
-        };
+        // 无目标：手牌/翻牌弃到桌面，或多目标翻出到待选位
+        const to =
+          ev.type === "FLIP" && ev.awaitChoice
+            ? pendingPos()
+            : this.tableSlots.get(ev.card) ?? {
+                x: this.area.x + this.area.w / 2,
+                y: this.area.y,
+              };
         this.steps.push({
           flies: [
             {
@@ -228,6 +244,7 @@ export class TableView {
           popups: [],
           hide: [ev.card],
           hold: DISCARD_HOLD_S,
+          decStock: fromStock,
         });
         continue;
       }
@@ -254,6 +271,7 @@ export class TableView {
         popups: [],
         hide: [ev.card, ev.target],
         hold: FLY_TARGET_HOLD_S,
+        decStock: fromStock,
       });
       // 第 2 步：两张牌飞到屏幕正中展示
       const centerX = this.w / 2;
@@ -340,6 +358,8 @@ export class TableView {
       this.current = this.steps.shift() ?? null;
       this.hidden = new Set(this.current?.hide ?? []);
       if (!this.current) return;
+      if (this.current.decStock)
+        this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
     }
     const s = this.current;
     let done = true;
@@ -503,7 +523,7 @@ export class TableView {
   }
 
   private drawDeck(ctx: CanvasRenderingContext2D): void {
-    const n = this.state.stockCount as number;
+    const n = (this.state.stockCount as number) + this.stockAnimCredit;
     for (let i = Math.min(4, n) - 1; i >= 0; i--)
       drawCard(ctx, 0, DECK.x + i * 2, DECK.y - i * 2, DECK.w, {
         faceUp: false,
@@ -530,7 +550,7 @@ export class TableView {
         dim: (this.selected >= 0 || choosing) && !isTarget,
       });
     }
-    if (choosing && pending >= 0) {
+    if (choosing && pending >= 0 && !this.hidden.has(pending)) {
       const x = this.w / 2 - TABLE_CARD_W / 2;
       const y = 118;
       drawCard(ctx, pending, x, y, TABLE_CARD_W, { selected: true });

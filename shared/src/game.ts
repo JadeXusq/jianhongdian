@@ -27,8 +27,12 @@ export interface GameEvent {
   type: "PLAY" | "FLIP";
   player: number;
   card: number;
-  /** 有值表示吃牌，无值表示留在桌面 */
+  /** 有值表示吃牌，无值表示留在桌面（或翻出待选） */
   target?: number;
+  /** FLIP：是否刚从牌堆抽出（选目标二次确认时为 false） */
+  fromStock?: boolean;
+  /** FLIP 无目标：多目标待选（否则弃到桌面） */
+  awaitChoice?: boolean;
 }
 
 export interface GameResult {
@@ -122,7 +126,7 @@ export class Game {
     this.pendingStockCard = -1;
     this.capture(player, card, targetId);
     const events: GameEvent[] = [
-      { type: "FLIP", player, card, target: targetId },
+      { type: "FLIP", player, card, target: targetId, fromStock: false },
     ];
     this.endTurn();
     return events;
@@ -140,16 +144,20 @@ export class Game {
     if (targets.length === 0) {
       this.table.push(card);
       this.endTurn();
-      return [{ type: "FLIP", player, card }];
+      return [{ type: "FLIP", player, card, fromStock: true }];
     }
     if (targets.length === 1) {
       this.capture(player, card, targets[0]);
       this.endTurn();
-      return [{ type: "FLIP", player, card, target: targets[0] }];
+      return [
+        { type: "FLIP", player, card, target: targets[0], fromStock: true },
+      ];
     }
     this.pendingStockCard = card;
     this.phase = "CHOOSE_STOCK_TARGET";
-    return [];
+    return [
+      { type: "FLIP", player, card, fromStock: true, awaitChoice: true },
+    ];
   }
 
   private capture(player: number, card: number, target: number): void {

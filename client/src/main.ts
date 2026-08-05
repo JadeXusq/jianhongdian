@@ -419,14 +419,16 @@ function pickHand(id: number): void {
 
 function pickTable(id: number): void {
   const state = playState();
-  if (!myTurn() || !state || view.animating) return;
+  if (!state || view.animating) return;
   if (state.turnPhase === "CHOOSE_STOCK_TARGET") {
+    if (!myTurn()) return;
     if (view.targets.includes(id)) {
       if (offline) offline.chooseTarget(id);
       else net.chooseTarget(id);
     }
     return;
   }
+  if (!myTurn()) return;
   if (selected < 0 || !view.targets.includes(id)) return;
   send(selected, id);
 }

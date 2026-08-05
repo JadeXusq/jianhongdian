@@ -42,6 +42,7 @@ export class GameEntry extends Component {
   private matchBusy = false;
   private aiDifficulty: "easy" | "normal" | "hard" = "normal";
   private showCaptured = false;
+  private stockAnimCredit = 0;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -382,11 +383,19 @@ export class GameEntry extends Component {
 
     this.net.onEvents = (events: GameEvent[]) => {
       this.hand = this.net.hand.slice();
+      for (const e of events) {
+        if (e.type === "FLIP" && e.fromStock) this.stockAnimCredit++;
+      }
       const capture = events.find((e) => e.target !== undefined);
       if (capture && capture.target !== undefined) {
         this.playMatch(capture.card, capture.target);
         return;
       }
+      const stockFlip = events.find((e) => e.type === "FLIP" && e.fromStock);
+      if (stockFlip) {
+        this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
+      }
+      this.syncSelection();
       if (this.tableVisible && !this.matchBusy) this.render();
     };
 
@@ -433,6 +442,7 @@ export class GameEntry extends Component {
   }
 
   private playMatch(cardId: number, targetId: number): void {
+    this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
     this.matchBusy = true;
     this.unschedule(this.clearMatch);
     this.matchNode.removeAllChildren();
@@ -532,7 +542,8 @@ export class GameEntry extends Component {
 
   private renderDeck(): void {
     this.deckNode.removeAllChildren();
-    const n = (this.net.state?.stockCount as number) ?? 0;
+    const n =
+      ((this.net.state?.stockCount as number) ?? 0) + this.stockAnimCredit;
     for (let i = Math.min(3, n) - 1; i >= 0; i--) {
       const card = createCard(0, 66, { faceUp: false });
       card.setPosition(new Vec3(-540 + i * 2, 220 - i * 2, 0));
@@ -558,8 +569,7 @@ export class GameEntry extends Component {
     const rowH = TABLE_CARD_W * CARD_RATIO + gap;
     const totalH = rows * rowH - gap;
     const startY = totalH / 2 - 20;
-    const choosing =
-      this.net.state?.turnPhase === "CHOOSE_STOCK_TARGET" && this.myTurn();
+    const choosing = this.net.state?.turnPhase === "CHOOSE_STOCK_TARGET";
     const pending = this.net.state?.pendingStockCard as number;
 
     if (choosing && pending >= 0) {
@@ -568,7 +578,7 @@ export class GameEntry extends Component {
       this.tableNode.addChild(pend);
       addLabel(
         this.tableNode,
-        "选择要吃的牌",
+        this.myTurn() ? "选择要吃的牌" : "等待选择目标",
         0,
         DESIGN.height / 2 - 100,
         22,
