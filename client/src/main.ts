@@ -36,6 +36,7 @@ const view = new TableView($<HTMLCanvasElement>("table"), {
   onToggleCaptured: () => {
     view.showCaptured = !view.showCaptured;
   },
+  onCancelSelection: () => clearSelection(),
 });
 
 // ---------- 界面切换 ----------
@@ -428,6 +429,14 @@ function pickTable(id: number): void {
   }
   if (selected < 0 || !view.targets.includes(id)) return;
   send(selected, id);
+}
+
+function clearSelection(): void {
+  if (selected < 0 && discardArmed < 0) return;
+  selected = -1;
+  discardArmed = -1;
+  syncSelection();
+  hint(null);
 }
 
 function send(cardId: number, targetId?: number): void {

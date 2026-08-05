@@ -849,6 +849,10 @@ export class GameEntry extends Component {
     const g = this.feltNode.addComponent(Graphics);
     const w = DESIGN.width;
     const h = DESIGN.height;
+    this.feltNode
+      .getComponent(UITransform)!
+      .setContentSize(new Size(w, h));
+    this.feltNode.on(Node.EventType.TOUCH_END, () => this.clearSelection());
 
     g.fillColor = C.feltInner;
     g.rect(-w / 2, -h / 2, w, h);
@@ -874,5 +878,14 @@ export class GameEntry extends Component {
       g.lineTo(x + sx * c, y);
       g.stroke();
     }
+  }
+
+  private clearSelection(): void {
+    if (this.selected < 0 && this.discardArmed < 0) return;
+    this.selected = -1;
+    this.discardArmed = -1;
+    this.targets = [];
+    this.hintText = "";
+    this.render();
   }
 }

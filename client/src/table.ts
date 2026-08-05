@@ -67,6 +67,7 @@ export interface TableCallbacks {
   onPickHand(cardId: number): void;
   onPickTable(cardId: number): void;
   onToggleCaptured?(): void;
+  onCancelSelection?(): void;
 }
 
 export class TableView {
@@ -185,7 +186,8 @@ export class TableView {
     const handId = hit(this.handSlots);
     if (handId >= 0) return this.cb.onPickHand(handId);
     const t = hit(this.tableSlots);
-    if (t >= 0) this.cb.onPickTable(t);
+    if (t >= 0) return this.cb.onPickTable(t);
+    this.cb.onCancelSelection?.();
   }
 
   /** 跳过当前步骤剩余停顿（MATCH 等） */
