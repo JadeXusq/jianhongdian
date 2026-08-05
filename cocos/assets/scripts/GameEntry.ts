@@ -16,6 +16,7 @@ import {
   findTargets,
   cardScore,
   MATCH_HOLD_S,
+  DISCARD_HOLD_S,
   ROUND_RESULT_MAX_WAIT_MS,
   turnHint,
   type GameEvent,
@@ -55,6 +56,8 @@ export class GameEntry extends Component {
   private pendingGain = new Map<number, number>();
   private pendingCards = new Map<number, Set<number>>();
   private pendingHand = new Map<number, number>();
+  private pendingDiscardHands: number[] = [];
+  private visualTurnSeat: number | null = null;
   private matchCommit: {
     seat: number;
     cards: number[];
@@ -374,6 +377,8 @@ export class GameEntry extends Component {
       this.pendingGain.clear();
       this.pendingCards.clear();
       this.pendingHand.clear();
+      this.pendingDiscardHands = [];
+      this.visualTurnSeat = null;
       this.matchCommit = null;
       this.matchBusy = false;
       this.hand = session.hand.slice();
@@ -401,28 +406,7 @@ export class GameEntry extends Component {
 
     session.onEvents = (events: GameEvent[]) => {
       this.hand = session.hand.slice();
-      for (const e of events) {
-        if (e.type === "FLIP" && e.fromStock) this.stockAnimCredit++;
-        if (e.type === "FLIP") this.deferredReveal.add(e.card);
-      }
-      const capture = events.find((e) => e.target !== undefined);
-      if (capture && capture.target !== undefined) {
-        this.playMatch(
-          capture.card,
-          capture.target,
-          capture.player,
-          capture.type === "PLAY"
-        );
-        return;
-      }
-      const stockFlip = events.find((e) => e.type === "FLIP" && e.fromStock);
-      if (stockFlip) {
-        this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
-        this.unschedule(this.revealDeferredFlips);
-        this.scheduleOnce(this.revealDeferredFlips, 0.4);
-      }
-      this.syncSelection();
-      if (this.tableVisible && !this.matchBusy) this.render();
+      this.handleMoveEvents(events);
     };
 
     session.onRoundOver = (r) => {
@@ -459,7 +443,8 @@ export class GameEntry extends Component {
     const busy =
       this.matchBusy ||
       this.deferredReveal.size > 0 ||
-      this.stockAnimCredit > 0;
+      this.stockAnimCredit > 0 ||
+      this.pendingDiscardHands.length > 0;
     const waited = Date.now() - this.roundOverWaitStarted;
     if (busy && waited < ROUND_RESULT_MAX_WAIT_MS) {
       this.scheduleOnce(this.tryFlushRoundOver, 0.12);
@@ -579,6 +564,8 @@ export class GameEntry extends Component {
     this.pendingGain.clear();
     this.pendingCards.clear();
     this.pendingHand.clear();
+    this.pendingDiscardHands = [];
+    this.visualTurnSeat = null;
     this.matchCommit = null;
     this.matchBusy = false;
   }
@@ -641,6 +628,8 @@ export class GameEntry extends Component {
       this.pendingGain.clear();
       this.pendingCards.clear();
       this.pendingHand.clear();
+      this.pendingDiscardHands = [];
+      this.visualTurnSeat = null;
       this.matchCommit = null;
       this.matchBusy = false;
       this.hand = this.net.hand.slice();
@@ -667,28 +656,7 @@ export class GameEntry extends Component {
     this.net.onEvents = (events: GameEvent[]) => {
       if (this.offline) return;
       this.hand = this.net.hand.slice();
-      for (const e of events) {
-        if (e.type === "FLIP" && e.fromStock) this.stockAnimCredit++;
-        if (e.type === "FLIP") this.deferredReveal.add(e.card);
-      }
-      const capture = events.find((e) => e.target !== undefined);
-      if (capture && capture.target !== undefined) {
-        this.playMatch(
-          capture.card,
-          capture.target,
-          capture.player,
-          capture.type === "PLAY"
-        );
-        return;
-      }
-      const stockFlip = events.find((e) => e.type === "FLIP" && e.fromStock);
-      if (stockFlip) {
-        this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
-        this.unschedule(this.revealDeferredFlips);
-        this.scheduleOnce(this.revealDeferredFlips, 0.4);
-      }
-      this.syncSelection();
-      if (this.tableVisible && !this.matchBusy) this.render();
+      this.handleMoveEvents(events);
     };
 
     this.net.onRoundOver = (r) => {
@@ -717,6 +685,38 @@ export class GameEntry extends Component {
     };
   }
 
+  private handleMoveEvents(events: GameEvent[]): void {
+    for (const e of events) {
+      if (e.type === "FLIP" && e.fromStock) this.stockAnimCredit++;
+      if (e.type === "FLIP") this.deferredReveal.add(e.card);
+    }
+    const capture = events.find((e) => e.target !== undefined);
+    if (capture && capture.target !== undefined) {
+      this.playMatch(
+        capture.card,
+        capture.target,
+        capture.player,
+        capture.type === "PLAY"
+      );
+      return;
+    }
+    if (events.length) this.visualTurnSeat = events[0].player;
+    for (const e of events) {
+      if (e.type === "PLAY") {
+        this.deferHand(e.player);
+        this.pendingDiscardHands.push(e.player);
+      }
+    }
+    const stockFlip = events.some((e) => e.type === "FLIP" && e.fromStock);
+    if (stockFlip)
+      this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
+    const delay = stockFlip ? 0.4 : DISCARD_HOLD_S;
+    this.unschedule(this.revealDeferredFlips);
+    this.scheduleOnce(this.revealDeferredFlips, delay);
+    this.syncSelection();
+    if (this.tableVisible && !this.matchBusy) this.render();
+  }
+
   private playMatch(
     cardId: number,
     targetId: number,
@@ -725,6 +725,7 @@ export class GameEntry extends Component {
   ): void {
     this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
     this.matchBusy = true;
+    this.visualTurnSeat = seat;
     const gain = cardScore(cardId) + cardScore(targetId);
     this.deferCapture(seat, [cardId, targetId], gain);
     if (fromHand) this.deferHand(seat);
@@ -797,6 +798,7 @@ export class GameEntry extends Component {
       if (this.matchCommit.hand) this.applyHandCommit(this.matchCommit.seat);
       this.matchCommit = null;
     }
+    this.visualTurnSeat = null;
     this.matchNode.removeAllChildren();
     this.matchNode.active = false;
     this.matchBusy = false;
@@ -859,6 +861,9 @@ export class GameEntry extends Component {
   }
 
   private revealDeferredFlips = (): void => {
+    for (const seat of this.pendingDiscardHands) this.applyHandCommit(seat);
+    this.pendingDiscardHands = [];
+    this.visualTurnSeat = null;
     this.deferredReveal.clear();
     this.refreshTurnHint();
     if (this.tableVisible && !this.matchBusy) this.render();
@@ -881,7 +886,8 @@ export class GameEntry extends Component {
     const busy =
       this.matchBusy ||
       this.deferredReveal.size > 0 ||
-      this.stockAnimCredit > 0;
+      this.stockAnimCredit > 0 ||
+      this.pendingDiscardHands.length > 0;
     this.hintText = turnHint({
       spectating,
       offline: !!this.offline,
@@ -1014,7 +1020,9 @@ export class GameEntry extends Component {
     const canPlay =
       this.myTurn() &&
       this.playState()?.turnPhase === "PLAY_HAND" &&
-      !this.matchBusy;
+      !this.matchBusy &&
+      this.deferredReveal.size === 0 &&
+      this.pendingDiscardHands.length === 0;
 
     const hitPad = sys.isMobile ? 22 : 0;
     this.hand.forEach((id, i) => {
@@ -1052,6 +1060,15 @@ export class GameEntry extends Component {
     const me = players.find((p) => p.seat === this.mySeatNum());
     const others = players.filter((p) => p.seat !== this.mySeatNum());
     const count = players.length;
+    const busy =
+      this.matchBusy ||
+      this.deferredReveal.size > 0 ||
+      this.stockAnimCredit > 0 ||
+      this.pendingDiscardHands.length > 0;
+    const turnSeat =
+      busy && this.visualTurnSeat !== null
+        ? this.visualTurnSeat
+        : state?.currentSeat;
 
     // 2 人对手正上方；3/4 人按右→上→左
     others.forEach((p, idx) => {
@@ -1077,7 +1094,7 @@ export class GameEntry extends Component {
         p,
         x,
         y,
-        state?.currentSeat === p.seat,
+        turnSeat === p.seat,
         state?.roundStarter === p.seat
       );
     });
@@ -1087,7 +1104,7 @@ export class GameEntry extends Component {
         me,
         -DESIGN.width / 2 + 120,
         -80,
-        true,
+        turnSeat === me.seat,
         state?.roundStarter === me.seat
       );
     }
@@ -1238,6 +1255,8 @@ export class GameEntry extends Component {
     if (
       !this.myTurn() ||
       this.matchBusy ||
+      this.deferredReveal.size > 0 ||
+      this.pendingDiscardHands.length > 0 ||
       state?.turnPhase !== "PLAY_HAND"
     )
       return;
@@ -1263,7 +1282,14 @@ export class GameEntry extends Component {
 
   onPickTable(id: number): void {
     const state = this.playState();
-    if (!this.myTurn() || this.matchBusy || !state) return;
+    if (
+      !this.myTurn() ||
+      this.matchBusy ||
+      this.deferredReveal.size > 0 ||
+      this.pendingDiscardHands.length > 0 ||
+      !state
+    )
+      return;
     if (state.turnPhase === "CHOOSE_STOCK_TARGET") {
       if (this.targets.indexOf(id) >= 0) {
         if (this.offline) this.offline.chooseTarget(id);

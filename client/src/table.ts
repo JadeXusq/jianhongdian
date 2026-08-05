@@ -69,6 +69,8 @@ interface Step {
   commitCapture?: { seat: number; cards: number[]; gain: number };
   /** 本步结束后才扣减余牌数显示 */
   commitHand?: number;
+  /** 本步开始时高亮该座位 */
+  visualSeat?: number;
 }
 
 export interface TableCallbacks {
@@ -121,6 +123,8 @@ export class TableView {
   showCaptured = false;
   /** 外部置位：上家动画/状态抖动期间锁手牌与回合 UI */
   turnBlocked = false;
+  /** 动画播放中仍高亮出手座位，避免回合指示提前跳走 */
+  private visualTurnSeat: number | null = null;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -292,6 +296,7 @@ export class TableView {
           decStock: fromStock,
           revealOnDone: [ev.card],
           commitHand: ev.type === "PLAY" ? ev.player : undefined,
+          visualSeat: ev.player,
         });
         continue;
       }
@@ -321,6 +326,7 @@ export class TableView {
         hide: [ev.card, ev.target],
         hold: FLY_TARGET_HOLD_S,
         decStock: fromStock,
+        visualSeat: ev.player,
       });
       // 第 2 步：两张牌飞到屏幕正中展示
       const centerX = this.w / 2;
@@ -367,6 +373,7 @@ export class TableView {
         ],
         hide: [ev.card, ev.target],
         hold: MATCH_HOLD_S,
+        visualSeat: ev.player,
       });
       // 第 3 步：两张牌飞入得分堆
       this.steps.push({
@@ -400,6 +407,7 @@ export class TableView {
           gain,
         },
         commitHand: ev.type === "PLAY" ? ev.player : undefined,
+        visualSeat: ev.player,
       });
     }
   }
@@ -470,6 +478,7 @@ export class TableView {
     this.pendingGain.clear();
     this.pendingCards.clear();
     this.pendingHand.clear();
+    this.visualTurnSeat = null;
   }
 
   private stepAnim(dt: number): void {
@@ -478,6 +487,8 @@ export class TableView {
       this.current = this.steps.shift() ?? null;
       this.hidden = new Set(this.current?.hide ?? []);
       if (!this.current) return;
+      if (this.current.visualSeat !== undefined)
+        this.visualTurnSeat = this.current.visualSeat;
       if (this.current.decStock)
         this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
     }
@@ -498,6 +509,7 @@ export class TableView {
       if (s.commitHand !== undefined) this.applyHandCommit(s.commitHand);
       this.current = null;
       this.hidden.clear();
+      if (!this.steps.length) this.visualTurnSeat = null;
     }
   }
 
@@ -812,14 +824,13 @@ export class TableView {
 
   private drawPanels(ctx: CanvasRenderingContext2D): void {
     const players = [...this.state.players.values()] as any[];
+    const turnSeat =
+      this.animating && this.visualTurnSeat !== null
+        ? this.visualTurnSeat
+        : this.state.currentSeat;
     for (const p of players) {
       const pos = this.panelPos(p.seat);
-      const active =
-        this.state.currentSeat === p.seat &&
-        !(
-          (this.animating || this.turnBlocked) &&
-          p.seat === this.mySeat
-        );
+      const active = turnSeat === p.seat;
       const isMe = p.seat === this.mySeat;
 
       // 底板
@@ -847,7 +858,7 @@ export class TableView {
       ctx.textBaseline = "middle";
       ctx.font = `600 20px "Songti SC", serif`;
       ctx.fillText(p.name.slice(0, 1), ax, ay + 1);
-      if (active && this.state.turnDeadline > 0) {
+      if (active && !this.animating && this.state.turnDeadline > 0) {
         const left = Math.max(0, this.state.turnDeadline - Date.now());
         const ratio = Math.min(1, left / 20000);
         ctx.beginPath();
