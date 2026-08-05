@@ -34,6 +34,7 @@ export interface LocalState {
   maxPlayers: number;
   totalRounds: number;
   round: number;
+  roundStarter: number;
   table: number[];
   stockCount: number;
   currentSeat: number;
@@ -65,9 +66,11 @@ export class LocalPlay {
   private humanName: string;
   private aiName: string;
   private playerCount: number;
-  private totalRounds: number;
   private round = 0;
   private totals: number[] = [];
+  private roundStarter = -1;
+  private settleAfterRound = false;
+  private matchClosed = false;
 
   onState?: (state: LocalState) => void;
   onEvents?: (events: GameEvent[]) => void;
@@ -77,7 +80,7 @@ export class LocalPlay {
   constructor(
     humanName: string,
     difficulty: AiDifficulty = "normal",
-    totalRounds = 5,
+    _totalRounds = 0,
     playerCount = 2
   ) {
     this.humanName = humanName;
@@ -89,13 +92,15 @@ export class LocalPlay {
           : "电脑";
     this.difficulty = difficulty;
     this.playerCount = Math.min(4, Math.max(2, Math.floor(playerCount) || 2));
-    this.totalRounds = Math.min(20, Math.max(1, totalRounds));
     this.totals = Array.from({ length: this.playerCount }, () => 0);
     this.state = this.emptyState();
   }
 
   start(): void {
     this.round = 0;
+    this.roundStarter = -1;
+    this.settleAfterRound = false;
+    this.matchClosed = false;
     this.totals = Array.from({ length: this.playerCount }, () => 0);
     this.nextRound();
   }
@@ -126,8 +131,22 @@ export class LocalPlay {
     this.afterMove(events);
   }
 
+  /** 本机玩家即房主：结算本场 */
+  endMatch(): { deferred: boolean } {
+    if (this.matchClosed) return { deferred: false };
+    if (this.state.phase === "PLAYING") {
+      this.settleAfterRound = true;
+      return { deferred: true };
+    }
+    if (this.state.phase === "ROUND_OVER") {
+      this.closeMatch();
+      return { deferred: false };
+    }
+    return { deferred: false };
+  }
+
   continueRound(): void {
-    if (this.round >= this.totalRounds) {
+    if (this.matchClosed) {
       this.start();
       return;
     }
@@ -144,8 +163,9 @@ export class LocalPlay {
       code: "练习",
       hostSessionId: HUMAN,
       maxPlayers: this.playerCount,
-      totalRounds: this.totalRounds,
+      totalRounds: 0,
       round: 0,
+      roundStarter: -1,
       table: [],
       stockCount: 0,
       currentSeat: -1,
@@ -158,11 +178,19 @@ export class LocalPlay {
 
   private nextRound(): void {
     clearTimeout(this.aiTimer);
-    this.game = new Game(this.playerCount);
+    if (this.roundStarter < 0) {
+      this.roundStarter = Math.floor(Math.random() * this.playerCount);
+    } else {
+      this.roundStarter =
+        (this.roundStarter - 1 + this.playerCount) % this.playerCount;
+    }
+    this.game = new Game(this.playerCount, Date.now(), this.roundStarter);
     this.round += 1;
+    this.matchClosed = false;
     this.syncFromGame();
     this.state.phase = "PLAYING";
     this.state.round = this.round;
+    this.state.roundStarter = this.roundStarter;
     this.emitState();
     this.onRoundStart?.();
     this.scheduleAi(0);
@@ -187,8 +215,11 @@ export class LocalPlay {
   private endRound(): void {
     clearTimeout(this.aiTimer);
     const result = this.game!.result();
-    for (let i = 0; i < this.playerCount; i++) this.totals[i] += result.net[i];
-    const allDone = this.round >= this.totalRounds;
+    for (let i = 0; i < this.playerCount; i++)
+      this.totals[i] += result.net[i];
+    const allDone = this.settleAfterRound;
+    this.settleAfterRound = false;
+    if (allDone) this.matchClosed = true;
     this.state.phase = "ROUND_OVER";
     this.syncFromGame();
     this.state.phase = "ROUND_OVER";
@@ -198,8 +229,23 @@ export class LocalPlay {
       net: result.net,
       base: result.base,
       round: this.round,
-      totalRounds: this.totalRounds,
+      totalRounds: allDone ? this.round : 0,
       allDone,
+    });
+  }
+
+  private closeMatch(): void {
+    this.matchClosed = true;
+    this.settleAfterRound = false;
+    this.state.phase = "ROUND_OVER";
+    this.emitState();
+    this.onRoundOver?.({
+      points: [...this.totals],
+      net: [...this.totals],
+      base: 0,
+      round: this.round,
+      totalRounds: this.round,
+      allDone: true,
     });
   }
 
@@ -283,6 +329,7 @@ export class LocalPlay {
     this.state.turnPhase =
       g.phase === "FINISHED" ? "PLAY_HAND" : (g.phase as any);
     this.state.pendingStockCard = g.pendingStockCard;
+    this.state.roundStarter = this.roundStarter;
     this.hand = [...g.players[0].hand];
   }
 

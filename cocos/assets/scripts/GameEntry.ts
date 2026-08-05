@@ -114,7 +114,7 @@ export class GameEntry extends Component {
         }
         this.net.nextRound();
         this.lastRound = null;
-        this.ui.show("room");
+        this.ui.show("none");
       },
       onExit: () => this.guard(() => this.doQuit()),
       onGuideOk: () => {
@@ -126,15 +126,36 @@ export class GameEntry extends Component {
         this.ui.show("none");
         this.ui.setHelpVisible(true);
         this.ui.setEmotesVisible(!this.offline);
+        this.ui.setMenuVisible(true);
       },
       onRulesClose: () => {
         if (this.playState()?.phase === "PLAYING") {
           this.ui.show("none");
           this.ui.setHelpVisible(true);
           this.ui.setEmotesVisible(!this.offline);
+          this.ui.setMenuVisible(true);
         } else {
           this.ui.show(this.net.room && !this.offline ? "room" : "lobby");
         }
+      },
+      onMenuScores: () => {
+        const state = this.playState();
+        if (state) this.ui.renderScores(state, this.mySeatNum());
+      },
+      onMenuSettle: () => {
+        if (this.offline) {
+          const r = this.offline.endMatch();
+          this.ui.show("none");
+          if (r.deferred) this.ui.toast("本轮结束后将结算本场");
+          return;
+        }
+        this.net.endMatch();
+        this.ui.show("none");
+      },
+      isHost: () => {
+        if (this.offline) return true;
+        if (!this.net.room || !this.net.state) return false;
+        return this.net.state.hostSessionId === this.net.room.sessionId;
       },
     });
 
@@ -266,6 +287,7 @@ export class GameEntry extends Component {
   private stopOffline(): void {
     this.offline?.stop();
     this.offline = null;
+    this.ui?.setMenuVisible(false);
   }
 
   private startOffline(name: string, playerCount: number): void {
@@ -281,7 +303,7 @@ export class GameEntry extends Component {
     } catch {
       /* ignore */
     }
-    const session = new LocalPlay(name, this.aiDifficulty, 5, playerCount);
+    const session = new LocalPlay(name, this.aiDifficulty, 0, playerCount);
     this.offline = session;
 
     session.onState = (state) => {
@@ -308,12 +330,14 @@ export class GameEntry extends Component {
           this.ui.show("none");
           this.ui.setEmotesVisible(false);
           this.ui.setHelpVisible(true);
+          this.ui.setMenuVisible(true);
         }
         this.syncSelection();
         this.refreshTurnHint();
       } else if (state.phase === "ROUND_OVER" && this.lastRound) {
         this.ui.setEmotesVisible(false);
         this.ui.setHelpVisible(false);
+        this.ui.setMenuVisible(false);
         this.ui.renderResult(
           this.lastRound,
           state,
@@ -344,10 +368,12 @@ export class GameEntry extends Component {
         this.ui.show("guide");
         this.ui.setEmotesVisible(false);
         this.ui.setHelpVisible(false);
+        this.ui.setMenuVisible(false);
       } else {
         this.ui.show("none");
         this.ui.setEmotesVisible(false);
         this.ui.setHelpVisible(true);
+        this.ui.setMenuVisible(true);
       }
       this.render();
     };
@@ -509,6 +535,7 @@ export class GameEntry extends Component {
         this.setTableVisible(false);
         this.ui.setEmotesVisible(false);
         this.ui.setHelpVisible(false);
+        this.ui.setMenuVisible(false);
         this.ui.renderRoom(state, this.net.room!.sessionId);
         if (!this.lastRound) this.ui.show("room");
       } else if (state.phase === "PLAYING") {
@@ -533,12 +560,14 @@ export class GameEntry extends Component {
           this.ui.show("none");
           this.ui.setEmotesVisible(true);
           this.ui.setHelpVisible(true);
+          this.ui.setMenuVisible(!this.net.spectating);
         }
         this.syncSelection();
         this.refreshTurnHint();
       } else if (state.phase === "ROUND_OVER" && this.lastRound) {
         this.ui.setEmotesVisible(false);
         this.ui.setHelpVisible(false);
+        this.ui.setMenuVisible(false);
         this.ui.renderResult(this.lastRound, state, this.net.mySeat);
         this.ui.show("result");
       }

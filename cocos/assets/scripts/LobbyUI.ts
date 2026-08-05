@@ -21,6 +21,8 @@ export type UiScreen =
   | "account"
   | "guide"
   | "rules"
+  | "menu"
+  | "scores"
   | "none";
 
 export interface LobbyCallbacks {
@@ -41,6 +43,9 @@ export interface LobbyCallbacks {
   onExit(): void;
   onGuideOk(): void;
   onRulesClose(): void;
+  onMenuScores(): void;
+  onMenuSettle(): void;
+  isHost(): boolean;
 }
 
 /** 大厅 / 房间等待 / 结算 / 引导 / 规则覆盖层 */
@@ -52,8 +57,14 @@ export class LobbyUI {
   private account!: Node;
   private guide!: Node;
   private rules!: Node;
+  private menu!: Node;
+  private scores!: Node;
   private emotes!: Node;
   private helpBtn!: Node;
+  private menuBtn!: Node;
+  private settleBtn!: Node;
+  private scoresList!: Node;
+  private scoresRound!: Label;
   private emoteBubble!: Label;
   private emoteTimer = 0;
   private nameBox!: EditBox;
@@ -94,7 +105,19 @@ export class LobbyUI {
     this.account = this.buildAccount();
     this.guide = this.buildGuide();
     this.rules = this.buildRules();
+    this.menu = this.buildMenu();
+    this.scores = this.buildScores();
     this.emotes = this.buildEmotes();
+    this.menuBtn = this.makeBtn(
+      this.root,
+      "菜单",
+      -DESIGN.width / 2 + 50,
+      DESIGN.height / 2 - 36,
+      72,
+      36,
+      () => this.openMenu()
+    );
+    this.menuBtn.active = false;
     this.helpBtn = this.makeBtn(this.root, "?", DESIGN.width / 2 - 70, DESIGN.height / 2 - 36, 36, 36, () =>
       this.show("rules")
     );
@@ -127,6 +150,8 @@ export class LobbyUI {
     this.account.active = screen === "account";
     this.guide.active = screen === "guide";
     this.rules.active = screen === "rules";
+    this.menu.active = screen === "menu";
+    this.scores.active = screen === "scores";
     if (screen !== "none") this.setEmotesVisible(false);
   }
 
@@ -138,8 +163,45 @@ export class LobbyUI {
     this.helpBtn.active = v;
   }
 
+  setMenuVisible(v: boolean): void {
+    this.menuBtn.active = v;
+  }
+
   isOverlay(): boolean {
-    return this.guide.active || this.rules.active;
+    return (
+      this.guide.active ||
+      this.rules.active ||
+      this.menu.active ||
+      this.scores.active
+    );
+  }
+
+  private openMenu(): void {
+    this.settleBtn.active = this.cb.isHost();
+    this.show("menu");
+  }
+
+  renderScores(state: any, mySeat: number): void {
+    const players = [...state.players.values()] as any[];
+    const rows = [...players].sort((a, b) => b.totalNet - a.totalNet);
+    this.scoresRound.string = state.round
+      ? `已完成 ${state.round} 轮 · 累计净分`
+      : "尚未完成轮次";
+    this.scoresList.removeAllChildren();
+    rows.forEach((p, i) => {
+      const mark = p.seat === mySeat ? " ▶" : "";
+      const net =
+        (p.totalNet > 0 ? "+" : "") + p.totalNet;
+      this.makeLabel(
+        this.scoresList,
+        `${i + 1}. ${p.name}${p.isAi ? "·电脑" : ""}${mark}  本轮${p.points}  总${net}`,
+        0,
+        50 - i * 36,
+        18,
+        p.seat === mySeat ? C.gold : C.cream
+      );
+    });
+    this.show("scores");
   }
 
   setAccountStatus(status: string, hint = ""): void {
@@ -225,18 +287,18 @@ export class LobbyUI {
     this.resultTitle.string = r.allDone
       ? iWin
         ? "最终结算 · 胜"
-        : `最终结算（${r.totalRounds} 轮）`
-      : `第 ${r.round} / ${r.totalRounds} 轮`;
+        : `最终结算（${r.round} 轮）`
+      : `第 ${r.round} 轮`;
 
     this.resultDots.removeAllChildren();
-    for (let i = 0; i < r.totalRounds; i++) {
-      const on = i < r.round;
+    const dotN = r.allDone ? Math.max(1, r.round) : 1;
+    for (let i = 0; i < dotN; i++) {
       const d = new Node("Dot");
       d.layer = Layers.Enum.UI_2D;
       this.resultDots.addChild(d);
-      d.setPosition(new Vec3((i - (r.totalRounds - 1) / 2) * 18, 0, 0));
+      d.setPosition(new Vec3((i - (dotN - 1) / 2) * 18, 0, 0));
       const g = d.addComponent(Graphics);
-      g.fillColor = on ? C.gold : new Color(0, 0, 0, 0);
+      g.fillColor = C.gold;
       g.circle(0, 0, 5);
       g.fill();
       g.strokeColor = C.goldDim;
@@ -252,7 +314,7 @@ export class LobbyUI {
       const net =
         (row.net > 0 ? "+" : "") +
         row.net +
-        (r.allDone ? ` | 总 ${row.p.totalNet}` : "");
+        (r.allDone ? ` | 总 ${row.p.totalNet}` : ` | 总 ${row.p.totalNet}`);
       this.makeLabel(
         this.resultList,
         `${rank}. ${row.p.name}${row.p.isAi ? "·电脑" : ""}${mark}  ${row.points}分  ${net}`,
@@ -264,7 +326,7 @@ export class LobbyUI {
     });
     this.againLbl.string = r.allDone
       ? againAllDone
-      : `继续下一轮 (${r.round}/${r.totalRounds})`;
+      : "继续下一轮";
     this.exitBtn.active = !!r.allDone;
   }
 
@@ -491,6 +553,31 @@ export class LobbyUI {
     this.makeBtn(panel, "明白了", 0, -170, 140, 40, () =>
       this.cb.onRulesClose()
     );
+    return panel;
+  }
+
+  private buildMenu(): Node {
+    const panel = this.panel("Menu", 320, 320);
+    this.makeLabel(panel, "菜单", 0, 110, 28, C.gold);
+    this.makeBtn(panel, "查看当前积分", 0, 40, 220, 42, () =>
+      this.cb.onMenuScores()
+    );
+    this.settleBtn = this.makeBtn(panel, "结算对局", 0, -20, 220, 42, () =>
+      this.cb.onMenuSettle()
+    );
+    this.makeBtn(panel, "查看规则", 0, -80, 220, 42, () => this.show("rules"));
+    this.makeBtn(panel, "关闭", 0, -140, 160, 40, () => this.show("none"));
+    return panel;
+  }
+
+  private buildScores(): Node {
+    const panel = this.panel("Scores", 420, 380);
+    this.makeLabel(panel, "当前积分", 0, 140, 28, C.gold);
+    this.scoresRound = this.makeLabel(panel, "", 0, 100, 16, C.goldDim);
+    this.scoresList = new Node("ScoresList");
+    this.scoresList.layer = Layers.Enum.UI_2D;
+    panel.addChild(this.scoresList);
+    this.makeBtn(panel, "关闭", 0, -150, 140, 40, () => this.show("none"));
     return panel;
   }
 

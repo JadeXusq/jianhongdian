@@ -31,9 +31,11 @@ export class RoomState extends Schema {
   /** 房主的 sessionId（放入状态同步，避免客户端依赖消息到达顺序）*/
   @type("string") hostSessionId = "";
   @type("number") maxPlayers = 4;
-  /** 总轮数（打满才结束）*/
-  @type("number") totalRounds = 5;
+  /** 总轮数：0 表示无限轮，由房主结算结束 */
+  @type("number") totalRounds = 0;
   @type("number") round = 0;
+  /** 本轮起手座位（庄），-1 表示未开局 */
+  @type("number") roundStarter = -1;
   /** 桌面明牌 */
   @type(["number"]) table = new ArraySchema<number>();
   @type("number") stockCount = 0;

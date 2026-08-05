@@ -52,11 +52,21 @@ function show(
     | "rank"
     | "account"
     | "guide"
+    | "game-menu"
+    | "scores"
     | "none"
 ): void {
-  ["lobby", "room", "result", "rules", "rank", "account", "guide"].forEach(
-    (s) => $(s).classList.toggle("hidden", s !== id)
-  );
+  [
+    "lobby",
+    "room",
+    "result",
+    "rules",
+    "rank",
+    "account",
+    "guide",
+    "game-menu",
+    "scores",
+  ].forEach((s) => $(s).classList.toggle("hidden", s !== id));
 }
 
 const shown = (id: string) => !$(id).classList.contains("hidden");
@@ -108,7 +118,9 @@ function refreshTurnHint(): void {
     shown("rules") ||
     shown("guide") ||
     shown("rank") ||
-    shown("result")
+    shown("result") ||
+    shown("game-menu") ||
+    shown("scores")
   )
     return;
   if (!offline && net.spectating) {
@@ -231,6 +243,62 @@ $("btn-guide-ok").onclick = () => {
   show("none");
 };
 $("btn-help").onclick = () => show("rules");
+
+function isHost(): boolean {
+  if (offline) return true;
+  if (!net.room || !net.state) return false;
+  return net.state.hostSessionId === net.room.sessionId;
+}
+
+function setMenuVisible(v: boolean): void {
+  $("btn-menu").classList.toggle("hidden", !v);
+}
+
+function openGameMenu(): void {
+  $("btn-menu-settle").classList.toggle("hidden", !isHost());
+  show("game-menu");
+}
+
+function renderScores(): void {
+  const state = playState();
+  if (!state) return;
+  const players = [...state.players.values()] as any[];
+  const rows = [...players].sort((a, b) => b.totalNet - a.totalNet);
+  const mySeat = offline ? offline.mySeat : net.mySeat;
+  $("scores-round").textContent = state.round
+    ? `已完成 ${state.round} 轮 · 累计净分`
+    : "尚未完成轮次";
+  $("scores-list").innerHTML = rows
+    .map(
+      (p, i) => `
+      <div class="res${p.seat === mySeat ? " me" : ""}${i === 0 ? " top" : ""}">
+        <span class="rank">${i + 1}</span>
+        <span class="who">${p.name}${p.isAi ? " · 电脑" : ""}</span>
+        <span class="calc">本轮 ${p.points}</span>
+        <span class="net ${p.totalNet > 0 ? "win" : p.totalNet < 0 ? "lose" : ""}">${
+          p.totalNet > 0 ? "+" : ""
+        }${p.totalNet}</span>
+      </div>`
+    )
+    .join("");
+  show("scores");
+}
+
+$("btn-menu").onclick = () => openGameMenu();
+$("btn-menu-close").onclick = () => show("none");
+$("btn-menu-rules").onclick = () => show("rules");
+$("btn-menu-scores").onclick = () => renderScores();
+$("btn-scores-close").onclick = () => show("none");
+$("btn-menu-settle").onclick = () => {
+  if (offline) {
+    const r = offline.endMatch();
+    show("none");
+    if (r.deferred) toast("本轮结束后将结算本场");
+    return;
+  }
+  net.endMatch();
+  show("none");
+};
 
 $("btn-rank").onclick = () =>
   guard(async () => {
@@ -360,7 +428,7 @@ $("btn-again").onclick = () => {
     return;
   }
   net.nextRound();
-  show("room");
+  show("none");
 };
 $("btn-exit").onclick = () => {
   if (offline) {
@@ -389,15 +457,18 @@ function renderResult(r: RoundOver): void {
   title.textContent = r.allDone
     ? iWin
       ? "最终结算 · 胜"
-      : `最终结算（${r.totalRounds} 轮）`
-    : `第 ${r.round} / ${r.totalRounds} 轮`;
+      : `最终结算（${r.round} 轮）`
+    : `第 ${r.round} 轮`;
 
   const dots = $("result-dots");
   if (dots) {
-    dots.innerHTML = Array.from({ length: r.totalRounds }, (_, i) => {
-      const on = i < r.round;
-      return `<span class="dot${on ? " on" : ""}"></span>`;
-    }).join("");
+    if (r.allDone && r.round > 0) {
+      dots.innerHTML = Array.from({ length: r.round }, (_, i) => {
+        return `<span class="dot on"></span>`;
+      }).join("");
+    } else {
+      dots.innerHTML = `<span class="dot on"></span>`;
+    }
   }
 
   $("result-list").innerHTML = rows
@@ -409,7 +480,9 @@ function renderResult(r: RoundOver): void {
         <span class="rank">${i === 0 ? "胜" : i + 1}</span>
         <span class="who">${row.p.name}${row.p.isAi ? " · 电脑" : ""}</span>
         <span class="calc">${row.points} − ${r.base}${
-        r.allDone ? " | 总 " + row.p.totalNet : ""
+        r.allDone || row.p.totalNet !== undefined
+          ? " | 总 " + row.p.totalNet
+          : ""
       }</span>
         <span class="net ${row.net > 0 ? "win" : row.net < 0 ? "lose" : ""}">${
         row.net > 0 ? "+" : ""
@@ -424,7 +497,7 @@ function renderResult(r: RoundOver): void {
     btnAgain.textContent = offline ? "再练一局" : "再来一局";
     btnExit.style.display = "";
   } else {
-    btnAgain.textContent = `继续下一轮 (${r.round}/${r.totalRounds})`;
+    btnAgain.textContent = "继续下一轮";
     btnExit.style.display = "none";
     setTimeout(() => {
       if (shown("result")) show("none");
@@ -534,12 +607,13 @@ function stopOffline(): void {
   offline?.stop();
   offline = null;
   $("emotes").classList.add("hidden");
+  setMenuVisible(false);
 }
 
 function startOffline(): void {
   stopOffline();
   void net.leave().catch(() => undefined);
-  const session = new LocalPlay(playerName(), aiDifficulty, 5, maxPlayers);
+  const session = new LocalPlay(playerName(), aiDifficulty, 0, maxPlayers);
   offline = session;
   session.onState = (state) => {
     view.deferStateArrivals(view.state, state);
@@ -547,10 +621,15 @@ function startOffline(): void {
     view.hand = session.hand;
     view.mySeat = session.mySeat;
     if (state.phase === "PLAYING") {
-      const overlay = shown("rules") || shown("guide");
+      const overlay =
+        shown("rules") ||
+        shown("guide") ||
+        shown("game-menu") ||
+        shown("scores");
       if (!overlay) show("none");
       $("emotes").classList.add("hidden");
       $("btn-help").classList.toggle("hidden", overlay);
+      setMenuVisible(!overlay);
       if (!overlay) refreshTurnHint();
     }
     syncSelection();
@@ -602,6 +681,7 @@ net.onState = (state) => {
     renderRoom(state);
     $("emotes").classList.add("hidden");
     $("btn-help").classList.add("hidden");
+    setMenuVisible(false);
     if (
       !shown("result") &&
       !shown("rules") &&
@@ -610,11 +690,19 @@ net.onState = (state) => {
     )
       show("room");
   } else if (state.phase === "PLAYING") {
-    const overlay = shown("rules") || shown("rank") || shown("guide");
+    const overlay =
+      shown("rules") ||
+      shown("rank") ||
+      shown("guide") ||
+      shown("game-menu") ||
+      shown("scores");
     if (!overlay) show("none");
     $("emotes").classList.toggle("hidden", overlay);
     $("btn-help").classList.toggle("hidden", overlay);
+    setMenuVisible(!overlay && !net.spectating);
     if (!overlay) refreshTurnHint();
+  } else if (state.phase === "ROUND_OVER") {
+    setMenuVisible(false);
   }
   syncSelection();
 };

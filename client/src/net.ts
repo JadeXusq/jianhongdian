@@ -325,6 +325,9 @@ export class Net {
   nextRound(): void {
     this.room?.send("nextRound");
   }
+  endMatch(): void {
+    this.room?.send("endMatch");
+  }
   async leave(): Promise<void> {
     sessionStorage.removeItem(TOKEN_KEY);
     await this.room?.leave(true);

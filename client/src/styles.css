@@ -43,6 +43,7 @@ body {
 #ui .screen,
 #ui .mute,
 #ui .help,
+#ui .menu-btn,
 #ui .emotes {
   pointer-events: auto;
 }
@@ -492,7 +493,8 @@ input:focus {
 .turn-hint.hidden,
 .emotes.hidden,
 .emote-bubble.hidden,
-.help.hidden {
+.help.hidden,
+.menu-btn.hidden {
   display: none;
 }
 
@@ -595,6 +597,27 @@ input:focus {
   z-index: 25;
   pointer-events: none;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* 对局内菜单 */
+.menu-btn {
+  position: fixed;
+  top: calc(14px + env(safe-area-inset-top));
+  left: calc(14px + env(safe-area-inset-left));
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 18px;
+  background: rgba(8, 24, 18, 0.6);
+  color: var(--gold);
+  font-size: 14px;
+  font-family: var(--serif);
+  z-index: 6;
+  cursor: pointer;
+}
+
+.menu-panel .btn {
+  margin-top: 10px;
 }
 
 /* 对局内规则入口 */

@@ -54,13 +54,15 @@ export class Game {
   /** CHOOSE_STOCK_TARGET 阶段等待选择目标的翻出牌 */
   pendingStockCard = -1;
 
-  constructor(playerCount: number, seed = Date.now()) {
+  constructor(playerCount: number, seed = Date.now(), startSeat = 0) {
     if (playerCount < 2 || playerCount > 4) throw new RuleError("人数须为 2~4");
     this.playerCount = playerCount;
     this.players = Array.from({ length: playerCount }, () => ({
       hand: [],
       captured: [],
     }));
+    this.currentPlayer =
+      ((startSeat % playerCount) + playerCount) % playerCount;
     this.deal(mulberry32(seed));
   }
 

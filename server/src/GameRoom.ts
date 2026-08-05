@@ -29,7 +29,7 @@ export interface JoinOptions {
   name?: string;
   avatar?: string;
   maxPlayers?: number;
-  /** 总轮数（默认 5 轮）*/
+  /** 总轮数：0=无限（房主结算结束）；>0 打满自动结束（兼容旧客户端） */
   totalRounds?: number;
   /** 游客账号标识，用于战绩累计 */
   deviceId?: string;
@@ -54,16 +54,19 @@ export class GameRoom extends Room<RoomState> {
   private spectators = new Set<string>();
   /** 上一手客户端动画垫时，叠加到下一次 AI 出牌等待 */
   private animPadMs = 0;
+  /** 本场是否已由房主结算（或打满固定轮） */
+  private matchClosed = false;
+  /** 房主点了结算：本轮结束后关闭本场 */
+  private settleAfterRound = false;
 
   onCreate(options: JoinOptions): void {
     const maxPlayers = clampPlayers(options.maxPlayers ?? 4);
     this.maxClients = maxPlayers + 8;
     this.setState(new RoomState());
     this.state.maxPlayers = maxPlayers;
-    this.state.totalRounds = Math.min(
-      20,
-      Math.max(1, options.totalRounds ?? 5)
-    );
+    const tr = options.totalRounds;
+    this.state.totalRounds =
+      tr === undefined ? 0 : Math.min(20, Math.max(0, Math.floor(tr)));
     this.defaultAiDifficulty = parseAiDifficulty(options.aiDifficulty);
     this.state.code = registerCode(this.roomId);
     this.setMetadata({ code: this.state.code, maxPlayers });
@@ -88,6 +91,7 @@ export class GameRoom extends Room<RoomState> {
       this.onChooseTarget(client, msg)
     );
     this.onMessage("nextRound", (client) => this.onNextRound(client));
+    this.onMessage("endMatch", (client) => this.onEndMatch(client));
     this.onMessage("emote", (client, msg: { id?: string }) =>
       this.onEmote(client, msg)
     );
@@ -154,6 +158,7 @@ export class GameRoom extends Room<RoomState> {
 
   private onReady(client: Client, ready: boolean): void {
     if (this.state.phase === "PLAYING") return;
+    if (this.matchClosed && this.state.phase === "ROUND_OVER") return;
     const p = this.state.players.get(client.sessionId);
     if (!p) return;
     p.ready = ready;
@@ -196,16 +201,57 @@ export class GameRoom extends Room<RoomState> {
     const players = [...this.state.players.values()];
     if (players.length !== this.state.maxPlayers) return;
     if (!players.every((p) => p.ready)) return;
+    if (this.matchClosed) this.resetMatch();
     this.startRound();
   }
 
   private onNextRound(client: Client): void {
     if (this.state.phase !== "ROUND_OVER") return;
+    if (this.matchClosed) {
+      // 再来一局：任一玩家点击即重置开局
+      this.resetMatch();
+      this.state.players.forEach((p) => (p.ready = true));
+      this.startRound();
+      return;
+    }
     const p = this.state.players.get(client.sessionId);
     if (!p) return;
     p.ready = true;
-    if ([...this.state.players.values()].every((x) => x.ready))
-      this.startRound();
+    if ([...this.state.players.values()].every((x) => x.ready || x.isAi)) {
+      this.state.players.forEach((x) => {
+        if (x.isAi) x.ready = true;
+      });
+      if ([...this.state.players.values()].every((x) => x.ready))
+        this.startRound();
+    }
+  }
+
+  private onEndMatch(client: Client): void {
+    if (!this.isHost(client)) {
+      client.send("error", { message: "仅房主可结算对局" });
+      return;
+    }
+    if (this.matchClosed) return;
+    if (this.state.phase === "PLAYING") {
+      this.settleAfterRound = true;
+      client.send("error", { message: "本轮结束后将结算本场" });
+      return;
+    }
+    if (this.state.phase === "ROUND_OVER") {
+      this.closeMatch();
+    }
+  }
+
+  private resetMatch(): void {
+    this.matchClosed = false;
+    this.settleAfterRound = false;
+    this.state.round = 0;
+    this.state.roundStarter = -1;
+    this.state.players.forEach((p) => {
+      p.totalNet = 0;
+      p.points = 0;
+      p.ready = false;
+    });
   }
 
   // ---------- 对局 ----------
@@ -214,7 +260,14 @@ export class GameRoom extends Room<RoomState> {
     // 座位须为 0..n-1 连续，规则引擎以座位号作为玩家索引
     this.compactSeats();
     const count = this.state.players.size;
-    this.game = new Game(count, Date.now());
+    // 首轮随机庄；之后按逆时针（座位号递减，与牌桌布局一致）
+    if (this.state.roundStarter < 0) {
+      this.state.roundStarter = Math.floor(Math.random() * count);
+    } else {
+      this.state.roundStarter =
+        (this.state.roundStarter - 1 + count) % count;
+    }
+    this.game = new Game(count, Date.now(), this.state.roundStarter);
     this.hands.clear();
     this.game.players.forEach((p, seat) => this.hands.set(seat, p.hand));
 
@@ -328,23 +381,39 @@ export class GameRoom extends Room<RoomState> {
     this.state.phase = "ROUND_OVER";
     this.state.currentSeat = -1;
     this.state.turnDeadline = 0;
-    const allDone = this.state.round >= this.state.totalRounds;
+    const fixedDone =
+      this.state.totalRounds > 0 && this.state.round >= this.state.totalRounds;
+    const allDone = fixedDone || this.settleAfterRound;
+    if (allDone) this.matchClosed = true;
+    this.settleAfterRound = false;
     this.broadcast("roundOver", {
       points: result.points,
       base: result.base,
       net: result.net,
       captured: this.game!.players.map((p) => p.captured),
       round: this.state.round,
-      totalRounds: this.state.totalRounds,
+      totalRounds: allDone ? this.state.round : this.state.totalRounds,
       allDone,
     });
-    // 未打满轮数：3 秒后自动开下一轮
-    if (!allDone) {
-      this.clock.setTimeout(() => {
-        this.state.players.forEach((p) => (p.ready = true));
-        this.startRound();
-      }, 3000);
-    }
+  }
+
+  /** 在轮间直接关闭本场（不再开下一轮） */
+  private closeMatch(): void {
+    this.matchClosed = true;
+    this.settleAfterRound = false;
+    this.state.phase = "ROUND_OVER";
+    const bySeat = [...this.state.players.values()].sort(
+      (a, b) => a.seat - b.seat
+    );
+    this.broadcast("roundOver", {
+      points: bySeat.map((p) => p.totalNet),
+      base: 0,
+      net: bySeat.map((p) => p.totalNet),
+      captured: bySeat.map(() => [] as number[]),
+      round: this.state.round,
+      totalRounds: this.state.round,
+      allDone: true,
+    });
   }
 
   // ---------- 同步 ----------
