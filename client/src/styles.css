@@ -101,6 +101,19 @@ body {
   text-align: center;
 }
 
+.dialog-panel {
+  width: min(360px, 88vw);
+}
+
+.dialog-field {
+  margin-top: 24px;
+}
+
+.dialog-field input {
+  text-align: center;
+  letter-spacing: 6px;
+}
+
 /* 四角回纹装饰 */
 .panel::before,
 .panel::after {

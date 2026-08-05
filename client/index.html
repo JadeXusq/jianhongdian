@@ -67,6 +67,26 @@
         </div>
       </section>
 
+      <section id="room-code-dialog" class="screen hidden">
+        <div class="panel dialog-panel">
+          <h2 id="room-code-title" class="title small">加入房间</h2>
+          <label class="field dialog-field">
+            <span>房号</span>
+            <input
+              id="room-code-input"
+              maxlength="6"
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="请输入 6 位房号"
+            />
+          </label>
+          <div class="row">
+            <button id="btn-room-code-ok" class="btn primary">确认加入</button>
+            <button id="btn-room-code-cancel" class="btn">取消</button>
+          </div>
+        </div>
+      </section>
+
       <!-- 结算 -->
       <section id="result" class="screen hidden">
         <div class="panel result-panel">

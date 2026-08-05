@@ -24,6 +24,7 @@ export type UiScreen =
   | "menu"
   | "scores"
   | "settle-confirm"
+  | "room-code"
   | "none";
 
 export interface LobbyCallbacks {
@@ -60,6 +61,7 @@ export class LobbyUI {
   private menu!: Node;
   private scores!: Node;
   private settleConfirm!: Node;
+  private roomCodeDialog!: Node;
   private emotes!: Node;
   private helpBtn!: Node;
   private menuBtn!: Node;
@@ -70,6 +72,8 @@ export class LobbyUI {
   private emoteTimer = 0;
   private nameBox!: EditBox;
   private codeBox!: EditBox;
+  private roomCodeTitle!: Label;
+  private roomCodeMode: "join" | "spectate" = "join";
   private accIdBox!: EditBox;
   private accTokenBox!: EditBox;
   private accStatusLbl!: Label;
@@ -108,6 +112,7 @@ export class LobbyUI {
     this.menu = this.buildMenu();
     this.scores = this.buildScores();
     this.settleConfirm = this.buildSettleConfirm();
+    this.roomCodeDialog = this.buildRoomCodeDialog();
     this.emotes = this.buildEmotes();
     this.menuBtn = this.makeBtn(
       this.root,
@@ -154,6 +159,7 @@ export class LobbyUI {
     this.menu.active = screen === "menu";
     this.scores.active = screen === "scores";
     this.settleConfirm.active = screen === "settle-confirm";
+    this.roomCodeDialog.active = screen === "room-code";
     if (screen !== "none") this.setEmotesVisible(false);
   }
 
@@ -369,30 +375,54 @@ export class LobbyUI {
     this.makeBtn(panel, "创建房间", -75, -112, 125, 38, () =>
       this.cb.onCreate(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "输房号加入", 75, -112, 125, 38, () => {
-      const code = (this.codeBox.string || "").trim();
-      if (!code) {
-        this.toast("请先填写房号");
-        return;
-      }
-      this.cb.onJoin(this.playerName(), code);
-    });
-    this.makeBtn(panel, "房号观战", -75, -160, 125, 36, () => {
-      const code = (this.codeBox.string || "").trim();
-      if (!code) {
-        this.toast("请先填写房号");
-        return;
-      }
-      this.cb.onSpectate(this.playerName(), code);
-    });
+    this.makeBtn(panel, "输房号加入", 75, -112, 125, 38, () =>
+      this.openRoomCodeDialog("join")
+    );
+    this.makeBtn(panel, "房号观战", -75, -160, 125, 36, () =>
+      this.openRoomCodeDialog("spectate")
+    );
     this.makeBtn(panel, "账号绑定", 75, -160, 125, 36, () =>
       this.cb.onAccount()
     );
-
-    this.makeLabel(panel, "房号", -130, -208, 16, C.goldDim);
-    this.codeBox = this.makeEdit(panel, 20, -212, 190, 34, "6位房号");
-    this.makeBtn(panel, "查看规则", 0, -255, 120, 30, () => this.show("rules"));
+    this.makeBtn(panel, "查看规则", 0, -215, 120, 30, () => this.show("rules"));
     return panel;
+  }
+
+  private buildRoomCodeDialog(): Node {
+    const panel = this.panel("RoomCodeDialog", 380, 280);
+    this.roomCodeTitle = this.makeLabel(panel, "加入房间", 0, 90, 28, C.gold);
+    this.makeLabel(panel, "房号", -125, 25, 17, C.goldDim);
+    this.codeBox = this.makeEdit(panel, 25, 20, 220, 40, "请输入6位房号");
+    this.codeBox.inputMode = EditBox.InputMode.NUMERIC;
+    this.codeBox.maxLength = 6;
+    this.makeBtn(panel, "确认", -80, -70, 130, 40, () =>
+      this.submitRoomCode()
+    );
+    this.makeBtn(panel, "取消", 80, -70, 130, 40, () => this.show("lobby"));
+    return panel;
+  }
+
+  private openRoomCodeDialog(mode: "join" | "spectate"): void {
+    this.roomCodeMode = mode;
+    this.roomCodeTitle.string = mode === "join" ? "加入房间" : "观战房间";
+    this.codeBox.string = "";
+    this.show("room-code");
+    this.codeBox.focus();
+  }
+
+  private submitRoomCode(): void {
+    const code = (this.codeBox.string || "").replace(/\D/g, "").slice(0, 6);
+    this.codeBox.string = code;
+    if (code.length !== 6) {
+      this.toast("请输入6位房号");
+      this.codeBox.focus();
+      return;
+    }
+    if (this.roomCodeMode === "join") {
+      this.cb.onJoin(this.playerName(), code);
+      return;
+    }
+    this.cb.onSpectate(this.playerName(), code);
   }
 
   private buildAccount(): Node {

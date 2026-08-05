@@ -34,6 +34,7 @@ let turnUiLockUntil = 0;
 /** 待展示的结算（等动画结束或超时） */
 let pendingRoundOver: RoundOver | null = null;
 let roundOverWaitStarted = 0;
+let roomCodeMode: "join" | "spectate" = "join";
 
 const assetBase = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
 void loadCardAtlas(assetBase);
@@ -61,6 +62,7 @@ function show(
     | "game-menu"
     | "scores"
     | "settle-confirm"
+    | "room-code-dialog"
     | "none"
 ): void {
   [
@@ -74,6 +76,7 @@ function show(
     "game-menu",
     "scores",
     "settle-confirm",
+    "room-code-dialog",
   ].forEach((s) => $(s).classList.toggle("hidden", s !== id));
 }
 
@@ -242,22 +245,51 @@ $("btn-create").onclick = () =>
     show("room");
   });
 
-$("btn-join").onclick = () =>
-  guard(async () => {
-    const code = prompt("请输入 6 位房号")?.trim();
-    if (!code) return;
+function openRoomCodeDialog(mode: "join" | "spectate"): void {
+  roomCodeMode = mode;
+  $("room-code-title").textContent =
+    mode === "join" ? "加入房间" : "观战房间";
+  $("btn-room-code-ok").textContent =
+    mode === "join" ? "确认加入" : "确认观战";
+  const input = $<HTMLInputElement>("room-code-input");
+  input.value = "";
+  show("room-code-dialog");
+  requestAnimationFrame(() => input.focus());
+}
+
+async function submitRoomCode(): Promise<void> {
+  const input = $<HTMLInputElement>("room-code-input");
+  const code = input.value.replace(/\D/g, "").slice(0, 6);
+  input.value = code;
+  if (code.length !== 6) {
+    toast("请输入 6 位房号");
+    input.focus();
+    return;
+  }
+  if (roomCodeMode === "join") {
     await net.joinByCode(playerName(), code);
     show("room");
-  });
+    return;
+  }
+  await net.spectateByCode(playerName(), code);
+  toast("已进入观战");
+  show("none");
+}
 
-$("btn-spectate").onclick = () =>
+$("btn-join").onclick = () => openRoomCodeDialog("join");
+$("btn-spectate").onclick = () => openRoomCodeDialog("spectate");
+$("btn-room-code-cancel").onclick = () => show("lobby");
+$("btn-room-code-ok").onclick = () =>
   guard(async () => {
-    const code = prompt("请输入要观战的 6 位房号")?.trim();
-    if (!code) return;
-    await net.spectateByCode(playerName(), code);
-    toast("已进入观战");
-    show("none");
+    await submitRoomCode();
   });
+$<HTMLInputElement>("room-code-input").addEventListener("input", (e) => {
+  const input = e.currentTarget as HTMLInputElement;
+  input.value = input.value.replace(/\D/g, "").slice(0, 6);
+});
+$<HTMLInputElement>("room-code-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") void guard(submitRoomCode);
+});
 
 $("btn-rules").onclick = () => show("rules");
 $("btn-rules-close").onclick = () => {
