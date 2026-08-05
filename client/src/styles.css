@@ -302,10 +302,16 @@ input:focus {
   touch-action: pan-y;
 }
 
+.room-status {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
 .room-panel .code-box,
 .room-panel > .field,
 .room-panel > .row,
 .room-panel > .link,
+.room-panel > .room-status,
 .result-panel > .title,
 .result-panel > .result-dots,
 .result-panel > .row,
@@ -769,12 +775,29 @@ input:focus {
   height: calc(100% - 12px);
 }
 
-#ui.rot .room-panel .code-box {
-  margin-bottom: 8px;
+/* 旋转层下 Android 原生滚动常失效，改由整板滚动 + JS 补位移 */
+#ui.rot .room-panel {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: none;
 }
 
 #ui.rot .room-panel .seats {
+  overflow: visible;
+  flex: none;
+  touch-action: none;
   gap: 6px;
+  margin-bottom: 8px;
+}
+
+#ui.rot .rules-body,
+#ui.rot .result-panel .result-list,
+#ui.rot #rank .result-list,
+#ui.rot .guide-panel .guide-list {
+  touch-action: none;
+}
+
+#ui.rot .room-panel .code-box {
   margin-bottom: 8px;
 }
 

@@ -81,6 +81,7 @@ export class LobbyUI {
   private count = 4;
   private countLabels: Label[] = [];
   private roomCodeLbl!: Label;
+  private roomStatusLbl!: Label;
   private seatsNode!: Node;
   private readyLbl!: Label;
   private aiBtn!: Node;
@@ -257,15 +258,43 @@ export class LobbyUI {
   renderRoom(state: any, mySessionId: string): void {
     this.roomCodeLbl.string = state.code || "------";
     this.seatsNode.removeAllChildren();
-    const players = [...state.players.values()] as any[];
-    const startY = 90;
+    const players: Array<{
+      sessionId: string;
+      name: string;
+      seat: number;
+      isAi: boolean;
+      ready: boolean;
+    }> = [];
+    const seen = new Set<string>();
+    state.players.forEach((p: any, id: string) => {
+      const sessionId = String(id || p.sessionId || "");
+      if (!sessionId || seen.has(sessionId)) return;
+      seen.add(sessionId);
+      players.push({
+        sessionId,
+        name: String(p.name || "玩家"),
+        seat: Number(p.seat) || 0,
+        isAi: !!p.isAi,
+        ready: !!p.ready,
+      });
+    });
+    players.sort((a, b) => a.seat - b.seat);
+    const bySeat = new Map(players.map((p) => [p.seat, p]));
+    const nameCount = new Map<string, number>();
+    for (const p of players)
+      nameCount.set(p.name, (nameCount.get(p.name) ?? 0) + 1);
+
+    const startY = 70;
     for (let i = 0; i < state.maxPlayers; i++) {
-      const p = players.find((x) => x.seat === i);
-      const line = p
-        ? `${p.name}${p.isAi ? " · 电脑" : ""}${
-            p.sessionId === mySessionId ? "（我）" : ""
-          }  ${p.ready ? "已准备" : "等待中"}`
-        : `座位 ${i + 1}  空`;
+      const p = bySeat.get(i);
+      let line = `座位 ${i + 1}  空`;
+      if (p) {
+        const dup = (nameCount.get(p.name) ?? 0) > 1;
+        const label = dup ? `${p.name}·座${i + 1}` : p.name;
+        line = `${label}${p.isAi ? " · 电脑" : ""}${
+          p.sessionId === mySessionId ? "（我）" : ""
+        }  ${p.ready ? "已准备" : "等待中"}`;
+      }
       this.makeLabel(
         this.seatsNode,
         line,
@@ -275,6 +304,18 @@ export class LobbyUI {
         p ? C.cream : C.goldDim
       );
     }
+
+    const need = state.maxPlayers - players.length;
+    const unready = players.filter((p) => !p.ready).length;
+    if (this.roomStatusLbl) {
+      this.roomStatusLbl.string =
+        need > 0
+          ? `还差 ${need} 人（可添加电脑）`
+          : unready > 0
+            ? `人数已满 · 还有 ${unready} 人未准备`
+            : "全员已准备 · 即将开局";
+    }
+
     const me = players.find((x) => x.sessionId === mySessionId);
     this.readyLbl.string = me?.ready ? "取消准备" : "准备";
     const isHost = state.hostSessionId === mySessionId;
@@ -472,21 +513,29 @@ export class LobbyUI {
   }
 
   private buildRoom(): Node {
-    const panel = this.panel("Room", 420, 460);
-    this.makeLabel(panel, "房间等待", 0, 190, 28, C.gold);
-    this.roomCodeLbl = this.makeLabel(panel, "------", 0, 145, 36, C.seal);
+    const panel = this.panel("Room", 420, 500);
+    this.makeLabel(panel, "房间等待", 0, 210, 28, C.gold);
+    this.roomCodeLbl = this.makeLabel(panel, "------", 0, 165, 36, C.seal);
+    this.roomStatusLbl = this.makeLabel(
+      panel,
+      "等待玩家加入",
+      0,
+      125,
+      16,
+      C.goldDim
+    );
     this.seatsNode = new Node("Seats");
     this.seatsNode.layer = Layers.Enum.UI_2D;
     panel.addChild(this.seatsNode);
 
-    this.aiBtn = this.makeBtn(panel, "＋ 添加电脑", -90, -120, 150, 40, () =>
+    this.aiBtn = this.makeBtn(panel, "＋ 添加电脑", -90, -150, 150, 40, () =>
       this.cb.onAddAi()
     );
-    const readyBtn = this.makeBtn(panel, "准备", 90, -120, 120, 40, () =>
+    const readyBtn = this.makeBtn(panel, "准备", 90, -150, 120, 40, () =>
       this.cb.onReady()
     );
     this.readyLbl = readyBtn.getComponentInChildren(Label)!;
-    this.makeBtn(panel, "离开房间", 0, -175, 160, 36, () => this.cb.onQuit());
+    this.makeBtn(panel, "离开房间", 0, -205, 160, 36, () => this.cb.onQuit());
     return panel;
   }
 

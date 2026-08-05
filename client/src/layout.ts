@@ -18,3 +18,48 @@ export function onOrientationChange(fn: () => void): void {
   // iOS 旋转后 innerWidth/Height 更新有延迟，补一次
   window.addEventListener("orientationchange", () => setTimeout(fn, 120));
 }
+
+/**
+ * Android 在祖先带 CSS transform 时原生 overflow 滚动常失效；
+ * 旋转模式下用触摸位移驱动 scrollTop（视觉纵向 ≈ 物理 -clientX）。
+ */
+export function bindRotScroll(el: HTMLElement): void {
+  if ((el as any)._rotScrollBound) return;
+  (el as any)._rotScrollBound = true;
+
+  let dragging = false;
+  let last = 0;
+
+  const axis = (t: Touch) => (shouldRotate() ? -t.clientX : t.clientY);
+
+  el.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.touches.length !== 1) return;
+      dragging = true;
+      last = axis(e.touches[0]);
+    },
+    { passive: true }
+  );
+
+  el.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!dragging || e.touches.length !== 1) return;
+      if (!shouldRotate()) return;
+      const max = el.scrollHeight - el.clientHeight;
+      if (max <= 0) return;
+      const now = axis(e.touches[0]);
+      el.scrollTop = Math.max(0, Math.min(max, el.scrollTop + (last - now)));
+      last = now;
+      e.preventDefault();
+    },
+    { passive: false }
+  );
+
+  const end = () => {
+    dragging = false;
+  };
+  el.addEventListener("touchend", end, { passive: true });
+  el.addEventListener("touchcancel", end, { passive: true });
+}

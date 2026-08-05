@@ -10,7 +10,7 @@ import {
 } from "@jhd/shared";
 import { sfx } from "./audio";
 import { loadCardAtlas } from "./cardRender";
-import { onOrientationChange, shouldRotate } from "./layout";
+import { bindRotScroll, onOrientationChange, shouldRotate } from "./layout";
 import { LocalPlay } from "./localPlay";
 import { Net, RoundOver, deviceId, savedAccountId } from "./net";
 import { TableView } from "./table";
@@ -88,6 +88,20 @@ function applyOrientation(): void {
 }
 applyOrientation();
 onOrientationChange(applyOrientation);
+
+function bindOverlayScrolls(): void {
+  [
+    ".room-panel",
+    ".rules-body",
+    ".result-panel .result-list",
+    "#rank .result-list",
+    ".guide-panel .guide-list",
+    ".lobby-panel",
+  ].forEach((sel) => {
+    document.querySelectorAll<HTMLElement>(sel).forEach(bindRotScroll);
+  });
+}
+bindOverlayScrolls();
 
 // 首次手势时解锁音频并起背景音乐（浏览器策略要求）
 window.addEventListener(
@@ -438,24 +452,78 @@ $("btn-quit").onclick = () =>
     show("lobby");
   });
 
+function listRoomPlayers(state: any): Array<{
+  sessionId: string;
+  name: string;
+  seat: number;
+  isAi: boolean;
+  ready: boolean;
+}> {
+  const out: Array<{
+    sessionId: string;
+    name: string;
+    seat: number;
+    isAi: boolean;
+    ready: boolean;
+  }> = [];
+  const seen = new Set<string>();
+  state.players.forEach((p: any, id: string) => {
+    const sessionId = String(id || p.sessionId || "");
+    if (!sessionId || seen.has(sessionId)) return;
+    seen.add(sessionId);
+    out.push({
+      sessionId,
+      name: String(p.name || "玩家"),
+      seat: Number(p.seat) || 0,
+      isAi: !!p.isAi,
+      ready: !!p.ready,
+    });
+  });
+  return out.sort((a, b) => a.seat - b.seat);
+}
+
 function renderRoom(state: any): void {
   $("room-code").textContent = state.code;
   const seats = $("seats");
   seats.innerHTML = "";
-  const players = [...state.players.values()] as any[];
+  const players = listRoomPlayers(state);
+  const bySeat = new Map(players.map((p) => [p.seat, p]));
+  const nameCount = new Map<string, number>();
+  for (const p of players)
+    nameCount.set(p.name, (nameCount.get(p.name) ?? 0) + 1);
+
   for (let i = 0; i < state.maxPlayers; i++) {
-    const p = players.find((x) => x.seat === i);
+    const p = bySeat.get(i);
     const div = document.createElement("div");
     div.className = "seat" + (p ? "" : " empty");
-    div.innerHTML = p
-      ? `<div class="avatar">${p.name.slice(0, 1)}</div>
-         <div class="who">${p.name}${p.isAi ? " · 电脑" : ""}${
-          p.sessionId === net.room?.sessionId ? "（我）" : ""
-        }</div>
-         <div class="tag">${p.ready ? "已准备" : "等待中"}</div>`
-      : `<div class="avatar">＋</div><div class="who">等待玩家…</div>`;
+    if (p) {
+      const dup = (nameCount.get(p.name) ?? 0) > 1;
+      const label = dup ? `${p.name}·座${i + 1}` : p.name;
+      const mine = p.sessionId === net.room?.sessionId;
+      div.innerHTML = `<div class="avatar">${label.slice(0, 1)}</div>
+         <div class="who">${label}${p.isAi ? " · 电脑" : ""}${
+           mine ? "（我）" : ""
+         }</div>
+         <div class="tag">${p.ready ? "已准备" : "等待中"}</div>`;
+    } else {
+      div.innerHTML = `<div class="avatar">＋</div><div class="who">座位 ${
+        i + 1
+      } · 空</div>`;
+    }
     seats.appendChild(div);
   }
+
+  const need = state.maxPlayers - players.length;
+  const unready = players.filter((p) => !p.ready).length;
+  const status = $("room-status");
+  if (need > 0) {
+    status.textContent = `还差 ${need} 人（可点「添加电脑」补位）`;
+  } else if (unready > 0) {
+    status.textContent = `人数已满 · 还有 ${unready} 人未准备`;
+  } else {
+    status.textContent = "全员已准备 · 即将开局";
+  }
+
   const me = players.find((x) => x.sessionId === net.room?.sessionId);
   $<HTMLButtonElement>("btn-ready").textContent = me?.ready
     ? "取消准备"
