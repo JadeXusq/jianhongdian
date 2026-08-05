@@ -689,8 +689,8 @@ export class GameEntry extends Component {
       this.matchNode,
       "点击任意处跳过",
       0,
-      -DESIGN.height / 2 + 48,
-      18,
+      -DESIGN.height / 2 + (sys.isMobile ? 64 : 48),
+      sys.isMobile ? 20 : 18,
       C.gold,
       true
     );

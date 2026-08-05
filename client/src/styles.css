@@ -647,9 +647,12 @@ input:focus {
   letter-spacing: 1px;
 }
 
-/* 软件横屏：按旋转后的可用宽高计算，左右分栏展示完整入口 */
+/* 软件横屏：按旋转后的可用宽高计算，左右分栏展示完整入口。
+   旋转 90° 后 safe-area 物理边映射：top←left, right←top, bottom←right, left←bottom */
 #ui.rot .screen {
-  padding: 10px 16px;
+  padding: max(10px, env(safe-area-inset-left))
+    max(16px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom));
 }
 
 #ui.rot .panel {
@@ -765,6 +768,28 @@ input:focus {
 #ui.rot .result-list,
 #ui.rot #rank .result-list {
   margin-bottom: 8px;
+}
+
+#ui.rot .result-panel .res {
+  padding: 8px 12px;
+  font-size: 14px;
+  gap: 8px;
+}
+
+#ui.rot .result-panel .res .net {
+  font-size: 17px;
+  width: 48px;
+}
+
+#ui.rot .result-panel .row {
+  gap: 10px;
+  margin-top: 4px;
+}
+
+#ui.rot .result-panel .btn {
+  min-height: 44px;
+  padding: 10px 0;
+  font-size: 15px;
 }
 
 #ui.rot #account .panel {

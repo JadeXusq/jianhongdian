@@ -346,7 +346,7 @@ export class TableView {
           },
           {
             text: "点击任意处跳过",
-            at: { x: centerX, y: H - 48 },
+            at: { x: centerX, y: this.rotated ? H - 64 : H - 48 },
             t: 0,
             hint: true,
           },
@@ -807,9 +807,12 @@ export class TableView {
         const flying = s.flies.some((f) => f.t < f.dur);
         if (flying || s.hold <= 0) continue;
         const pulse = 0.65 + 0.35 * Math.sin(this.animClock * 4);
+        const capW = this.rotated ? 248 : 220;
+        const capH = this.rotated ? 42 : 36;
+        const fontPx = this.rotated ? 18 : 16;
         ctx.save();
         ctx.globalAlpha = pulse;
-        roundRect(ctx, p.at.x - 110, p.at.y - 18, 220, 36, 18);
+        roundRect(ctx, p.at.x - capW / 2, p.at.y - capH / 2, capW, capH, 18);
         ctx.fillStyle = "rgba(8,26,20,0.82)";
         ctx.fill();
         ctx.strokeStyle = C.gold;
@@ -818,7 +821,7 @@ export class TableView {
         ctx.fillStyle = C.gold;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.font = `600 16px "Songti SC", "STSong", serif`;
+        ctx.font = `600 ${fontPx}px "Songti SC", "STSong", serif`;
         ctx.fillText(p.text, p.at.x, p.at.y);
         ctx.restore();
         continue;
