@@ -17,6 +17,7 @@ import {
   cardScore,
   MATCH_HOLD_S,
   ROUND_RESULT_AUTO_MS,
+  turnHint,
   type GameEvent,
 } from "./rules";
 import { Net, type RoundOver } from "./Net";
@@ -754,31 +755,23 @@ export class GameEntry extends Component {
   private refreshTurnHint(): void {
     const state = this.playState();
     if (!state || state.phase !== "PLAYING") return;
-    if (!this.offline && this.net.spectating) {
-      this.hintText = "观战中";
-      return;
-    }
+    const spectating = !this.offline && this.net.spectating;
     const mine = this.myTurn();
-    if (this.matchBusy) {
-      this.wasMyTurn = false;
-      this.hintText =
-        mine && state.turnPhase === "CHOOSE_STOCK_TARGET"
-          ? "翻牌中…"
-          : this.offline
-            ? "电脑出牌中…"
-            : "对手出牌中…";
-      return;
-    }
-    if (!mine) {
-      this.wasMyTurn = false;
-      this.hintText = this.offline ? "电脑出牌中…" : "对手出牌中…";
-      return;
-    }
-    this.wasMyTurn = true;
-    this.hintText =
-      state.turnPhase === "CHOOSE_STOCK_TARGET"
-        ? "翻牌可吃，请选择目标"
-        : "轮到你出牌";
+    const busy =
+      this.matchBusy ||
+      this.deferredReveal.size > 0 ||
+      this.stockAnimCredit > 0;
+    this.hintText = turnHint({
+      spectating,
+      offline: !!this.offline,
+      myTurn: mine,
+      turnPhase: state.turnPhase,
+      busy,
+      pickingTable: this.selected >= 0 && this.discardArmed < 0,
+      discardConfirm: this.discardArmed >= 0,
+    });
+    if (!spectating && mine && !busy) this.wasMyTurn = true;
+    else this.wasMyTurn = false;
   }
 
   private myTurn(): boolean {

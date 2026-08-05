@@ -2,7 +2,7 @@
  * 入口：界面切换与出牌交互
  * 交互约定：点手牌 → 唯一目标直接吃；多目标高亮待选；无目标需再点一次确认弃牌。
  */
-import { cardScore, findTargets } from "@jhd/shared";
+import { cardScore, findTargets, turnHint } from "@jhd/shared";
 import { ROUND_RESULT_AUTO_MS } from "@jhd/shared";
 import { sfx } from "./audio";
 import { loadCardAtlas } from "./cardRender";
@@ -112,7 +112,7 @@ function hint(msg: string | null): void {
   if (msg) el.textContent = msg;
 }
 
-/** 轮到你时等动画播完再提示；别人进行中显示对方出牌中 */
+/** 按阶段整理回合提示，避免翻牌/结算动画误报「对手出牌中」 */
 function refreshTurnHint(): void {
   const state = playState();
   if (!state || state.phase !== "PLAYING") return;
@@ -126,12 +126,8 @@ function refreshTurnHint(): void {
     shown("settle-confirm")
   )
     return;
-  if (!offline && net.spectating) {
-    hint("观战中");
-    view.turnBlocked = false;
-    return;
-  }
 
+  const spectating = !offline && net.spectating;
   const mine = myTurn();
 
   // 状态已切到自己，但 onEvents 可能晚一拍：先锁几帧等动画入队
@@ -140,30 +136,26 @@ function refreshTurnHint(): void {
   if (view.animating) turnUiLockFrames = 0;
   if (turnUiLockFrames > 0) turnUiLockFrames--;
 
-  const blocked = view.animating || turnUiLockFrames > 0;
-  view.turnBlocked = blocked;
+  const busy = view.animating || turnUiLockFrames > 0;
+  view.turnBlocked = busy;
 
-  if (blocked) {
+  const text = turnHint({
+    spectating,
+    offline: !!offline,
+    myTurn: mine,
+    turnPhase: state.turnPhase,
+    busy,
+    pickingTable: selected >= 0 && discardArmed < 0,
+    discardConfirm: discardArmed >= 0,
+  });
+
+  if (!spectating && mine && !busy) {
+    if (!wasMyTurn) sfx.turn();
+    wasMyTurn = true;
+  } else {
     wasMyTurn = false;
-    if (mine && state.turnPhase === "CHOOSE_STOCK_TARGET" && view.animating)
-      hint("翻牌中…");
-    else hint(offline ? "电脑出牌中…" : "对手出牌中…");
-    return;
   }
-
-  if (!mine) {
-    wasMyTurn = false;
-    hint(offline ? "电脑出牌中…" : "对手出牌中…");
-    return;
-  }
-
-  if (!wasMyTurn) sfx.turn();
-  wasMyTurn = true;
-  hint(
-    state.turnPhase === "CHOOSE_STOCK_TARGET"
-      ? "翻牌可吃，请选择目标"
-      : "轮到你出牌"
-  );
+  hint(text);
 }
 
 // ---------- 大厅 ----------
