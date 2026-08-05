@@ -849,9 +849,7 @@ export class GameEntry extends Component {
     const g = this.feltNode.addComponent(Graphics);
     const w = DESIGN.width;
     const h = DESIGN.height;
-    this.feltNode
-      .getComponent(UITransform)!
-      .setContentSize(new Size(w, h));
+    this.feltNode.addComponent(UITransform).setContentSize(new Size(w, h));
     this.feltNode.on(Node.EventType.TOUCH_END, () => this.clearSelection());
 
     g.fillColor = C.feltInner;
