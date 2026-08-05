@@ -361,14 +361,11 @@ export class LobbyUI {
     const bar = new Node("Emotes");
     bar.layer = Layers.Enum.UI_2D;
     this.root.addChild(bar);
-    bar.setPosition(new Vec3(0, -DESIGN.height / 2 + 36, 0));
+    // 右侧竖排，避开底部手牌点击区
+    bar.setPosition(new Vec3(DESIGN.width / 2 - 56, -DESIGN.height / 2 + 170, 0));
     const list = ["加油", "好棋", "厉害", "等等", "哈哈哈"];
-    const w = 88;
-    const start = -((list.length - 1) * w) / 2;
     list.forEach((text, i) => {
-      this.makeBtn(bar, text, start + i * w, 0, 80, 32, () =>
-        this.cb.onEmote(text)
-      );
+      this.makeBtn(bar, text, 0, i * 38, 88, 32, () => this.cb.onEmote(text));
     });
     bar.active = false;
     return bar;

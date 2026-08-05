@@ -168,14 +168,16 @@ export class TableView {
     }
 
     // 手牌在上层，优先命中；同层从右往左（后绘制的在上）
+    // 触屏加大命中外扩，缓解旋转后视觉牌面偏小
+    const pad = window.matchMedia("(pointer: coarse)").matches ? 12 : 0;
     const hit = (slots: Map<number, Slot>) => {
       const entries = [...slots.entries()].reverse();
       for (const [id, s] of entries)
         if (
-          x >= s.x &&
-          x <= s.x + s.w &&
-          y >= s.y &&
-          y <= s.y + s.w * CARD_RATIO
+          x >= s.x - pad &&
+          x <= s.x + s.w + pad &&
+          y >= s.y - pad &&
+          y <= s.y + s.w * CARD_RATIO + pad
         )
           return id;
       return -1;

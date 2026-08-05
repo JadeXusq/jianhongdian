@@ -529,6 +529,57 @@ input:focus {
   font-size: 13px;
   cursor: pointer;
 }
+
+/* 触屏/软件横屏：表情改右侧竖排，避免挡住手牌点击 */
+#ui.rot .emotes {
+  left: auto;
+  right: calc(8px + env(safe-area-inset-right));
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  transform: none;
+  flex-direction: column-reverse;
+  gap: 5px;
+  max-height: 46%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#ui.rot .emotes button {
+  padding: 8px 10px;
+  font-size: 12px;
+  min-width: 52px;
+}
+
+#ui.rot .turn-hint {
+  bottom: calc(24% + 10px);
+  font-size: 13px;
+  padding: 6px 14px;
+}
+
+@media (pointer: coarse) and (orientation: landscape) {
+  .emotes {
+    left: auto;
+    right: calc(8px + env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    transform: none;
+    flex-direction: column-reverse;
+    gap: 5px;
+    max-height: 46%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .emotes button {
+    padding: 8px 10px;
+    font-size: 12px;
+    min-width: 52px;
+  }
+
+  .turn-hint {
+    bottom: calc(24% + 10px);
+    font-size: 13px;
+    padding: 6px 14px;
+  }
+}
 .emote-bubble {
   position: fixed;
   left: 50%;
