@@ -637,12 +637,12 @@ export class GameEntry extends Component {
     const others = players.filter((p) => p.seat !== this.net.mySeat);
     const count = players.length;
 
-    // 2 人对手面板偏右，避免挡桌面中央
+    // 2 人对手正上方；3/4 人按右→上→左
     others.forEach((p, idx) => {
       let x = 0;
       let y = DESIGN.height / 2 - 70;
       if (count === 2) {
-        x = 220;
+        x = 0;
         y = DESIGN.height / 2 - 58;
       } else if (count === 3) {
         x = idx === 0 ? DESIGN.width / 2 - 120 : -DESIGN.width / 2 + 120;

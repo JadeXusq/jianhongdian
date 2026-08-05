@@ -434,15 +434,16 @@ export class TableView {
       this.pilePos.set(seat, this.panelPos(seat));
   }
 
-  /** 座位在屏幕上的面板中心：自己在下，其余按 右→上→左 排布 */
+  /** 座位在屏幕上的面板中心：自己在下，其余按人数排布 */
   private panelPos(seat: number): Pt {
     const count = this.state?.players.size ?? 4;
     const rel = (seat - this.mySeat + count) % count;
     const right = this.w - 108;
     const mid = this.w / 2;
-    // 自己的面板放在左侧偏下，避开手牌区域
+    // 2 人：标准对战，对手正上方，自己左下避开手牌
+    if (count === 2)
+      return rel === 0 ? { x: 108, y: 474 } : { x: mid, y: 58 };
     if (rel === 0) return { x: 108, y: 474 };
-    if (count === 2) return { x: mid + 220, y: 58 };
     if (count === 3)
       return rel === 1 ? { x: right, y: 300 } : { x: 108, y: 300 };
     return rel === 1
