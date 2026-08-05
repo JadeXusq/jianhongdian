@@ -119,6 +119,31 @@ export class TableView {
     canvas.addEventListener("pointerdown", (e) => this.onPointer(e));
   }
 
+  /** 状态已到、动画未到：先藏起桌面新牌 */
+  deferTableCard(id: number): void {
+    if (id >= 0) this.deferredReveal.add(id);
+  }
+
+  /** 对比新旧状态，把新上台面的牌/新待选牌先藏起 */
+  deferStateArrivals(prev: any, next: any): void {
+    if (!next || next.phase !== "PLAYING") return;
+    // 仅对局中增量同步时延后，开局发牌不藏
+    if (prev?.phase !== "PLAYING") return;
+    if (prev.table) {
+      const old = new Set(prev.table as number[]);
+      for (const id of next.table as number[]) {
+        if (!old.has(id)) this.deferredReveal.add(id);
+      }
+    }
+    if (
+      typeof next.pendingStockCard === "number" &&
+      next.pendingStockCard >= 0 &&
+      next.pendingStockCard !== prev.pendingStockCard
+    ) {
+      this.deferredReveal.add(next.pendingStockCard);
+    }
+  }
+
   /** 桌面明牌区：顶部给对手面板留白，避免与桌面牌重叠 */
   private get area() {
     return { x: 236, y: 168, w: this.w - 472, h: 280 };
@@ -233,7 +258,7 @@ export class TableView {
         const to =
           ev.type === "FLIP" && ev.awaitChoice
             ? pendingPos()
-            : this.tableSlots.get(ev.card) ?? {
+            : this.slotForTableCard(ev.card) ?? {
                 x: this.area.x + this.area.w / 2,
                 y: this.area.y,
               };
@@ -253,7 +278,7 @@ export class TableView {
           hide: [ev.card],
           hold: DISCARD_HOLD_S,
           decStock: fromStock,
-          revealOnDone: ev.type === "FLIP" ? [ev.card] : undefined,
+          revealOnDone: [ev.card],
         });
         continue;
       }
@@ -419,9 +444,16 @@ export class TableView {
 
   // ---------- 布局 ----------
 
-  private layout(): void {
-    const table: number[] = [...this.state.table];
-    this.tableSlots.clear();
+  /** 含尚未揭晓牌的落点（飞牌终点），不用于静态绘制 */
+  private slotForTableCard(cardId: number): Pt | null {
+    if (!this.state) return null;
+    const slots = this.computeTableSlots([...this.state.table]);
+    return slots.get(cardId) ?? null;
+  }
+
+  private computeTableSlots(table: number[]): Map<number, Slot> {
+    const slots = new Map<number, Slot>();
+    if (!table.length) return slots;
     const cols = Math.min(9, Math.max(1, table.length));
     const gap = 12;
     const rows = Math.ceil(table.length / cols);
@@ -433,12 +465,20 @@ export class TableView {
       const inRow = Math.min(cols, table.length - row * cols);
       const rowW = inRow * TABLE_CARD_W + (inRow - 1) * gap;
       const startX = area.x + (area.w - rowW) / 2;
-      this.tableSlots.set(id, {
+      slots.set(id, {
         x: startX + (i % cols) * (TABLE_CARD_W + gap),
         y: startY + row * rowH,
         w: TABLE_CARD_W,
       });
     });
+    return slots;
+  }
+
+  private layout(): void {
+    const table: number[] = [...this.state.table].filter(
+      (id) => !this.deferredReveal.has(id)
+    );
+    this.tableSlots = this.computeTableSlots(table);
 
     this.handSlots.clear();
     const n = this.hand.length;

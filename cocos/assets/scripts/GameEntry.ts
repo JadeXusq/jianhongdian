@@ -45,6 +45,8 @@ export class GameEntry extends Component {
   private stockAnimCredit = 0;
   private wasMyTurn = false;
   private deferredReveal = new Set<number>();
+  private lastTableIds: number[] = [];
+  private lastPending = -1;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -327,12 +329,31 @@ export class GameEntry extends Component {
     this.net.onState = (state) => {
       this.hand = this.net.hand.slice();
       if (state.phase === "WAITING") {
+        this.deferredReveal.clear();
+        this.lastTableIds = [];
+        this.lastPending = -1;
         this.setTableVisible(false);
         this.ui.setEmotesVisible(false);
         this.ui.setHelpVisible(false);
         this.ui.renderRoom(state, this.net.room!.sessionId);
         if (!this.lastRound) this.ui.show("room");
       } else if (state.phase === "PLAYING") {
+        const table: number[] = state.table ? [...state.table] : [];
+        if (this.lastTableIds.length > 0) {
+          const old = new Set(this.lastTableIds);
+          for (const id of table) {
+            if (!old.has(id)) this.deferredReveal.add(id);
+          }
+        }
+        if (
+          typeof state.pendingStockCard === "number" &&
+          state.pendingStockCard >= 0 &&
+          state.pendingStockCard !== this.lastPending
+        ) {
+          this.deferredReveal.add(state.pendingStockCard);
+        }
+        this.lastTableIds = table;
+        this.lastPending = state.pendingStockCard ?? -1;
         this.setTableVisible(true);
         if (!this.ui.isOverlay()) {
           this.ui.show("none");

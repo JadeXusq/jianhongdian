@@ -542,6 +542,7 @@ function startOffline(): void {
   const session = new LocalPlay(playerName(), aiDifficulty, 5);
   offline = session;
   session.onState = (state) => {
+    view.deferStateArrivals(view.state, state);
     view.state = state;
     view.hand = session.hand;
     view.mySeat = session.mySeat;
@@ -592,6 +593,7 @@ function startOffline(): void {
 
 net.onState = (state) => {
   if (offline) return;
+  view.deferStateArrivals(view.state, state);
   view.state = state;
   view.hand = net.hand;
   view.mySeat = net.mySeat;
