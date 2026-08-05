@@ -34,7 +34,7 @@ const { ccclass } = _decorator;
  */
 @ccclass("GameEntry")
 export class GameEntry extends Component {
-  net = new Net();
+  net!: Net;
   private offline: LocalPlay | null = null;
   private ui!: LobbyUI;
   private hand: number[] = [];
@@ -64,6 +64,13 @@ export class GameEntry extends Component {
     gain: number;
     hand?: boolean;
   } | null = null;
+  private matchQueue: Array<{
+    cardId: number;
+    targetId: number;
+    seat: number;
+    fromStock: boolean;
+    commitHand: boolean;
+  }> = [];
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -73,6 +80,7 @@ export class GameEntry extends Component {
   private matchNode!: Node;
 
   start(): void {
+    this.net = new Net();
     this.feltNode = this.makeContainer("Felt");
     this.tableNode = this.makeContainer("Table");
     this.handNode = this.makeContainer("Hand");
@@ -380,6 +388,7 @@ export class GameEntry extends Component {
       this.pendingDiscardHands = [];
       this.visualTurnSeat = null;
       this.matchCommit = null;
+      this.matchQueue = [];
       this.matchBusy = false;
       this.hand = session.hand.slice();
       this.hintText = "新一轮开始";
@@ -567,6 +576,7 @@ export class GameEntry extends Component {
     this.pendingDiscardHands = [];
     this.visualTurnSeat = null;
     this.matchCommit = null;
+    this.matchQueue = [];
     this.matchBusy = false;
   }
 
@@ -631,6 +641,7 @@ export class GameEntry extends Component {
       this.pendingDiscardHands = [];
       this.visualTurnSeat = null;
       this.matchCommit = null;
+      this.matchQueue = [];
       this.matchBusy = false;
       this.hand = this.net.hand.slice();
       this.hintText = "新一轮开始";
@@ -690,14 +701,28 @@ export class GameEntry extends Component {
       if (e.type === "FLIP" && e.fromStock) this.stockAnimCredit++;
       if (e.type === "FLIP") this.deferredReveal.add(e.card);
     }
-    const capture = events.find((e) => e.target !== undefined);
-    if (capture && capture.target !== undefined) {
-      this.playMatch(
-        capture.card,
-        capture.target,
-        capture.player,
-        capture.type === "PLAY"
-      );
+    const handPlay = events.find((e) => e.type === "PLAY");
+    const captures = events.filter(
+      (e): e is GameEvent & { target: number } => e.target !== undefined
+    );
+    if (captures.length) {
+      if (handPlay) this.deferHand(handPlay.player);
+      captures.forEach((capture, index) => {
+        const gain = cardScore(capture.card) + cardScore(capture.target);
+        this.deferCapture(
+          capture.player,
+          [capture.card, capture.target],
+          gain
+        );
+        this.matchQueue.push({
+          cardId: capture.card,
+          targetId: capture.target,
+          seat: capture.player,
+          fromStock: capture.type === "FLIP" && !!capture.fromStock,
+          commitHand: index === 0 && !!handPlay,
+        });
+      });
+      if (!this.matchBusy) this.playNextMatch();
       return;
     }
     if (events.length) this.visualTurnSeat = events[0].player;
@@ -717,23 +742,35 @@ export class GameEntry extends Component {
     if (this.tableVisible && !this.matchBusy) this.render();
   }
 
+  private playNextMatch(): void {
+    const next = this.matchQueue.shift();
+    if (!next) return;
+    this.playMatch(
+      next.cardId,
+      next.targetId,
+      next.seat,
+      next.fromStock,
+      next.commitHand
+    );
+  }
+
   private playMatch(
     cardId: number,
     targetId: number,
     seat: number,
-    fromHand: boolean
+    fromStock: boolean,
+    commitHand: boolean
   ): void {
-    this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
+    if (fromStock)
+      this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
     this.matchBusy = true;
     this.visualTurnSeat = seat;
     const gain = cardScore(cardId) + cardScore(targetId);
-    this.deferCapture(seat, [cardId, targetId], gain);
-    if (fromHand) this.deferHand(seat);
     this.matchCommit = {
       seat,
       cards: [cardId, targetId],
       gain,
-      hand: fromHand,
+      hand: commitHand,
     };
     this.unschedule(this.clearMatch);
     this.matchNode.removeAllChildren();
@@ -798,10 +835,22 @@ export class GameEntry extends Component {
       if (this.matchCommit.hand) this.applyHandCommit(this.matchCommit.seat);
       this.matchCommit = null;
     }
+    if (this.matchQueue.length) {
+      this.playNextMatch();
+      return;
+    }
     this.visualTurnSeat = null;
     this.matchNode.removeAllChildren();
     this.matchNode.active = false;
     this.matchBusy = false;
+    if (this.stockAnimCredit > 0 || this.deferredReveal.size > 0) {
+      if (this.stockAnimCredit > 0)
+        this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
+      this.unschedule(this.revealDeferredFlips);
+      this.scheduleOnce(this.revealDeferredFlips, 0.4);
+      if (this.tableVisible) this.render();
+      return;
+    }
     this.deferredReveal.clear();
     this.refreshTurnHint();
     if (this.tableVisible) this.render();
