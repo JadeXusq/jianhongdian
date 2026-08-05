@@ -539,7 +539,7 @@ function stopOffline(): void {
 function startOffline(): void {
   stopOffline();
   void net.leave().catch(() => undefined);
-  const session = new LocalPlay(playerName(), aiDifficulty, 5);
+  const session = new LocalPlay(playerName(), aiDifficulty, 5, maxPlayers);
   offline = session;
   session.onState = (state) => {
     view.deferStateArrivals(view.state, state);
@@ -586,7 +586,7 @@ function startOffline(): void {
     setTimeout(wait, 200);
   };
   session.start();
-  toast("人机练习（离线）");
+  toast(`人机练习（离线）· ${maxPlayers} 人`);
 }
 
 // ---------- 网络回调 ----------

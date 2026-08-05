@@ -53,7 +53,6 @@ export interface LocalRoundOver {
 }
 
 const HUMAN = "local-human";
-const AI = "local-ai";
 
 export class LocalPlay {
   game: Game | null = null;
@@ -65,9 +64,10 @@ export class LocalPlay {
   private difficulty: AiDifficulty;
   private humanName: string;
   private aiName: string;
+  private playerCount: number;
   private totalRounds: number;
   private round = 0;
-  private totals: number[] = [0, 0];
+  private totals: number[] = [];
 
   onState?: (state: LocalState) => void;
   onEvents?: (events: GameEvent[]) => void;
@@ -77,18 +77,26 @@ export class LocalPlay {
   constructor(
     humanName: string,
     difficulty: AiDifficulty = "normal",
-    totalRounds = 5
+    totalRounds = 5,
+    playerCount = 2
   ) {
     this.humanName = humanName;
-    this.aiName = difficulty === "hard" ? "电脑·难" : difficulty === "easy" ? "电脑·易" : "电脑";
+    this.aiName =
+      difficulty === "hard"
+        ? "电脑·难"
+        : difficulty === "easy"
+          ? "电脑·易"
+          : "电脑";
     this.difficulty = difficulty;
+    this.playerCount = Math.min(4, Math.max(2, Math.floor(playerCount) || 2));
     this.totalRounds = Math.min(20, Math.max(1, totalRounds));
+    this.totals = Array.from({ length: this.playerCount }, () => 0);
     this.state = this.emptyState();
   }
 
   start(): void {
     this.round = 0;
-    this.totals = [0, 0];
+    this.totals = Array.from({ length: this.playerCount }, () => 0);
     this.nextRound();
   }
 
@@ -118,12 +126,16 @@ export class LocalPlay {
     this.afterMove(events);
   }
 
+  private aiId(seat: number): string {
+    return `local-ai-${seat}`;
+  }
+
   private emptyState(): LocalState {
     return {
       phase: "WAITING",
       code: "练习",
       hostSessionId: HUMAN,
-      maxPlayers: 2,
+      maxPlayers: this.playerCount,
       totalRounds: this.totalRounds,
       round: 0,
       table: [],
@@ -138,7 +150,7 @@ export class LocalPlay {
 
   private nextRound(): void {
     clearTimeout(this.aiTimer);
-    this.game = new Game(2);
+    this.game = new Game(this.playerCount);
     this.round += 1;
     this.syncFromGame();
     this.state.phase = "PLAYING";
@@ -167,16 +179,12 @@ export class LocalPlay {
   private endRound(): void {
     clearTimeout(this.aiTimer);
     const result = this.game!.result();
-    this.totals[0] += result.net[0];
-    this.totals[1] += result.net[1];
+    for (let i = 0; i < this.playerCount; i++)
+      this.totals[i] += result.net[i];
     const allDone = this.round >= this.totalRounds;
     this.state.phase = "ROUND_OVER";
-    const human = this.state.players.get(HUMAN)!;
-    const ai = this.state.players.get(AI)!;
-    human.totalNet = this.totals[0];
-    ai.totalNet = this.totals[1];
-    human.points = result.points[0];
-    ai.points = result.points[1];
+    this.syncFromGame();
+    this.state.phase = "ROUND_OVER";
     this.emitState();
     this.onRoundOver?.({
       points: result.points,
@@ -249,19 +257,28 @@ export class LocalPlay {
       captured: [...g.players[0].captured],
       totalNet: this.totals[0],
     });
-    players.set(AI, {
-      sessionId: AI,
-      name: this.aiName,
-      seat: 1,
-      isAi: true,
-      connected: true,
-      ready: true,
-      points: g.players[1].captured.reduce((s, id) => s + cardScore(id), 0),
-      handCount: g.players[1].hand.length,
-      captured: [...g.players[1].captured],
-      totalNet: this.totals[1],
-    });
+    for (let seat = 1; seat < this.playerCount; seat++) {
+      const id = this.aiId(seat);
+      const label =
+        this.playerCount > 2 ? `${this.aiName}${seat}` : this.aiName;
+      players.set(id, {
+        sessionId: id,
+        name: label,
+        seat,
+        isAi: true,
+        connected: true,
+        ready: true,
+        points: g.players[seat].captured.reduce(
+          (s, cid) => s + cardScore(cid),
+          0
+        ),
+        handCount: g.players[seat].hand.length,
+        captured: [...g.players[seat].captured],
+        totalNet: this.totals[seat],
+      });
+    }
     this.state.players = players;
+    this.state.maxPlayers = this.playerCount;
     this.state.table = [...g.table];
     this.state.stockCount = g.stock.length;
     this.state.currentSeat = g.currentPlayer;

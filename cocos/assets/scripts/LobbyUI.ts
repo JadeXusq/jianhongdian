@@ -28,7 +28,7 @@ export interface LobbyCallbacks {
   onCreate(name: string, maxPlayers: number): void;
   onJoin(name: string, code: string): void;
   onSpectate(name: string, code: string): void;
-  onPractice(name: string): void;
+  onPractice(name: string, maxPlayers: number): void;
   onAccount(): void;
   onAccCreate(name: string): void;
   onAccBind(accountId: string, token: string): void;
@@ -291,7 +291,7 @@ export class LobbyUI {
     });
 
     this.makeBtn(panel, "人机练习", 0, -10, 270, 42, () =>
-      this.cb.onPractice(this.playerName())
+      this.cb.onPractice(this.playerName(), this.count)
     );
     this.makeBtn(panel, "快速匹配", 0, -60, 270, 40, () =>
       this.cb.onMatch(this.playerName(), this.count)
