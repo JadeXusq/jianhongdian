@@ -3,7 +3,11 @@
  * 交互约定：点手牌 → 唯一目标直接吃；多目标高亮待选；无目标需再点一次确认弃牌。
  */
 import { cardScore, findTargets, turnHint } from "@jhd/shared";
-import { ROUND_RESULT_AUTO_MS } from "@jhd/shared";
+import {
+  ROUND_RESULT_AUTO_MS,
+  ROUND_RESULT_MAX_WAIT_MS,
+  TURN_UI_LOCK_MS,
+} from "@jhd/shared";
 import { sfx } from "./audio";
 import { loadCardAtlas } from "./cardRender";
 import { onOrientationChange, shouldRotate } from "./layout";
@@ -26,8 +30,11 @@ let discardArmed = -1;
 let lastRound: RoundOver | null = null;
 /** 用于判断“刚轮到我”的边沿，避免每帧重复提醒 */
 let wasMyTurn = false;
-/** 刚切到自己回合、事件动画尚未入队时的短锁（防闪「可出牌」） */
-let turnUiLockFrames = 0;
+/** 刚切到自己回合、事件动画尚未入队时的短锁截止时间（墙钟） */
+let turnUiLockUntil = 0;
+/** 待展示的结算（等动画结束或超时） */
+let pendingRoundOver: RoundOver | null = null;
+let roundOverWaitStarted = 0;
 
 const assetBase = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
 void loadCardAtlas(assetBase);
@@ -129,14 +136,15 @@ function refreshTurnHint(): void {
 
   const spectating = !offline && net.spectating;
   const mine = myTurn();
+  const now = performance.now();
 
-  // 状态已切到自己，但 onEvents 可能晚一拍：先锁几帧等动画入队
-  if (mine && !wasMyTurn && !view.animating && turnUiLockFrames <= 0)
-    turnUiLockFrames = 8;
-  if (view.animating) turnUiLockFrames = 0;
-  if (turnUiLockFrames > 0) turnUiLockFrames--;
+  // 状态已切到自己，但 onEvents 可能晚一拍：用墙钟短锁等动画入队（不依赖 RAF 帧数）
+  if (mine && !wasMyTurn && !view.animating && turnUiLockUntil === 0)
+    turnUiLockUntil = now + TURN_UI_LOCK_MS;
+  if (view.animating) turnUiLockUntil = 0;
+  if (turnUiLockUntil > 0 && now >= turnUiLockUntil) turnUiLockUntil = 0;
 
-  const busy = view.animating || turnUiLockFrames > 0;
+  const busy = view.animating || now < turnUiLockUntil;
   view.turnBlocked = busy;
 
   const text = turnHint({
@@ -156,6 +164,31 @@ function refreshTurnHint(): void {
     wasMyTurn = false;
   }
   hint(text);
+}
+
+/** 动画结束后展示结算；超时强制弹出，避免节流导致一直等 */
+function flushRoundOverIfReady(): boolean {
+  if (!pendingRoundOver) return false;
+  const waited = performance.now() - roundOverWaitStarted;
+  if (view.animating && waited < ROUND_RESULT_MAX_WAIT_MS) return false;
+  const r = pendingRoundOver;
+  pendingRoundOver = null;
+  sfx.roundOver();
+  renderResult(r);
+  return true;
+}
+
+function queueRoundOver(r: RoundOver): void {
+  lastRound = r;
+  pendingRoundOver = r;
+  roundOverWaitStarted = performance.now();
+  setTimeout(() => flushRoundOverIfReady(), 200);
+  const poll = () => {
+    if (!pendingRoundOver) return;
+    if (flushRoundOverIfReady()) return;
+    setTimeout(poll, 120);
+  };
+  setTimeout(poll, 320);
 }
 
 // ---------- 大厅 ----------
@@ -651,16 +684,10 @@ function startOffline(): void {
     else show("none");
   };
   session.onRoundOver = (r) => {
-    lastRound = {
+    queueRoundOver({
       ...r,
       captured: [[], []],
-    };
-    const wait = () => {
-      if (view.animating) return void setTimeout(wait, 120);
-      sfx.roundOver();
-      renderResult(lastRound!);
-    };
-    setTimeout(wait, 200);
+    });
   };
   session.start();
   toast(`人机练习（离线）· ${maxPlayers} 人`);
@@ -732,13 +759,7 @@ net.onEvents = (events) => {
 
 net.onRoundOver = (r) => {
   if (offline) return;
-  lastRound = r;
-  const wait = () => {
-    if (view.animating) return void setTimeout(wait, 120);
-    sfx.roundOver();
-    renderResult(r);
-  };
-  setTimeout(wait, 200);
+  queueRoundOver(r);
 };
 
 $("emotes").addEventListener("click", (e) => {
@@ -793,6 +814,7 @@ function frame(now: number): void {
   last = now;
   view.hand = offline ? offline.hand : net.hand;
   view.render(dt);
+  flushRoundOverIfReady();
   if (playState()?.phase === "PLAYING") {
     syncSelection();
     refreshTurnHint();

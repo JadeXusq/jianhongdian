@@ -17,6 +17,7 @@ import {
   cardScore,
   MATCH_HOLD_S,
   ROUND_RESULT_AUTO_MS,
+  ROUND_RESULT_MAX_WAIT_MS,
   turnHint,
   type GameEvent,
 } from "./rules";
@@ -51,6 +52,8 @@ export class GameEntry extends Component {
   private deferredReveal = new Set<number>();
   private lastTableIds: number[] = [];
   private lastPending = -1;
+  private pendingRoundOver: RoundOver | null = null;
+  private roundOverWaitStarted = 0;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -401,7 +404,7 @@ export class GameEntry extends Component {
     };
 
     session.onRoundOver = (r) => {
-      this.lastRound = {
+      this.queueRoundOver({
         points: r.points,
         net: r.net,
         base: r.base,
@@ -409,34 +412,72 @@ export class GameEntry extends Component {
         totalRounds: r.totalRounds,
         allDone: r.allDone,
         captured: Array.from({ length: playerCount }, () => []),
-      };
-      const show = () => {
-        if (this.offline?.state) {
-          this.ui.renderResult(
-            this.lastRound!,
-            this.offline.state,
-            session.mySeat,
-            "再练一局"
-          );
-          this.ui.show("result");
-          this.ui.setHelpVisible(false);
-          this.ui.setEmotesVisible(false);
-        }
-        if (!r.allDone) {
-          const snap = this.lastRound;
-          setTimeout(() => {
-            if (this.lastRound === snap && !r.allDone) {
-              this.ui.show("none");
-              this.ui.setHelpVisible(true);
-            }
-          }, ROUND_RESULT_AUTO_MS);
-        }
-      };
-      setTimeout(show, 200);
+      });
     };
 
     session.start();
     this.ui.toast(`人机练习（离线）· ${playerCount} 人`);
+  }
+
+  private queueRoundOver(r: RoundOver): void {
+    this.lastRound = r;
+    this.pendingRoundOver = r;
+    this.roundOverWaitStarted = Date.now();
+    this.unschedule(this.tryFlushRoundOver);
+    this.unschedule(this.forceFlushRoundOver);
+    this.scheduleOnce(this.tryFlushRoundOver, 0.2);
+    this.scheduleOnce(
+      this.forceFlushRoundOver,
+      ROUND_RESULT_MAX_WAIT_MS / 1000
+    );
+  }
+
+  private tryFlushRoundOver = (): void => {
+    if (!this.pendingRoundOver) return;
+    const busy =
+      this.matchBusy ||
+      this.deferredReveal.size > 0 ||
+      this.stockAnimCredit > 0;
+    const waited = Date.now() - this.roundOverWaitStarted;
+    if (busy && waited < ROUND_RESULT_MAX_WAIT_MS) {
+      this.scheduleOnce(this.tryFlushRoundOver, 0.12);
+      return;
+    }
+    this.flushRoundOver();
+  };
+
+  private forceFlushRoundOver = (): void => {
+    if (this.pendingRoundOver) this.flushRoundOver();
+  };
+
+  private flushRoundOver(): void {
+    const r = this.pendingRoundOver;
+    if (!r) return;
+    this.pendingRoundOver = null;
+    this.unschedule(this.tryFlushRoundOver);
+    this.unschedule(this.forceFlushRoundOver);
+    const state = this.playState();
+    if (!state) return;
+    this.ui.setEmotesVisible(false);
+    this.ui.setHelpVisible(false);
+    this.ui.setMenuVisible(false);
+    this.ui.renderResult(
+      r,
+      state,
+      this.mySeatNum(),
+      this.offline ? "再练一局" : "再来一局"
+    );
+    this.ui.show("result");
+    if (!r.allDone) {
+      const snap = this.lastRound;
+      setTimeout(() => {
+        if (this.lastRound === snap && !r.allDone) {
+          this.ui.show("none");
+          this.ui.setHelpVisible(true);
+          this.ui.setMenuVisible(!!this.offline || !this.net.spectating);
+        }
+      }, ROUND_RESULT_AUTO_MS);
+    }
   }
 
   async joinByCode(name: string, code: string): Promise<void> {
@@ -627,24 +668,7 @@ export class GameEntry extends Component {
 
     this.net.onRoundOver = (r) => {
       if (this.offline) return;
-      this.lastRound = r;
-      const show = () => {
-        if (this.net.state) {
-          this.ui.renderResult(r, this.net.state, this.net.mySeat);
-          this.ui.show("result");
-          this.ui.setHelpVisible(false);
-          this.ui.setEmotesVisible(false);
-        }
-        if (!r.allDone) {
-          setTimeout(() => {
-            if (this.lastRound === r && !r.allDone) {
-              this.ui.show("none");
-              this.ui.setHelpVisible(true);
-            }
-          }, ROUND_RESULT_AUTO_MS);
-        }
-      };
-      setTimeout(show, 200);
+      this.queueRoundOver(r);
     };
 
     this.net.onError = (msg) => {
@@ -736,12 +760,14 @@ export class GameEntry extends Component {
     this.deferredReveal.clear();
     this.refreshTurnHint();
     if (this.tableVisible) this.render();
+    this.tryFlushRoundOver();
   };
 
   private revealDeferredFlips = (): void => {
     this.deferredReveal.clear();
     this.refreshTurnHint();
     if (this.tableVisible && !this.matchBusy) this.render();
+    this.tryFlushRoundOver();
   };
 
   private playState(): any {
