@@ -19,6 +19,7 @@ import {
   type GameEvent,
 } from "./rules";
 import { Net, type RoundOver } from "./Net";
+import { LocalPlay } from "./LocalPlay";
 import { LobbyUI } from "./LobbyUI";
 import { C, DESIGN, HAND_W, TABLE_CARD_W, CARD_RATIO } from "./Theme";
 
@@ -26,11 +27,12 @@ const { ccclass } = _decorator;
 
 /**
  * 牌桌入口：纯代码建节点。
- * 渲染与出牌均由服务器状态驱动（Net），大厅/房间/结算由 LobbyUI 承担。
+ * 联机由 Net 驱动；人机练习走 LocalPlay（离线），大厅/房间/结算由 LobbyUI 承担。
  */
 @ccclass("GameEntry")
 export class GameEntry extends Component {
   net = new Net();
+  private offline: LocalPlay | null = null;
   private ui!: LobbyUI;
   private hand: number[] = [];
   private selected = -1;
@@ -72,13 +74,7 @@ export class GameEntry extends Component {
       onCreate: (name, n) => this.guard(() => this.doCreate(name, n)),
       onJoin: (name, code) => this.guard(() => this.doJoin(name, code)),
       onSpectate: (name, code) => this.guard(() => this.doSpectate(name, code)),
-      onPractice: (name, n) =>
-        this.guard(async () => {
-          await this.net.create(name, n);
-          for (let i = 1; i < n; i++) this.net.addAi(this.aiDifficulty);
-          this.net.ready(true);
-          this.ui.toast(`已开人机 ${n} 人（需服务器）`);
-        }),
+      onPractice: (name, n) => this.startOffline(name, n),
       onAccount: () => {
         try {
           const acc = localStorage.getItem("jhd.accountId");
@@ -92,17 +88,29 @@ export class GameEntry extends Component {
       },
       onAccCreate: (name) => this.guard(() => this.doAccCreate(name)),
       onAccBind: (id, tok) => this.guard(() => this.doAccBind(id, tok)),
-      onEmote: (id) => this.net.emote(id),
+      onEmote: (id) => {
+        if (!this.offline) this.net.emote(id);
+      },
       onReady: () => {
+        if (this.offline) return;
         const me = this.net.state?.players.get(this.net.room!.sessionId);
         this.net.ready(!me?.ready);
       },
-      onAddAi: () => this.net.addAi(this.aiDifficulty),
+      onAddAi: () => {
+        if (!this.offline) this.net.addAi(this.aiDifficulty);
+      },
       onAiDifficulty: (d) => {
         this.aiDifficulty = d;
       },
       onQuit: () => this.guard(() => this.doQuit()),
       onAgain: () => {
+        if (this.offline) {
+          if (this.lastRound?.allDone) this.offline.start();
+          else this.offline.continueRound();
+          this.lastRound = null;
+          this.ui.show("none");
+          return;
+        }
         this.net.nextRound();
         this.lastRound = null;
         this.ui.show("room");
@@ -116,15 +124,15 @@ export class GameEntry extends Component {
         }
         this.ui.show("none");
         this.ui.setHelpVisible(true);
-        this.ui.setEmotesVisible(true);
+        this.ui.setEmotesVisible(!this.offline);
       },
       onRulesClose: () => {
-        if (this.net.state?.phase === "PLAYING") {
+        if (this.playState()?.phase === "PLAYING") {
           this.ui.show("none");
           this.ui.setHelpVisible(true);
-          this.ui.setEmotesVisible(true);
+          this.ui.setEmotesVisible(!this.offline);
         } else {
-          this.ui.show(this.net.room ? "room" : "lobby");
+          this.ui.show(this.net.room && !this.offline ? "room" : "lobby");
         }
       },
     });
@@ -173,6 +181,7 @@ export class GameEntry extends Component {
   }
 
   private async doMatch(name: string, maxPlayers: number): Promise<void> {
+    this.stopOffline();
     await this.net.quickMatch(name, maxPlayers);
     this.net.ready(true);
     this.ui.show("room");
@@ -183,17 +192,20 @@ export class GameEntry extends Component {
     maxPlayers: number,
     withAi = false
   ): Promise<void> {
+    this.stopOffline();
     await this.net.create(name, maxPlayers);
     if (withAi) this.net.addAi();
     this.ui.show("room");
   }
 
   private async doJoin(name: string, code: string): Promise<void> {
+    this.stopOffline();
     await this.net.joinByCode(name, code);
     this.ui.show("room");
   }
 
   private async doSpectate(name: string, code: string): Promise<void> {
+    this.stopOffline();
     await this.net.spectateByCode(name, code);
     this.ui.toast("已进入观战");
     this.setTableVisible(true);
@@ -235,13 +247,172 @@ export class GameEntry extends Component {
   }
 
   private async doQuit(): Promise<void> {
+    if (this.offline) {
+      this.stopOffline();
+      this.resetLocal();
+      this.setTableVisible(false);
+      this.ui.setEmotesVisible(false);
+      this.ui.setHelpVisible(false);
+      this.ui.show("lobby");
+      return;
+    }
     await this.net.leave();
     this.resetLocal();
     this.setTableVisible(false);
     this.ui.show("lobby");
   }
 
+  private stopOffline(): void {
+    this.offline?.stop();
+    this.offline = null;
+  }
+
+  private startOffline(name: string, playerCount: number): void {
+    this.stopOffline();
+    void this.net.leave().catch(() => undefined);
+    this.resetLocal();
+    this.deferredReveal.clear();
+    this.lastTableIds = [];
+    this.lastPending = -1;
+    this.stockAnimCredit = 0;
+    try {
+      localStorage.setItem("jhd.name", name);
+    } catch {
+      /* ignore */
+    }
+    const session = new LocalPlay(name, this.aiDifficulty, 5, playerCount);
+    this.offline = session;
+
+    session.onState = (state) => {
+      this.hand = session.hand.slice();
+      if (state.phase === "PLAYING") {
+        const table: number[] = [...state.table];
+        if (this.lastTableIds.length > 0) {
+          const old = new Set(this.lastTableIds);
+          for (const id of table) {
+            if (!old.has(id)) this.deferredReveal.add(id);
+          }
+        }
+        if (
+          typeof state.pendingStockCard === "number" &&
+          state.pendingStockCard >= 0 &&
+          state.pendingStockCard !== this.lastPending
+        ) {
+          this.deferredReveal.add(state.pendingStockCard);
+        }
+        this.lastTableIds = table;
+        this.lastPending = state.pendingStockCard ?? -1;
+        this.setTableVisible(true);
+        if (!this.ui.isOverlay()) {
+          this.ui.show("none");
+          this.ui.setEmotesVisible(false);
+          this.ui.setHelpVisible(true);
+        }
+        this.syncSelection();
+        this.refreshTurnHint();
+      } else if (state.phase === "ROUND_OVER" && this.lastRound) {
+        this.ui.setEmotesVisible(false);
+        this.ui.setHelpVisible(false);
+        this.ui.renderResult(
+          this.lastRound,
+          state,
+          session.mySeat,
+          "再练一局"
+        );
+        this.ui.show("result");
+      }
+      if (this.tableVisible && !this.matchBusy) this.render();
+    };
+
+    session.onRoundStart = () => {
+      this.selected = -1;
+      this.discardArmed = -1;
+      this.targets = [];
+      this.lastRound = null;
+      this.showCaptured = false;
+      this.hand = session.hand.slice();
+      this.hintText = "新一轮开始";
+      this.setTableVisible(true);
+      let guided = false;
+      try {
+        guided = localStorage.getItem("jhd.guided") === "1";
+      } catch {
+        /* ignore */
+      }
+      if (!guided) {
+        this.ui.show("guide");
+        this.ui.setEmotesVisible(false);
+        this.ui.setHelpVisible(false);
+      } else {
+        this.ui.show("none");
+        this.ui.setEmotesVisible(false);
+        this.ui.setHelpVisible(true);
+      }
+      this.render();
+    };
+
+    session.onEvents = (events: GameEvent[]) => {
+      this.hand = session.hand.slice();
+      for (const e of events) {
+        if (e.type === "FLIP" && e.fromStock) this.stockAnimCredit++;
+        if (e.type === "FLIP") this.deferredReveal.add(e.card);
+      }
+      const capture = events.find((e) => e.target !== undefined);
+      if (capture && capture.target !== undefined) {
+        this.playMatch(capture.card, capture.target);
+        return;
+      }
+      const stockFlip = events.find((e) => e.type === "FLIP" && e.fromStock);
+      if (stockFlip) {
+        this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
+        this.unschedule(this.revealDeferredFlips);
+        this.scheduleOnce(this.revealDeferredFlips, 0.4);
+      }
+      this.syncSelection();
+      if (this.tableVisible && !this.matchBusy) this.render();
+    };
+
+    session.onRoundOver = (r) => {
+      this.lastRound = {
+        points: r.points,
+        net: r.net,
+        base: r.base,
+        round: r.round,
+        totalRounds: r.totalRounds,
+        allDone: r.allDone,
+        captured: Array.from({ length: playerCount }, () => []),
+      };
+      const show = () => {
+        if (this.offline?.state) {
+          this.ui.renderResult(
+            this.lastRound!,
+            this.offline.state,
+            session.mySeat,
+            "再练一局"
+          );
+          this.ui.show("result");
+          this.ui.setHelpVisible(false);
+          this.ui.setEmotesVisible(false);
+        }
+        if (!r.allDone) {
+          const snap = this.lastRound;
+          setTimeout(() => {
+            if (this.lastRound === snap && !r.allDone) {
+              this.ui.show("none");
+              this.ui.setHelpVisible(true);
+            }
+          }, ROUND_RESULT_AUTO_MS);
+        }
+      };
+      setTimeout(show, 200);
+    };
+
+    session.start();
+    this.ui.toast(`人机练习（离线）· ${playerCount} 人`);
+  }
+
   async joinByCode(name: string, code: string): Promise<void> {
+    this.stopOffline();
     await this.net.leave().catch(() => undefined);
     this.resetLocal();
     await this.net.joinByCode(name, code);
@@ -254,6 +425,7 @@ export class GameEntry extends Component {
     maxPlayers: number,
     withAi = false
   ): Promise<string> {
+    this.stopOffline();
     await this.net.leave().catch(() => undefined);
     this.resetLocal();
     await this.net.create(name, maxPlayers);
@@ -327,6 +499,7 @@ export class GameEntry extends Component {
 
   private bindNet(): void {
     this.net.onState = (state) => {
+      if (this.offline) return;
       this.hand = this.net.hand.slice();
       if (state.phase === "WAITING") {
         this.deferredReveal.clear();
@@ -372,6 +545,7 @@ export class GameEntry extends Component {
     };
 
     this.net.onRoundStart = () => {
+      if (this.offline) return;
       this.selected = -1;
       this.discardArmed = -1;
       this.targets = [];
@@ -399,6 +573,7 @@ export class GameEntry extends Component {
     };
 
     this.net.onEvents = (events: GameEvent[]) => {
+      if (this.offline) return;
       this.hand = this.net.hand.slice();
       for (const e of events) {
         if (e.type === "FLIP" && e.fromStock) this.stockAnimCredit++;
@@ -420,6 +595,7 @@ export class GameEntry extends Component {
     };
 
     this.net.onRoundOver = (r) => {
+      if (this.offline) return;
       this.lastRound = r;
       const show = () => {
         if (this.net.state) {
@@ -537,10 +713,18 @@ export class GameEntry extends Component {
     if (this.tableVisible && !this.matchBusy) this.render();
   };
 
+  private playState(): any {
+    return this.offline?.state ?? this.net.state;
+  }
+
+  private mySeatNum(): number {
+    return this.offline ? this.offline.mySeat : this.net.mySeat;
+  }
+
   private refreshTurnHint(): void {
-    const state = this.net.state;
+    const state = this.playState();
     if (!state || state.phase !== "PLAYING") return;
-    if (this.net.spectating) {
+    if (!this.offline && this.net.spectating) {
       this.hintText = "观战中";
       return;
     }
@@ -550,12 +734,14 @@ export class GameEntry extends Component {
       this.hintText =
         mine && state.turnPhase === "CHOOSE_STOCK_TARGET"
           ? "翻牌中…"
-          : "对手出牌中…";
+          : this.offline
+            ? "电脑出牌中…"
+            : "对手出牌中…";
       return;
     }
     if (!mine) {
       this.wasMyTurn = false;
-      this.hintText = "对手出牌中…";
+      this.hintText = this.offline ? "电脑出牌中…" : "对手出牌中…";
       return;
     }
     this.wasMyTurn = true;
@@ -566,20 +752,24 @@ export class GameEntry extends Component {
   }
 
   private myTurn(): boolean {
+    if (this.offline) {
+      const s = this.offline.state;
+      return s.phase === "PLAYING" && s.currentSeat === this.offline.mySeat;
+    }
     if (this.net.spectating) return false;
     const s = this.net.state;
     return !!s && s.phase === "PLAYING" && s.currentSeat === this.net.mySeat;
   }
 
   private syncSelection(): void {
-    const state = this.net.state;
+    const state = this.playState();
     if (!state) {
       this.targets = [];
       return;
     }
     if (
       state.turnPhase === "CHOOSE_STOCK_TARGET" &&
-      state.currentSeat === this.net.mySeat
+      state.currentSeat === this.mySeatNum()
     ) {
       this.targets = findTargets(state.pendingStockCard, [...state.table]);
     } else if (this.selected >= 0) {
@@ -599,7 +789,7 @@ export class GameEntry extends Component {
   private renderDeck(): void {
     this.deckNode.removeAllChildren();
     const n =
-      ((this.net.state?.stockCount as number) ?? 0) + this.stockAnimCredit;
+      ((this.playState()?.stockCount as number) ?? 0) + this.stockAnimCredit;
     for (let i = Math.min(3, n) - 1; i >= 0; i--) {
       const card = createCard(0, 66, { faceUp: false });
       card.setPosition(new Vec3(-540 + i * 2, 220 - i * 2, 0));
@@ -618,15 +808,16 @@ export class GameEntry extends Component {
 
   private renderTable(): void {
     this.tableNode.removeAllChildren();
-    const table: number[] = this.net.state ? [...this.net.state.table] : [];
+    const state = this.playState();
+    const table: number[] = state ? [...state.table] : [];
     const cols = Math.min(9, Math.max(1, table.length || 1));
     const gap = 12;
     const rows = Math.max(1, Math.ceil(table.length / cols));
     const rowH = TABLE_CARD_W * CARD_RATIO + gap;
     const totalH = rows * rowH - gap;
     const startY = totalH / 2 - 20;
-    const choosing = this.net.state?.turnPhase === "CHOOSE_STOCK_TARGET";
-    const pending = this.net.state?.pendingStockCard as number;
+    const choosing = state?.turnPhase === "CHOOSE_STOCK_TARGET";
+    const pending = state?.pendingStockCard as number;
 
     if (choosing && pending >= 0 && !this.deferredReveal.has(pending)) {
       const pend = createCard(pending, TABLE_CARD_W, { selected: true });
@@ -678,7 +869,7 @@ export class GameEntry extends Component {
     const baseY = -DESIGN.height / 2 + HAND_W * CARD_RATIO + 30;
     const canPlay =
       this.myTurn() &&
-      this.net.state?.turnPhase === "PLAY_HAND" &&
+      this.playState()?.turnPhase === "PLAY_HAND" &&
       !this.matchBusy;
 
     this.hand.forEach((id, i) => {
@@ -700,10 +891,10 @@ export class GameEntry extends Component {
 
   private renderInfo(): void {
     this.infoNode.removeAllChildren();
-    const state = this.net.state;
+    const state = this.playState();
     const players = state ? ([...state.players.values()] as any[]) : [];
-    const me = players.find((p) => p.seat === this.net.mySeat);
-    const others = players.filter((p) => p.seat !== this.net.mySeat);
+    const me = players.find((p) => p.seat === this.mySeatNum());
+    const others = players.filter((p) => p.seat !== this.mySeatNum());
     const count = players.length;
 
     // 2 人对手正上方；3/4 人按右→上→左
@@ -872,13 +1063,14 @@ export class GameEntry extends Component {
   }
 
   onPickHand(id: number): void {
+    const state = this.playState();
     if (
       !this.myTurn() ||
       this.matchBusy ||
-      this.net.state?.turnPhase !== "PLAY_HAND"
+      state?.turnPhase !== "PLAY_HAND"
     )
       return;
-    const targets = findTargets(id, [...this.net.state.table]);
+    const targets = findTargets(id, [...state.table]);
 
     if (targets.length === 1) return this.send(id, targets[0]);
     if (targets.length === 0) {
@@ -899,9 +1091,13 @@ export class GameEntry extends Component {
   }
 
   onPickTable(id: number): void {
-    if (!this.myTurn() || this.matchBusy) return;
-    if (this.net.state.turnPhase === "CHOOSE_STOCK_TARGET") {
-      if (this.targets.indexOf(id) >= 0) this.net.chooseTarget(id);
+    const state = this.playState();
+    if (!this.myTurn() || this.matchBusy || !state) return;
+    if (state.turnPhase === "CHOOSE_STOCK_TARGET") {
+      if (this.targets.indexOf(id) >= 0) {
+        if (this.offline) this.offline.chooseTarget(id);
+        else this.net.chooseTarget(id);
+      }
       return;
     }
     if (this.selected < 0 || this.targets.indexOf(id) < 0) return;
@@ -909,9 +1105,15 @@ export class GameEntry extends Component {
   }
 
   private send(cardId: number, targetId?: number): void {
-    this.net.play(cardId, targetId);
-    this.net.hand = this.net.hand.filter((c) => c !== cardId);
-    this.hand = this.net.hand.slice();
+    if (this.offline) {
+      this.offline.play(cardId, targetId);
+      this.offline.hand = this.offline.hand.filter((c) => c !== cardId);
+      this.hand = this.offline.hand.slice();
+    } else {
+      this.net.play(cardId, targetId);
+      this.net.hand = this.net.hand.filter((c) => c !== cardId);
+      this.hand = this.net.hand.slice();
+    }
     this.selected = -1;
     this.discardArmed = -1;
     this.targets = [];

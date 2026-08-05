@@ -210,7 +210,12 @@ export class LobbyUI {
     this.aiBtn.active = isHost && players.length < state.maxPlayers;
   }
 
-  renderResult(r: RoundOver, state: any, mySeat: number): void {
+  renderResult(
+    r: RoundOver,
+    state: any,
+    mySeat: number,
+    againAllDone = "再来一局"
+  ): void {
     const players = [...state.players.values()] as any[];
     const rows = players
       .map((p) => ({ p, points: r.points[p.seat], net: r.net[p.seat] }))
@@ -258,7 +263,7 @@ export class LobbyUI {
       );
     });
     this.againLbl.string = r.allDone
-      ? "再来一局"
+      ? againAllDone
       : `继续下一轮 (${r.round}/${r.totalRounds})`;
     this.exitBtn.active = !!r.allDone;
   }
@@ -290,7 +295,7 @@ export class LobbyUI {
       if (n === 4) lbl.color = C.seal;
     });
 
-    this.makeBtn(panel, "人机练习", 0, -10, 270, 42, () =>
+    this.makeBtn(panel, "人机练习（离线）", 0, -10, 270, 42, () =>
       this.cb.onPractice(this.playerName(), this.count)
     );
     this.makeBtn(panel, "快速匹配", 0, -60, 270, 40, () =>
