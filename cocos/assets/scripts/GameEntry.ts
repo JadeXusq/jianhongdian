@@ -44,6 +44,7 @@ export class GameEntry extends Component {
   private showCaptured = false;
   private stockAnimCredit = 0;
   private wasMyTurn = false;
+  private deferredReveal = new Set<number>();
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -380,6 +381,7 @@ export class GameEntry extends Component {
       this.hand = this.net.hand.slice();
       for (const e of events) {
         if (e.type === "FLIP" && e.fromStock) this.stockAnimCredit++;
+        if (e.type === "FLIP") this.deferredReveal.add(e.card);
       }
       const capture = events.find((e) => e.target !== undefined);
       if (capture && capture.target !== undefined) {
@@ -389,6 +391,8 @@ export class GameEntry extends Component {
       const stockFlip = events.find((e) => e.type === "FLIP" && e.fromStock);
       if (stockFlip) {
         this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
+        this.unschedule(this.revealDeferredFlips);
+        this.scheduleOnce(this.revealDeferredFlips, 0.4);
       }
       this.syncSelection();
       if (this.tableVisible && !this.matchBusy) this.render();
@@ -501,8 +505,15 @@ export class GameEntry extends Component {
     this.matchNode.removeAllChildren();
     this.matchNode.active = false;
     this.matchBusy = false;
+    this.deferredReveal.clear();
     this.refreshTurnHint();
     if (this.tableVisible) this.render();
+  };
+
+  private revealDeferredFlips = (): void => {
+    this.deferredReveal.clear();
+    this.refreshTurnHint();
+    if (this.tableVisible && !this.matchBusy) this.render();
   };
 
   private refreshTurnHint(): void {
@@ -596,7 +607,7 @@ export class GameEntry extends Component {
     const choosing = this.net.state?.turnPhase === "CHOOSE_STOCK_TARGET";
     const pending = this.net.state?.pendingStockCard as number;
 
-    if (choosing && pending >= 0) {
+    if (choosing && pending >= 0 && !this.deferredReveal.has(pending)) {
       const pend = createCard(pending, TABLE_CARD_W, { selected: true });
       pend.setPosition(new Vec3(-TABLE_CARD_W / 2, DESIGN.height / 2 - 140, 0));
       this.tableNode.addChild(pend);
@@ -612,6 +623,7 @@ export class GameEntry extends Component {
     }
 
     table.forEach((id, i) => {
+      if (this.deferredReveal.has(id)) return;
       const row = Math.floor(i / cols);
       const inRow = Math.min(cols, table.length - row * cols);
       const rowW = inRow * TABLE_CARD_W + (inRow - 1) * gap;

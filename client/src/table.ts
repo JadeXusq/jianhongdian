@@ -63,6 +63,8 @@ interface Step {
   hold: number;
   /** 本步开始时牌堆显示数 -1（对应一次 fromStock 翻牌） */
   decStock?: boolean;
+  /** 本步结束后才允许这些牌出现在桌面/待选位 */
+  revealOnDone?: number[];
 }
 
 export interface TableCallbacks {
@@ -89,6 +91,8 @@ export class TableView {
   private steps: Step[] = [];
   private current: Step | null = null;
   private hidden = new Set<number>();
+  /** 翻牌动画未完成前，不把牌堆牌画到桌面/待选 */
+  private deferredReveal = new Set<number>();
   private animClock = 0;
   /** 已同步但翻牌动画未开始的牌堆张数，用于延后扣减显示 */
   private stockAnimCredit = 0;
@@ -213,6 +217,8 @@ export class TableView {
     for (const ev of events) {
       const fromStock = ev.type === "FLIP" && !!ev.fromStock;
       if (fromStock) this.stockAnimCredit++;
+      // 状态可能已写入桌面，翻牌飞完前先藏起来
+      if (ev.type === "FLIP") this.deferredReveal.add(ev.card);
 
       const from =
         ev.type === "FLIP"
@@ -247,6 +253,7 @@ export class TableView {
           hide: [ev.card],
           hold: DISCARD_HOLD_S,
           decStock: fromStock,
+          revealOnDone: ev.type === "FLIP" ? [ev.card] : undefined,
         });
         continue;
       }
@@ -346,6 +353,7 @@ export class TableView {
         popups: [],
         hide: [ev.card, ev.target],
         hold: FLY_PILE_HOLD_S,
+        revealOnDone: ev.type === "FLIP" ? [ev.card] : undefined,
       });
     }
   }
@@ -373,6 +381,9 @@ export class TableView {
     if (!done) return;
     s.hold -= dt;
     if (s.hold <= 0) {
+      if (s.revealOnDone) {
+        for (const id of s.revealOnDone) this.deferredReveal.delete(id);
+      }
       this.current = null;
       this.hidden.clear();
     }
@@ -547,7 +558,7 @@ export class TableView {
       !this.animating &&
       !this.turnBlocked;
     for (const [id, s] of this.tableSlots) {
-      if (this.hidden.has(id)) continue;
+      if (this.hidden.has(id) || this.deferredReveal.has(id)) continue;
       const isTarget = this.targets.includes(id);
       drawCard(ctx, id, s.x, s.y, s.w, {
         highlight: isTarget,
@@ -555,7 +566,12 @@ export class TableView {
         dim: (this.selected >= 0 || choosing) && !isTarget,
       });
     }
-    if (choosing && pending >= 0 && !this.hidden.has(pending)) {
+    if (
+      choosing &&
+      pending >= 0 &&
+      !this.hidden.has(pending) &&
+      !this.deferredReveal.has(pending)
+    ) {
       const x = this.w / 2 - TABLE_CARD_W / 2;
       const y = 118;
       drawCard(ctx, pending, x, y, TABLE_CARD_W, { selected: true });
