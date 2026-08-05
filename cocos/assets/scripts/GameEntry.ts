@@ -963,12 +963,19 @@ export class GameEntry extends Component {
         p,
         x,
         y,
-        state?.currentSeat === p.seat
+        state?.currentSeat === p.seat,
+        state?.roundStarter === p.seat
       );
     });
 
     if (me) {
-      this.drawPlayerPanel(me, -DESIGN.width / 2 + 120, -80, true);
+      this.drawPlayerPanel(
+        me,
+        -DESIGN.width / 2 + 120,
+        -80,
+        true,
+        state?.roundStarter === me.seat
+      );
     }
 
     const code = state?.code ? `房 ${state.code}` : "";
@@ -1003,7 +1010,8 @@ export class GameEntry extends Component {
     p: any,
     x: number,
     y: number,
-    active: boolean
+    active: boolean,
+    isStarter = false
   ): void {
     const gNode = new Node("Panel");
     gNode.layer = Layers.Enum.UI_2D;
@@ -1019,7 +1027,7 @@ export class GameEntry extends Component {
     g.stroke();
     addLabel(
       gNode,
-      `${p.name}${p.isAi ? " ·电脑" : ""}`,
+      `${p.name}${p.isAi ? " ·电脑" : ""}${isStarter ? " ·庄" : ""}`,
       0,
       16,
       17,

@@ -499,33 +499,34 @@ export class LobbyUI {
   }
 
   private buildGuide(): Node {
-    const panel = this.panel("Guide", 480, 400);
-    this.makeLabel(panel, "怎么玩", 0, 150, 28, C.gold);
+    const panel = this.panel("Guide", 480, 440);
+    this.makeLabel(panel, "怎么玩", 0, 170, 28, C.gold);
     const lines = [
       "1. 目标：吃红色分牌，比底分（240÷人数）高就赢",
       "红鬼 30 · 红A 20 · 红9~K 10 · 红2~8 面值",
       "2. 配对：A~9 凑成 10；10/J/Q/K 同点；大小王互吃",
       "3. 操作：点手牌 → 有目标则吃，无目标再点一次弃牌",
       "4. 每回合出手牌后再翻牌堆，能吃也要吃",
+      "5. 多轮不限局数；首轮随机庄，之后逆时针；房主菜单可结算",
     ];
     lines.forEach((t, i) =>
       this.makeLabel(
         panel,
         t,
         0,
-        95 - i * 34,
-        i === 1 ? 14 : 16,
+        100 - i * 30,
+        i === 1 ? 14 : 15,
         i === 1 ? C.gold : C.cream
       )
     );
-    this.makeBtn(panel, "知道了，开打", 0, -160, 200, 40, () =>
+    this.makeBtn(panel, "知道了，开打", 0, -180, 200, 40, () =>
       this.cb.onGuideOk()
     );
     return panel;
   }
 
   private buildRules(): Node {
-    const panel = this.panel("Rules", 480, 420);
+    const panel = this.panel("Rules", 480, 440);
     this.makeLabel(panel, "玩法规则", 0, 160, 28, C.gold);
     const viewport = new Node("RulesViewport");
     viewport.layer = Layers.Enum.UI_2D;
@@ -537,8 +538,8 @@ export class LobbyUI {
     const content = new Node("RulesContent");
     content.layer = Layers.Enum.UI_2D;
     viewport.addChild(content);
-    content.addComponent(UITransform).setContentSize(new Size(430, 340));
-    content.setPosition(new Vec3(0, -45, 0));
+    content.addComponent(UITransform).setContentSize(new Size(430, 400));
+    content.setPosition(new Vec3(0, -55, 0));
 
     const scroll = viewport.addComponent(ScrollView);
     scroll.content = content;
@@ -551,9 +552,10 @@ export class LobbyUI {
       "流程：出手牌 → 能配必吃 → 翻牌堆同样能配必吃 → 下家。",
       "计分：红鬼 30，红 A 20，红 9~K 各 10，红 2~8 按面值。",
       "胜负：得分 − 底分（240÷人数），正为赢、负为输。",
+      "多轮：不限局数；首轮随机庄、之后逆时针；菜单可查分，房主可结算。",
     ];
     lines.forEach((t, i) =>
-      this.makeLabel(content, t, 0, 125 - i * 68, 15, C.cream)
+      this.makeLabel(content, t, 0, 140 - i * 58, 15, C.cream)
     );
     this.makeBtn(panel, "明白了", 0, -170, 140, 40, () =>
       this.cb.onRulesClose()

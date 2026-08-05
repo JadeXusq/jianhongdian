@@ -771,7 +771,13 @@ export class TableView {
       ctx.textAlign = "left";
       ctx.fillStyle = isMe ? C.gold : C.cream;
       ctx.font = `600 17px "Songti SC", serif`;
-      ctx.fillText(p.name + (p.isAi ? " ·电脑" : ""), pos.x - 22, pos.y - 16);
+      ctx.fillText(
+        p.name +
+          (p.isAi ? " ·电脑" : "") +
+          (this.state.roundStarter === p.seat ? " ·庄" : ""),
+        pos.x - 22,
+        pos.y - 16
+      );
       ctx.fillStyle = C.cream;
       ctx.font = `600 15px "Helvetica Neue", Arial, sans-serif`;
       ctx.fillText(`${p.points} 分`, pos.x - 22, pos.y + 6);
