@@ -54,6 +54,7 @@ function show(
     | "guide"
     | "game-menu"
     | "scores"
+    | "settle-confirm"
     | "none"
 ): void {
   [
@@ -66,6 +67,7 @@ function show(
     "guide",
     "game-menu",
     "scores",
+    "settle-confirm",
   ].forEach((s) => $(s).classList.toggle("hidden", s !== id));
 }
 
@@ -120,7 +122,8 @@ function refreshTurnHint(): void {
     shown("rank") ||
     shown("result") ||
     shown("game-menu") ||
-    shown("scores")
+    shown("scores") ||
+    shown("settle-confirm")
   )
     return;
   if (!offline && net.spectating) {
@@ -289,8 +292,9 @@ $("btn-menu-close").onclick = () => show("none");
 $("btn-menu-rules").onclick = () => show("rules");
 $("btn-menu-scores").onclick = () => renderScores();
 $("btn-scores-close").onclick = () => show("none");
-$("btn-menu-settle").onclick = () => {
-  if (!confirm("确定结算本场对局？")) return;
+$("btn-menu-settle").onclick = () => show("settle-confirm");
+$("btn-settle-cancel").onclick = () => show("game-menu");
+$("btn-settle-ok").onclick = () => {
   if (offline) {
     const r = offline.endMatch();
     show("none");
@@ -626,7 +630,8 @@ function startOffline(): void {
         shown("rules") ||
         shown("guide") ||
         shown("game-menu") ||
-        shown("scores");
+        shown("scores") ||
+        shown("settle-confirm");
       if (!overlay) show("none");
       $("emotes").classList.add("hidden");
       $("btn-help").classList.toggle("hidden", overlay);
@@ -696,7 +701,8 @@ net.onState = (state) => {
       shown("rank") ||
       shown("guide") ||
       shown("game-menu") ||
-      shown("scores");
+      shown("scores") ||
+      shown("settle-confirm");
     if (!overlay) show("none");
     $("emotes").classList.toggle("hidden", overlay);
     $("btn-help").classList.toggle("hidden", overlay);
