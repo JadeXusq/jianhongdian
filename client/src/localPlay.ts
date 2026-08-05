@@ -4,13 +4,13 @@
  */
 import {
   AI_DELAY_MS,
+  TURN_MS,
   bestTarget,
   captureAnimMs,
   cardScore,
   chooseHandPlay,
   discardAnimMs,
   Game,
-  type AiDifficulty,
   type GameEvent,
 } from "@jhd/shared";
 
@@ -62,9 +62,8 @@ export class LocalPlay {
   mySeat = 0;
   readonly humanId = HUMAN;
   private aiTimer = 0;
-  private difficulty: AiDifficulty;
   private humanName: string;
-  private aiName: string;
+  private aiName = "电脑";
   private playerCount: number;
   private round = 0;
   private totals: number[] = [];
@@ -77,20 +76,8 @@ export class LocalPlay {
   onRoundStart?: () => void;
   onRoundOver?: (r: LocalRoundOver) => void;
 
-  constructor(
-    humanName: string,
-    difficulty: AiDifficulty = "normal",
-    _totalRounds = 0,
-    playerCount = 2
-  ) {
+  constructor(humanName: string, playerCount = 2) {
     this.humanName = humanName;
-    this.aiName =
-      difficulty === "hard"
-        ? "电脑·难"
-        : difficulty === "easy"
-          ? "电脑·易"
-          : "电脑";
-    this.difficulty = difficulty;
     this.playerCount = Math.min(4, Math.max(2, Math.floor(playerCount) || 2));
     this.totals = Array.from({ length: this.playerCount }, () => 0);
     this.state = this.emptyState();
@@ -254,7 +241,7 @@ export class LocalPlay {
     const g = this.game;
     if (!g || g.phase === "FINISHED") return;
     if (g.currentPlayer === this.mySeat) {
-      this.state.turnDeadline = Date.now() + 60_000;
+      this.state.turnDeadline = Date.now() + TURN_MS;
       this.emitState();
       return;
     }
@@ -271,16 +258,9 @@ export class LocalPlay {
     const seat = g.currentPlayer;
     let events: GameEvent[];
     if (g.phase === "CHOOSE_STOCK_TARGET") {
-      events = g.chooseStockTarget(
-        seat,
-        bestTarget(g.stockTargets(), this.difficulty)
-      );
+      events = g.chooseStockTarget(seat, bestTarget(g.stockTargets()));
     } else {
-      const move = chooseHandPlay(
-        g.players[seat].hand,
-        [...g.table],
-        this.difficulty
-      );
+      const move = chooseHandPlay(g.players[seat].hand, [...g.table]);
       events = g.playHandCard(seat, move.cardId, move.targetId);
     }
     this.afterMove(events);

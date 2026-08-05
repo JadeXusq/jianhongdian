@@ -18,8 +18,6 @@ import {
   RECONNECT_MS,
   captureAnimMs,
   discardAnimMs,
-  parseAiDifficulty,
-  type AiDifficulty,
 } from "@jhd/shared";
 import { registerCode, unregisterCode } from "./roomCodes";
 import { recordResult } from "./store";
@@ -33,8 +31,6 @@ export interface JoinOptions {
   totalRounds?: number;
   /** 游客账号标识，用于战绩累计 */
   deviceId?: string;
-  /** 本房 AI 默认难度 */
-  aiDifficulty?: AiDifficulty;
   /** 以观战身份进入（不占座位、无手牌、不可操作） */
   spectate?: boolean;
 }
@@ -47,9 +43,6 @@ export class GameRoom extends Room<RoomState> {
   private aiCounter = 0;
   /** 玩家 → 游客设备标识（不能用座位号做 key，座位会因压缩而变）*/
   private devices = new Map<PlayerSchema, string>();
-  private defaultAiDifficulty: AiDifficulty = "normal";
-  /** seat → AI 难度 */
-  private aiLevels = new Map<number, AiDifficulty>();
   /** 观战者 sessionId */
   private spectators = new Set<string>();
   /** 上一手客户端动画垫时，叠加到下一次 AI 出牌等待 */
@@ -67,18 +60,13 @@ export class GameRoom extends Room<RoomState> {
     const tr = options.totalRounds;
     this.state.totalRounds =
       tr === undefined ? 0 : Math.min(20, Math.max(0, Math.floor(tr)));
-    this.defaultAiDifficulty = parseAiDifficulty(options.aiDifficulty);
     this.state.code = registerCode(this.roomId);
     this.setMetadata({ code: this.state.code, maxPlayers });
 
     this.onMessage("ready", (client, ready: boolean) =>
       this.onReady(client, ready)
     );
-    this.onMessage(
-      "addAi",
-      (client, msg?: { difficulty?: AiDifficulty }) =>
-        this.onAddAi(client, msg)
-    );
+    this.onMessage("addAi", (client) => this.onAddAi(client));
     this.onMessage("removeAi", (client, seat: number) =>
       this.onRemoveAi(client, seat)
     );
@@ -165,10 +153,7 @@ export class GameRoom extends Room<RoomState> {
     this.startIfAllReady();
   }
 
-  private onAddAi(
-    client: Client,
-    msg?: { difficulty?: AiDifficulty }
-  ): void {
+  private onAddAi(client: Client): void {
     if (!this.isHost(client) || this.state.phase === "PLAYING") return;
     const seat = this.freeSeat();
     if (seat < 0) return;
@@ -178,10 +163,6 @@ export class GameRoom extends Room<RoomState> {
     p.name = `电脑${seat + 1}`;
     p.isAi = true;
     p.ready = true;
-    this.aiLevels.set(
-      seat,
-      parseAiDifficulty(msg?.difficulty ?? this.defaultAiDifficulty)
-    );
     this.state.players.set(p.sessionId, p);
     this.startIfAllReady();
   }
@@ -193,7 +174,6 @@ export class GameRoom extends Room<RoomState> {
     );
     if (target) {
       this.state.players.delete(target.sessionId);
-      this.aiLevels.delete(seat);
     }
   }
 
@@ -354,16 +334,14 @@ export class GameRoom extends Room<RoomState> {
     const g = this.game;
     if (!g || this.state.phase !== "PLAYING") return;
     const seat = g.currentPlayer;
-    const diff =
-      this.aiLevels.get(seat) ?? this.defaultAiDifficulty;
     if (g.phase === "CHOOSE_STOCK_TARGET") {
       this.afterMove(
-        g.chooseStockTarget(seat, bestTarget(g.stockTargets(), diff)),
+        g.chooseStockTarget(seat, bestTarget(g.stockTargets())),
         seat
       );
       return;
     }
-    const move = chooseHandPlay(g.players[seat].hand, [...g.table], diff);
+    const move = chooseHandPlay(g.players[seat].hand, [...g.table]);
     this.afterMove(g.playHandCard(seat, move.cardId, move.targetId), seat);
   }
 

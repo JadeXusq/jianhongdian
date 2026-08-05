@@ -66,7 +66,7 @@ export class Game {
     this.deal(mulberry32(seed));
   }
 
-  /** 发牌；若初始 6 张明牌存在可互相配对的则整副重洗 */
+  /** 随机洗牌发牌；仅当初始桌面存在互配（会死锁，如双王）时重洗 */
   private deal(rng: Rng): void {
     const handSize = TOTAL_HAND_CARDS / this.playerCount;
     for (;;) {

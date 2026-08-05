@@ -23,7 +23,6 @@ net.onProgress = (msg) => toast(msg, 5000);
 /** 离线人机会话；有值时走浏览器内规则，不连服务器 */
 let offline: LocalPlay | null = null;
 let maxPlayers = 4;
-let aiDifficulty: "easy" | "normal" | "hard" = "normal";
 let selected = -1;
 /** 无目标的牌需二次点击确认弃牌，避免误操作 */
 let discardArmed = -1;
@@ -396,21 +395,7 @@ $("btn-acc-bind").onclick = () =>
 
 // ---------- 房间 ----------
 
-$("ai-diff").addEventListener("click", (e) => {
-  const btn = (e.target as HTMLElement).closest("button");
-  if (!btn) return;
-  const d = (btn as HTMLButtonElement).dataset.d as
-    | "easy"
-    | "normal"
-    | "hard";
-  if (!d) return;
-  aiDifficulty = d;
-  Array.from($("ai-diff").children).forEach((b) =>
-    b.classList.toggle("on", b === btn)
-  );
-});
-
-$("btn-ai").onclick = () => net.addAi(aiDifficulty);
+$("btn-ai").onclick = () => net.addAi();
 $("btn-ready").onclick = () => {
   const me = net.state?.players.get(net.room!.sessionId);
   net.ready(!me?.ready);
@@ -643,7 +628,7 @@ function stopOffline(): void {
 function startOffline(): void {
   stopOffline();
   void net.leave().catch(() => undefined);
-  const session = new LocalPlay(playerName(), aiDifficulty, 0, maxPlayers);
+  const session = new LocalPlay(playerName(), maxPlayers);
   offline = session;
   session.onState = (state) => {
     view.deferStateArrivals(view.state, state);

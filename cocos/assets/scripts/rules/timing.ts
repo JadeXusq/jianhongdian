@@ -6,7 +6,7 @@
  * 单位约定：带 `_MS` 为毫秒，带 `_S` 为秒（动画 hold 用）。
  */
 /** 人类回合超时（超时后 AI 代打） */
-export const TURN_MS = 60_000;
+export const TURN_MS = 180_000;
 /** AI / 托管出牌「思考」间隔（动画垫时另加，见 captureAnimMs） */
 export const AI_DELAY_MS = 2_000;
 /** 断线保留座位 */

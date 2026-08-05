@@ -38,7 +38,6 @@ export interface LobbyCallbacks {
   onEmote(id: string): void;
   onReady(): void;
   onAddAi(): void;
-  onAiDifficulty(d: "easy" | "normal" | "hard"): void;
   onQuit(): void;
   onAgain(): void;
   onExit(): void;
@@ -81,7 +80,6 @@ export class LobbyUI {
   private seatsNode!: Node;
   private readyLbl!: Label;
   private aiBtn!: Node;
-  private aiDiffLabels: Label[] = [];
   private resultTitle!: Label;
   private resultDots!: Node;
   private resultList!: Node;
@@ -451,30 +449,14 @@ export class LobbyUI {
     this.seatsNode.layer = Layers.Enum.UI_2D;
     panel.addChild(this.seatsNode);
 
-    this.makeLabel(panel, "AI难度", -150, -100, 16, C.goldDim);
-    this.aiDiffLabels = [];
-    (["easy", "normal", "hard"] as const).forEach((d, i) => {
-      const names = { easy: "简单", normal: "普通", hard: "困难" };
-      const x = -60 + i * 90;
-      const btn = this.makeBtn(panel, names[d], x, -105, 80, 32, () => {
-        this.cb.onAiDifficulty(d);
-        this.aiDiffLabels.forEach((l, j) => {
-          l.color = j === i ? C.seal : C.cream;
-        });
-      });
-      const lbl = btn.getComponentInChildren(Label)!;
-      this.aiDiffLabels.push(lbl);
-      if (d === "normal") lbl.color = C.seal;
-    });
-
-    this.aiBtn = this.makeBtn(panel, "＋ 添加电脑", -90, -160, 150, 40, () =>
+    this.aiBtn = this.makeBtn(panel, "＋ 添加电脑", -90, -120, 150, 40, () =>
       this.cb.onAddAi()
     );
-    const readyBtn = this.makeBtn(panel, "准备", 90, -160, 120, 40, () =>
+    const readyBtn = this.makeBtn(panel, "准备", 90, -120, 120, 40, () =>
       this.cb.onReady()
     );
     this.readyLbl = readyBtn.getComponentInChildren(Label)!;
-    this.makeBtn(panel, "离开房间", 0, -210, 160, 36, () => this.cb.onQuit());
+    this.makeBtn(panel, "离开房间", 0, -175, 160, 36, () => this.cb.onQuit());
     return panel;
   }
 

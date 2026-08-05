@@ -307,8 +307,8 @@ export class Net {
   ready(v: boolean): void {
     this.room?.send("ready", v);
   }
-  addAi(difficulty?: "easy" | "normal" | "hard"): void {
-    this.room?.send("addAi", difficulty ? { difficulty } : undefined);
+  addAi(): void {
+    this.room?.send("addAi");
   }
   removeAi(seat: number): void {
     this.room?.send("removeAi", seat);

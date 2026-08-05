@@ -45,7 +45,6 @@ export class GameEntry extends Component {
   private hintText = "";
   private tableVisible = false;
   private matchBusy = false;
-  private aiDifficulty: "easy" | "normal" | "hard" = "normal";
   private showCaptured = false;
   private stockAnimCredit = 0;
   private wasMyTurn = false;
@@ -102,10 +101,7 @@ export class GameEntry extends Component {
         this.net.ready(!me?.ready);
       },
       onAddAi: () => {
-        if (!this.offline) this.net.addAi(this.aiDifficulty);
-      },
-      onAiDifficulty: (d) => {
-        this.aiDifficulty = d;
+        if (!this.offline) this.net.addAi();
       },
       onQuit: () => this.guard(() => this.doQuit()),
       onAgain: () => {
@@ -307,7 +303,7 @@ export class GameEntry extends Component {
     } catch {
       /* ignore */
     }
-    const session = new LocalPlay(name, this.aiDifficulty, 0, playerCount);
+    const session = new LocalPlay(name, playerCount);
     this.offline = session;
 
     session.onState = (state) => {
