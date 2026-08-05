@@ -9,6 +9,7 @@ import {
   Layers,
   Size,
   Label,
+  sys,
 } from "cc";
 import { createCard, addLabel, loadCardAtlas } from "./CardNode";
 import {
@@ -872,6 +873,7 @@ export class GameEntry extends Component {
       this.playState()?.turnPhase === "PLAY_HAND" &&
       !this.matchBusy;
 
+    const hitPad = sys.isMobile ? 22 : 0;
     this.hand.forEach((id, i) => {
       const k = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
       const lift = this.selected === id ? 22 : 0;
@@ -884,6 +886,17 @@ export class GameEntry extends Component {
       card.setPosition(
         new Vec3(startX + i * step, baseY - k * k * 10 + lift, 0)
       );
+      if (hitPad > 0) {
+        const hit = new Node("HitPad");
+        hit.layer = Layers.Enum.UI_2D;
+        card.insertChild(hit, 0);
+        const ht = hit.addComponent(UITransform);
+        ht.setAnchorPoint(0, 1);
+        ht.setContentSize(
+          new Size(HAND_W + hitPad * 2, HAND_W * CARD_RATIO + hitPad * 2)
+        );
+        hit.setPosition(new Vec3(-hitPad, hitPad, 0));
+      }
       card.on(Node.EventType.TOUCH_END, () => this.onPickHand(id));
       this.handNode.addChild(card);
     });
@@ -1027,16 +1040,20 @@ export class GameEntry extends Component {
     });
 
     if (!this.showCaptured) return;
-    const cw = 44;
+    const mobile = sys.isMobile;
+    const cw = mobile ? 36 : 44;
     const gap = 6;
-    const cols = Math.min(cards.length, 8);
+    const cols = Math.min(cards.length, mobile ? 5 : 8);
     const rows = Math.ceil(cards.length / cols);
     const panelW = cols * (cw + gap) + 16;
     const panelH = rows * (cw * CARD_RATIO + gap) + 48;
     const panel = new Node("CapPanel");
     panel.layer = Layers.Enum.UI_2D;
     this.infoNode.addChild(panel);
-    panel.setPosition(new Vec3(0, y + panelH / 2 + 24, 0));
+    // 移动端靠左下，少挡桌面中心
+    const px = mobile ? -DESIGN.width / 2 + panelW / 2 + 16 : 0;
+    const py = y + panelH / 2 + 24;
+    panel.setPosition(new Vec3(px, py, 0));
     const pg = panel.addComponent(Graphics);
     pg.fillColor = new Color(8, 26, 20, 235);
     pg.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);

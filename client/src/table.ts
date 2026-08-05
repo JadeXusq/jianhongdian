@@ -204,8 +204,9 @@ export class TableView {
     }
 
     // 手牌在上层，优先命中；同层从右往左（后绘制的在上）
-    // 触屏加大命中外扩，缓解旋转后视觉牌面偏小
-    const pad = window.matchMedia("(pointer: coarse)").matches ? 12 : 0;
+    // 触屏加大命中外扩；竖屏软件旋转后再放大（物理牌面更窄）
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const pad = coarse ? (this.rotated ? 22 : 12) : 0;
     const hit = (slots: Map<number, Slot>) => {
       const entries = [...slots.entries()].reverse();
       for (const [id, s] of entries)
@@ -673,14 +674,24 @@ export class TableView {
     ctx.restore();
 
     if (!this.showCaptured) return;
-    const cw = 44;
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const cw = coarse ? 36 : 44;
     const gap = 6;
-    const cols = Math.min(cards.length, 8);
+    const cols = Math.min(cards.length, coarse ? 5 : 8);
     const rows = Math.ceil(cards.length / cols);
     const panelW = cols * (cw + gap) + 16;
     const panelH = rows * (cw * CARD_RATIO + gap) + 48;
-    const px = (this.w - panelW) / 2;
-    const py = Math.max(80, y - panelH - 12);
+    // 触屏：贴左侧靠下，少挡桌面中心；桌面：居中浮于得分条上方
+    const px = coarse ? 14 : (this.w - panelW) / 2;
+    const py = coarse
+      ? Math.max(H * 0.42, y - panelH - 8)
+      : Math.max(80, y - panelH - 12);
+    this.capturedHit = {
+      x: Math.min(x, px),
+      y: Math.min(y, py),
+      w: Math.max(x + barW, px + panelW) - Math.min(x, px),
+      h: Math.max(y + barH, py + panelH) - Math.min(y, py),
+    };
     ctx.save();
     roundRect(ctx, px, py, panelW, panelH, 12);
     ctx.fillStyle = "rgba(8,26,20,0.92)";
