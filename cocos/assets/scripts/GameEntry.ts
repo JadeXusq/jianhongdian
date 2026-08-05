@@ -43,6 +43,7 @@ export class GameEntry extends Component {
   private aiDifficulty: "easy" | "normal" | "hard" = "normal";
   private showCaptured = false;
   private stockAnimCredit = 0;
+  private wasMyTurn = false;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -338,13 +339,7 @@ export class GameEntry extends Component {
           this.ui.setHelpVisible(true);
         }
         this.syncSelection();
-        this.hintText = this.net.spectating
-          ? "观战中"
-          : this.myTurn()
-            ? state.turnPhase === "CHOOSE_STOCK_TARGET"
-              ? "翻牌可吃，请选择目标"
-              : "轮到你出牌"
-            : "对手出牌中…";
+        this.refreshTurnHint();
       } else if (state.phase === "ROUND_OVER" && this.lastRound) {
         this.ui.setEmotesVisible(false);
         this.ui.setHelpVisible(false);
@@ -506,8 +501,31 @@ export class GameEntry extends Component {
     this.matchNode.removeAllChildren();
     this.matchNode.active = false;
     this.matchBusy = false;
+    this.refreshTurnHint();
     if (this.tableVisible) this.render();
   };
+
+  private refreshTurnHint(): void {
+    const state = this.net.state;
+    if (!state || state.phase !== "PLAYING") return;
+    if (this.net.spectating) {
+      this.hintText = "观战中";
+      return;
+    }
+    const mine = this.myTurn();
+    if (!mine) {
+      this.wasMyTurn = false;
+      this.hintText = "对手出牌中…";
+      return;
+    }
+    // 轮到自己但上家 MATCH 动画未结束：先不催出牌
+    if (this.matchBusy) return;
+    this.wasMyTurn = true;
+    this.hintText =
+      state.turnPhase === "CHOOSE_STOCK_TARGET"
+        ? "翻牌可吃，请选择目标"
+        : "轮到你出牌";
+  }
 
   private myTurn(): boolean {
     if (this.net.spectating) return false;

@@ -98,6 +98,41 @@ function hint(msg: string | null): void {
   if (msg) el.textContent = msg;
 }
 
+/** 轮到你时等动画播完再提示；别人进行中显示对方出牌中 */
+function refreshTurnHint(): void {
+  const state = playState();
+  if (!state || state.phase !== "PLAYING") return;
+  if (
+    shown("rules") ||
+    shown("guide") ||
+    shown("rank") ||
+    shown("result")
+  )
+    return;
+  if (!offline && net.spectating) {
+    hint("观战中");
+    return;
+  }
+
+  const mine = myTurn();
+  if (!mine) {
+    wasMyTurn = false;
+    hint(offline ? "电脑出牌中…" : "对手出牌中…");
+    return;
+  }
+
+  // 状态已轮到自己，但上家动画未结束：先不催出牌
+  if (view.animating) return;
+
+  if (!wasMyTurn) sfx.turn();
+  wasMyTurn = true;
+  hint(
+    state.turnPhase === "CHOOSE_STOCK_TARGET"
+      ? "翻牌可吃，请选择目标"
+      : "轮到你出牌"
+  );
+}
+
 // ---------- 大厅 ----------
 
 const nameInput = $<HTMLInputElement>("name");
@@ -492,18 +527,7 @@ function startOffline(): void {
       if (!overlay) show("none");
       $("emotes").classList.add("hidden");
       $("btn-help").classList.toggle("hidden", overlay);
-      const mine = myTurn();
-      if (mine && !wasMyTurn) sfx.turn();
-      wasMyTurn = mine;
-      if (!overlay) {
-        if (mine)
-          hint(
-            state.turnPhase === "CHOOSE_STOCK_TARGET"
-              ? "翻牌可吃，请选择目标"
-              : "轮到你出牌"
-          );
-        else hint("电脑出牌中…");
-      }
+      if (!overlay) refreshTurnHint();
     }
     syncSelection();
   };
@@ -565,19 +589,7 @@ net.onState = (state) => {
     if (!overlay) show("none");
     $("emotes").classList.toggle("hidden", overlay);
     $("btn-help").classList.toggle("hidden", overlay);
-    const mine = myTurn();
-    if (mine && !wasMyTurn) sfx.turn();
-    wasMyTurn = mine;
-    if (!overlay) {
-      if (net.spectating) hint("观战中");
-      else if (mine)
-        hint(
-          state.turnPhase === "CHOOSE_STOCK_TARGET"
-            ? "翻牌可吃，请选择目标"
-            : "轮到你出牌"
-        );
-      else hint(null);
-    }
+    if (!overlay) refreshTurnHint();
   }
   syncSelection();
 };
@@ -669,6 +681,7 @@ function frame(now: number): void {
   last = now;
   view.hand = offline ? offline.hand : net.hand;
   view.render(dt);
+  if (playState()?.phase === "PLAYING") refreshTurnHint();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
