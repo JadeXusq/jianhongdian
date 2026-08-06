@@ -118,6 +118,7 @@ export class GameEntry extends Component {
       onAccCreate: (name) => this.guard(() => this.doAccCreate(name)),
       onAccBind: (id, tok) => this.guard(() => this.doAccBind(id, tok)),
       onEmote: (id) => this.sendEmote(id),
+      onChat: (text) => this.sendChat(text),
       onReady: () => {
         if (this.offline) return;
         const me = this.net.state?.players.get(this.net.room!.sessionId);
@@ -149,6 +150,7 @@ export class GameEntry extends Component {
         this.ui.show("none");
         this.ui.setHelpVisible(true);
         this.ui.setEmotesVisible(true);
+        this.ui.setChatToggleVisible(true);
         this.ui.setMenuVisible(true);
       },
       onOpenRules: () => {
@@ -167,6 +169,7 @@ export class GameEntry extends Component {
         if (playing || midRound) {
           this.ui.setHelpVisible(true);
           this.ui.setEmotesVisible(playing);
+          this.ui.setChatToggleVisible(true);
           this.ui.setMenuVisible(
             !this.lastRound?.allDone && (!!this.offline || !this.net.spectating)
           );
@@ -267,8 +270,10 @@ export class GameEntry extends Component {
 
   private async doMatch(name: string, maxPlayers: number): Promise<void> {
     this.stopOffline();
+    this.ui.clearChatLog();
     await this.net.quickMatch(name, maxPlayers);
     this.net.ready(true);
+    this.ui.setChatToggleVisible(true);
     this.ui.show("room");
   }
 
@@ -278,24 +283,30 @@ export class GameEntry extends Component {
     withAi = false
   ): Promise<void> {
     this.stopOffline();
+    this.ui.clearChatLog();
     await this.net.create(name, maxPlayers);
     if (withAi) this.net.addAi();
+    this.ui.setChatToggleVisible(true);
     this.ui.show("room");
   }
 
   private async doJoin(name: string, code: string): Promise<void> {
     this.stopOffline();
+    this.ui.clearChatLog();
     await this.net.joinByCode(name, code);
+    this.ui.setChatToggleVisible(true);
     this.ui.show("room");
   }
 
   private async doSpectate(name: string, code: string): Promise<void> {
     this.stopOffline();
+    this.ui.clearChatLog();
     await this.net.spectateByCode(name, code);
     this.ui.toast("已进入观战");
     this.setTableVisible(true);
     this.ui.show("none");
     this.ui.setEmotesVisible(true);
+    this.ui.setChatToggleVisible(true);
     this.hintText = "观战中";
     this.render();
   }
@@ -337,6 +348,8 @@ export class GameEntry extends Component {
       this.resetLocal();
       this.setTableVisible(false);
       this.ui.setEmotesVisible(false);
+      this.ui.setChatToggleVisible(false);
+      this.ui.clearChatLog();
       this.ui.setHelpVisible(false);
       this.ui.show("lobby");
       return;
@@ -344,6 +357,8 @@ export class GameEntry extends Component {
     await this.net.leave();
     this.resetLocal();
     this.setTableVisible(false);
+    this.ui.setChatToggleVisible(false);
+    this.ui.clearChatLog();
     this.ui.show("lobby");
   }
 
@@ -351,10 +366,13 @@ export class GameEntry extends Component {
     this.offline?.stop();
     this.offline = null;
     this.ui?.setMenuVisible(false);
+    this.ui?.setChatToggleVisible(false);
+    this.ui?.clearChatLog();
   }
 
   private startOffline(name: string, playerCount: number): void {
     this.stopOffline();
+    this.ui.clearChatLog();
     void this.net.leave().catch(() => undefined);
     this.resetLocal();
     this.deferredReveal.clear();
@@ -392,13 +410,18 @@ export class GameEntry extends Component {
         if (!this.ui.isOverlay()) {
           this.ui.show("none");
           this.ui.setEmotesVisible(true);
+          this.ui.setChatToggleVisible(true);
           this.ui.setHelpVisible(true);
           this.ui.setMenuVisible(true);
+        } else {
+          this.ui.setEmotesVisible(false);
+          this.ui.setChatToggleVisible(false);
         }
         this.syncSelection();
         this.refreshTurnHint();
       } else if (state.phase === "ROUND_OVER") {
         this.ui.setEmotesVisible(false);
+        this.ui.setChatToggleVisible(true);
         this.ui.setHelpVisible(true);
         this.ui.setMenuVisible(!this.lastRound?.allDone);
       }
@@ -507,6 +530,7 @@ export class GameEntry extends Component {
     const state = this.playState();
     if (!state) return;
     this.ui.setEmotesVisible(false);
+    this.ui.setChatToggleVisible(true);
     this.ui.setHelpVisible(true);
     this.ui.setMenuVisible(
       !r.allDone && (!!this.offline || !this.net.spectating)
@@ -522,10 +546,12 @@ export class GameEntry extends Component {
 
   async joinByCode(name: string, code: string): Promise<void> {
     this.stopOffline();
+    this.ui.clearChatLog();
     await this.net.leave().catch(() => undefined);
     this.resetLocal();
     await this.net.joinByCode(name, code);
     this.net.ready(true);
+    this.ui.setChatToggleVisible(true);
     this.ui.show("room");
   }
 
@@ -535,12 +561,14 @@ export class GameEntry extends Component {
     withAi = false
   ): Promise<string> {
     this.stopOffline();
+    this.ui.clearChatLog();
     await this.net.leave().catch(() => undefined);
     this.resetLocal();
     await this.net.create(name, maxPlayers);
     if (withAi) this.net.addAi();
     const code = await this.waitCode();
     this.net.ready(true);
+    this.ui.setChatToggleVisible(true);
     this.ui.show("room");
     return code;
   }
@@ -627,6 +655,7 @@ export class GameEntry extends Component {
         this.lastPending = -1;
         this.setTableVisible(false);
         this.ui.setEmotesVisible(false);
+        this.ui.setChatToggleVisible(true);
         this.ui.setHelpVisible(false);
         this.ui.setMenuVisible(false);
         this.ui.renderRoom(state, this.net.room!.sessionId);
@@ -652,13 +681,18 @@ export class GameEntry extends Component {
         if (!this.ui.isOverlay()) {
           this.ui.show("none");
           this.ui.setEmotesVisible(true);
+          this.ui.setChatToggleVisible(true);
           this.ui.setHelpVisible(true);
           this.ui.setMenuVisible(!this.net.spectating);
+        } else {
+          this.ui.setEmotesVisible(false);
+          this.ui.setChatToggleVisible(false);
         }
         this.syncSelection();
         this.refreshTurnHint();
       } else if (state.phase === "ROUND_OVER") {
         this.ui.setEmotesVisible(false);
+        this.ui.setChatToggleVisible(true);
         this.ui.setHelpVisible(true);
         this.ui.setMenuVisible(!this.net.spectating && !this.lastRound?.allDone);
       }
@@ -725,9 +759,26 @@ export class GameEntry extends Component {
 
     this.net.onEmote = (e) => {
       this.ui.showEmote(e.name, e.id);
+      this.ui.addChatEntry({
+        name: e.name,
+        text: e.id,
+        isEmote: true,
+        mine: e.seat === this.mySeatNum(),
+      });
+    };
+
+    this.net.onChat = (e) => {
+      this.ui.addChatEntry({
+        name: e.name,
+        text: e.text,
+        isEmote: false,
+        mine: e.seat === this.mySeatNum(),
+      });
     };
 
     this.net.onLeave = () => {
+      this.ui.clearChatLog();
+      this.ui.setChatToggleVisible(false);
       if (this.lastRound) return;
       this.ui.toast("已断开连接");
       this.setTableVisible(false);
@@ -1530,6 +1581,7 @@ export class GameEntry extends Component {
   }
 
   private lastEmoteAt = 0;
+  private lastChatAt = 0;
   private static readonly EMOTE_IDS = new Set([
     "加油",
     "好牌",
@@ -1548,10 +1600,47 @@ export class GameEntry extends Component {
     this.lastEmoteAt = now;
     if (this.offline) {
       this.ui.showEmote(this.ui.playerName(), id);
+      this.ui.addChatEntry({
+        name: this.ui.playerName(),
+        text: id,
+        isEmote: true,
+        mine: true,
+      });
       return;
     }
-    if (!this.net.room) return;
+    if (!this.net.room) {
+      this.ui.toast("未连接房间");
+      return;
+    }
     this.net.emote(id);
+  }
+
+  private sendChat(text: string): void {
+    const msg = text.trim().slice(0, 200);
+    if (!msg) return;
+    const now = Date.now();
+    if (now - this.lastChatAt < 1200) {
+      this.ui.toast("发送太快了");
+      return;
+    }
+    if (this.offline) {
+      this.lastChatAt = now;
+      this.ui.clearChatInput();
+      this.ui.addChatEntry({
+        name: this.ui.playerName(),
+        text: msg,
+        isEmote: false,
+        mine: true,
+      });
+      return;
+    }
+    if (!this.net.room) {
+      this.ui.toast("未连接房间");
+      return;
+    }
+    this.lastChatAt = now;
+    this.ui.clearChatInput();
+    this.net.chat(msg);
   }
 
   private send(cardId: number, targetId?: number): void {

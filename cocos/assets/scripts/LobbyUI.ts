@@ -37,6 +37,7 @@ export interface LobbyCallbacks {
   onAccCreate(name: string): void;
   onAccBind(accountId: string, token: string): void;
   onEmote(id: string): void;
+  onChat(text: string): void;
   onReady(): void;
   onAddAi(): void;
   onQuit(): void;
@@ -67,6 +68,18 @@ export class LobbyUI {
   private settleConfirm!: Node;
   private roomCodeDialog!: Node;
   private emotes!: Node;
+  private chatPanel!: Node;
+  private chatToggle!: Node;
+  private chatUnreadLbl!: Label;
+  private chatLogLbl!: Label;
+  private chatInput!: EditBox;
+  private chatLog: Array<{
+    name: string;
+    text: string;
+    isEmote: boolean;
+    mine: boolean;
+  }> = [];
+  private chatUnread = 0;
   private helpBtn!: Node;
   private menuBtn!: Node;
   private settleBtn!: Node;
@@ -125,6 +138,8 @@ export class LobbyUI {
     this.settleConfirm = this.buildSettleConfirm();
     this.roomCodeDialog = this.buildRoomCodeDialog();
     this.emotes = this.buildEmotes();
+    this.chatPanel = this.buildChatPanel();
+    this.chatToggle = this.buildChatToggle();
     this.menuBtn = this.makeBtn(
       this.root,
       "菜单",
@@ -177,11 +192,89 @@ export class LobbyUI {
     this.scores.active = screen === "scores";
     this.settleConfirm.active = screen === "settle-confirm";
     this.roomCodeDialog.active = screen === "room-code";
-    if (screen !== "none") this.setEmotesVisible(false);
+    if (screen !== "none") {
+      this.setEmotesVisible(false);
+      this.setChatPanelOpen(false);
+    }
   }
 
   setEmotesVisible(v: boolean): void {
     this.emotes.active = v;
+  }
+
+  setChatToggleVisible(v: boolean): void {
+    this.chatToggle.active = v;
+    if (!v) this.setChatPanelOpen(false);
+  }
+
+  setChatPanelOpen(open: boolean): void {
+    this.chatPanel.active = open;
+    if (open) {
+      this.chatUnread = 0;
+      this.updateChatBadge();
+      this.renderChatLog();
+    }
+  }
+
+  isChatOpen(): boolean {
+    return this.chatPanel.active;
+  }
+
+  clearChatLog(): void {
+    this.chatLog.length = 0;
+    this.chatUnread = 0;
+    this.renderChatLog();
+    this.updateChatBadge();
+    this.setChatPanelOpen(false);
+  }
+
+  addChatEntry(e: {
+    name: string;
+    text: string;
+    isEmote: boolean;
+    mine: boolean;
+  }): void {
+    this.chatLog.push(e);
+    if (this.chatLog.length > 200) this.chatLog.shift();
+    if (!e.mine && !this.isChatOpen()) this.chatUnread += 1;
+    this.renderChatLog();
+    this.updateChatBadge();
+  }
+
+  private updateChatBadge(): void {
+    const badge = this.chatUnreadLbl.node.parent;
+    if (!badge) return;
+    if (this.chatUnread <= 0) {
+      badge.active = false;
+      this.chatUnreadLbl.string = "0";
+      return;
+    }
+    this.chatUnreadLbl.string =
+      this.chatUnread > 99 ? "99+" : String(this.chatUnread);
+    badge.active = true;
+  }
+
+  clearChatInput(): void {
+    this.chatInput.string = "";
+  }
+
+  private renderChatLog(): void {
+    const icons: Record<string, string> = {
+      加油: "💪",
+      好牌: "👏",
+      厉害: "👍",
+      等等: "⏳",
+      哈哈哈: "😄",
+    };
+    const lines = this.chatLog.map((e) => {
+      const mark = e.mine ? "▶" : "";
+      if (e.isEmote) {
+        const icon = icons[e.text] ?? "💬";
+        return `${mark}${e.name}：${icon} ${e.text}`;
+      }
+      return `${mark}${e.name}：${e.text}`;
+    });
+    this.chatLogLbl.string = lines.join("\n") || "暂无消息";
   }
 
   setHelpVisible(v: boolean): void {
@@ -190,6 +283,7 @@ export class LobbyUI {
 
   setMenuVisible(v: boolean): void {
     this.menuBtn.active = v;
+    if (v) this.setChatPanelOpen(false);
   }
 
   isOverlay(): boolean {
@@ -205,11 +299,13 @@ export class LobbyUI {
   private openMenu(): void {
     this.settleBtn.active = this.cb.canSettleMatch();
     this.restartBtn.active = this.cb.canRestartMatch();
+    this.setChatPanelOpen(false);
     this.show("menu");
   }
 
   openRules(from: UiScreen = "lobby"): void {
     this.rulesBack = from;
+    this.setChatPanelOpen(false);
     this.show("rules");
     this.setHelpVisible(false);
     this.cb.onOpenRules(from);
@@ -578,6 +674,72 @@ export class LobbyUI {
     });
     bar.active = false;
     return bar;
+  }
+
+  private buildChatToggle(): Node {
+    const btn = this.makeBtn(
+      this.root,
+      "💬",
+      DESIGN.width / 2 - 50,
+      -DESIGN.height / 2 + 50,
+      40,
+      40,
+      () => this.setChatPanelOpen(!this.isChatOpen())
+    );
+    const badge = new Node("Unread");
+    badge.layer = Layers.Enum.UI_2D;
+    btn.addChild(badge);
+    badge.setPosition(new Vec3(14, 14, 0));
+    badge.addComponent(UITransform).setContentSize(new Size(18, 18));
+    const g = badge.addComponent(Graphics);
+    g.fillColor = C.seal;
+    g.circle(0, 0, 9);
+    g.fill();
+    this.chatUnreadLbl = this.makeLabel(badge, "0", 0, 0, 10, C.cream);
+    badge.active = false;
+    btn.active = false;
+    return btn;
+  }
+
+  private buildChatPanel(): Node {
+    const panel = this.panel("Chat", 320, 360);
+    panel.setPosition(new Vec3(DESIGN.width / 2 - 180, -40, 0));
+    this.makeCloseX(panel, () => this.setChatPanelOpen(false));
+    this.makeLabel(panel, "聊天记录", 0, 150, 20, C.gold);
+
+    const viewport = new Node("ChatViewport");
+    viewport.layer = Layers.Enum.UI_2D;
+    panel.addChild(viewport);
+    viewport.setPosition(new Vec3(0, 20, 0));
+    viewport.addComponent(UITransform).setContentSize(new Size(290, 220));
+    viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
+
+    const content = new Node("ChatContent");
+    content.layer = Layers.Enum.UI_2D;
+    viewport.addChild(content);
+    content.addComponent(UITransform).setContentSize(new Size(280, 220));
+    content.setPosition(new Vec3(0, 0, 0));
+
+    this.chatLogLbl = this.makeLabel(content, "暂无消息", 0, 0, 13, C.cream);
+    this.chatLogLbl.overflow = Label.Overflow.RESIZE_HEIGHT;
+    this.chatLogLbl.horizontalAlign = Label.HorizontalAlign.LEFT;
+    this.chatLogLbl.verticalAlign = Label.VerticalAlign.TOP;
+    const logUt = this.chatLogLbl.node.getComponent(UITransform)!;
+    logUt.setContentSize(new Size(270, 220));
+
+    const scroll = viewport.addComponent(ScrollView);
+    scroll.content = content;
+    scroll.horizontal = false;
+    scroll.vertical = true;
+
+    this.chatInput = this.makeEdit(panel, -40, -140, 200, 34, "说点什么…");
+    this.makeBtn(panel, "发送", 110, -140, 70, 34, () => {
+      const text = (this.chatInput.string || "").trim().slice(0, 200);
+      if (!text) return;
+      this.cb.onChat(text);
+    });
+    panel.active = false;
+    return panel;
   }
 
   private buildRoom(): Node {

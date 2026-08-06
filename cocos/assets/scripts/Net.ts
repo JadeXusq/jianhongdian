@@ -88,6 +88,12 @@ export class Net {
   onRoundStart?: () => void;
   onRoundOver?: (r: RoundOver) => void;
   onEmote?: (e: { seat: number; name: string; id: string }) => void;
+  onChat?: (e: {
+    seat: number;
+    name: string;
+    text: string;
+    ts?: number;
+  }) => void;
   onError?: (message: string) => void;
   onLeave?: () => void;
 
@@ -226,6 +232,11 @@ export class Net {
     room.onMessage("emote", (e: { seat: number; name: string; id: string }) =>
       this.onEmote?.(e)
     );
+    room.onMessage(
+      "chat",
+      (e: { seat: number; name: string; text: string; ts?: number }) =>
+        this.onChat?.(e)
+    );
     room.onMessage("error", (e: { message: string }) =>
       this.onError?.(e.message)
     );
@@ -257,6 +268,9 @@ export class Net {
   }
   emote(id: string): void {
     this.room?.send("emote", { id });
+  }
+  chat(text: string): void {
+    this.room?.send("chat", { text });
   }
   play(cardId: number, targetId?: number): void {
     this.room?.send("play", { cardId, targetId });

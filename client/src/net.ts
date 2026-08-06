@@ -25,9 +25,7 @@ export function wsEndpoint(): string {
  * 免费云（如 Render）休眠后首连需先打 HTTP 唤醒。
  * 最长约 90s；成功或最终失败后返回。
  */
-async function wakeServer(
-  onProgress?: (msg: string) => void
-): Promise<void> {
+async function wakeServer(onProgress?: (msg: string) => void): Promise<void> {
   const deadline = Date.now() + 90_000;
   let attempt = 0;
   while (Date.now() < deadline) {
@@ -140,6 +138,12 @@ export class Net {
   onRoundStart?: () => void;
   onRoundOver?: (r: RoundOver) => void;
   onEmote?: (e: { seat: number; name: string; id: string }) => void;
+  onChat?: (e: {
+    seat: number;
+    name: string;
+    text: string;
+    ts: number;
+  }) => void;
   onError?: (message: string) => void;
   onLeave?: () => void;
 
@@ -198,9 +202,7 @@ export class Net {
     this.joining = true;
     try {
       await this.leave().catch(() => undefined);
-      this.bind(
-        await withWake(connect, this.onProgress)
-      );
+      this.bind(await withWake(connect, this.onProgress));
     } finally {
       this.joining = false;
     }
@@ -271,13 +273,10 @@ export class Net {
     this.room = room;
     sessionStorage.setItem(TOKEN_KEY, room.reconnectionToken);
 
-    room.onMessage(
-      "joined",
-      (m: { seat: number; spectate?: boolean }) => {
-        this.mySeat = m.seat;
-        this.spectating = !!m.spectate || m.seat < 0;
-      }
-    );
+    room.onMessage("joined", (m: { seat: number; spectate?: boolean }) => {
+      this.mySeat = m.seat;
+      this.spectating = !!m.spectate || m.seat < 0;
+    });
     room.onMessage("hand", (hand: number[]) => {
       this.hand = hand;
     });
@@ -286,6 +285,11 @@ export class Net {
     room.onMessage("roundOver", (r: RoundOver) => this.onRoundOver?.(r));
     room.onMessage("emote", (e: { seat: number; name: string; id: string }) =>
       this.onEmote?.(e)
+    );
+    room.onMessage(
+      "chat",
+      (e: { seat: number; name: string; text: string; ts: number }) =>
+        this.onChat?.(e)
     );
     room.onMessage("error", (e: { message: string }) =>
       this.onError?.(e.message)
@@ -324,6 +328,9 @@ export class Net {
   }
   emote(id: string): void {
     this.room?.send("emote", { id });
+  }
+  chat(text: string): void {
+    this.room?.send("chat", { text });
   }
   nextRound(): void {
     this.room?.send("nextRound");

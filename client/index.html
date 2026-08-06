@@ -190,6 +190,18 @@
         <button data-e="哈哈哈">哈哈哈</button>
       </div>
       <div id="emote-bubble" class="emote-bubble hidden"></div>
+      <div id="chat-panel" class="chat-panel hidden">
+        <button id="btn-chat-close" class="panel-x" title="关闭">×</button>
+        <div class="chat-title">聊天记录</div>
+        <div id="chat-log" class="chat-log"></div>
+        <div class="chat-input-row">
+          <input id="chat-input" type="text" maxlength="200" placeholder="说点什么…" />
+          <button id="btn-chat-send">发送</button>
+        </div>
+      </div>
+      <button id="btn-chat-toggle" class="chat-toggle-btn hidden" title="聊天记录">
+        💬<span id="chat-unread" class="chat-unread hidden">0</span>
+      </button>
       <button id="btn-menu" class="menu-btn hidden" title="菜单">菜单</button>
       <button id="btn-help" class="help hidden" title="规则">?</button>
       <button id="btn-mute" class="mute" title="音效">♪</button>

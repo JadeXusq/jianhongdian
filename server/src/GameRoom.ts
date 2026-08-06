@@ -84,6 +84,9 @@ export class GameRoom extends Room<RoomState> {
     this.onMessage("emote", (client, msg: { id?: string }) =>
       this.onEmote(client, msg)
     );
+    this.onMessage("chat", (client, msg: { text?: string }) =>
+      this.onChat(client, msg)
+    );
   }
 
   onJoin(client: Client, options: JoinOptions): void {
@@ -428,6 +431,7 @@ export class GameRoom extends Room<RoomState> {
     "哈哈哈",
   ]);
   private lastEmoteAt = new Map<string, number>();
+  private lastChatAt = new Map<string, number>();
 
   private onEmote(client: Client, msg: { id?: string }): void {
     const text = (msg?.id || "").slice(0, 8);
@@ -440,6 +444,19 @@ export class GameRoom extends Room<RoomState> {
     const name = p?.name ?? "观众";
     const seat = p?.seat ?? -1;
     this.broadcast("emote", { seat, name, id: text });
+  }
+
+  private onChat(client: Client, msg: { text?: string }): void {
+    const text = (msg?.text || "").trim().slice(0, 200);
+    if (!text) return;
+    const now = Date.now();
+    const prev = this.lastChatAt.get(client.sessionId) ?? 0;
+    if (now - prev < 1200) return;
+    this.lastChatAt.set(client.sessionId, now);
+    const p = this.state.players.get(client.sessionId);
+    const name = p?.name ?? "观众";
+    const seat = p?.seat ?? -1;
+    this.broadcast("chat", { seat, name, text, ts: now });
   }
 
   // ---------- 工具 ----------

@@ -3,10 +3,7 @@
  * 交互约定：点手牌 → 唯一目标直接吃；多目标高亮待选；无目标需再点一次确认弃牌。
  */
 import { cardScore, findTargets, turnHint } from "@jhd/shared";
-import {
-  ROUND_RESULT_MAX_WAIT_MS,
-  TURN_UI_LOCK_MS,
-} from "@jhd/shared";
+import { ROUND_RESULT_MAX_WAIT_MS, TURN_UI_LOCK_MS } from "@jhd/shared";
 import { sfx } from "./audio";
 import { loadCardAtlas } from "./cardRender";
 import { bindRotScroll, onOrientationChange, shouldRotate } from "./layout";
@@ -96,6 +93,7 @@ function bindOverlayScrolls(): void {
     "#rank .result-list",
     ".guide-panel .guide-list",
     ".lobby-panel",
+    ".chat-log",
   ].forEach((sel) => {
     document.querySelectorAll<HTMLElement>(sel).forEach(bindRotScroll);
   });
@@ -121,12 +119,7 @@ muteBtn.onclick = () => {
 
 let toastTimer = 0;
 let settleBack: "result" | "game-menu" = "game-menu";
-let rulesBack:
-  | "lobby"
-  | "room"
-  | "result"
-  | "game-menu"
-  | "none" = "lobby";
+let rulesBack: "lobby" | "room" | "result" | "game-menu" | "none" = "lobby";
 
 function toast(msg: string, ms = 2200): void {
   const el = $("toast");
@@ -252,6 +245,7 @@ async function guard(fn: () => Promise<void>): Promise<void> {
 $("btn-match").onclick = () =>
   guard(async () => {
     stopOffline();
+    clearChatLog();
     await net.quickMatch(playerName(), maxPlayers);
     net.ready(true);
     show("room");
@@ -264,16 +258,15 @@ $("btn-practice").onclick = () => {
 $("btn-create").onclick = () =>
   guard(async () => {
     stopOffline();
+    clearChatLog();
     await net.create(playerName(), maxPlayers);
     show("room");
   });
 
 function openRoomCodeDialog(mode: "join" | "spectate"): void {
   roomCodeMode = mode;
-  $("room-code-title").textContent =
-    mode === "join" ? "加入房间" : "观战房间";
-  $("btn-room-code-ok").textContent =
-    mode === "join" ? "确认加入" : "确认观战";
+  $("room-code-title").textContent = mode === "join" ? "加入房间" : "观战房间";
+  $("btn-room-code-ok").textContent = mode === "join" ? "确认加入" : "确认观战";
   const input = $<HTMLInputElement>("room-code-input");
   input.value = "";
   show("room-code-dialog");
@@ -289,6 +282,8 @@ async function submitRoomCode(): Promise<void> {
     input.focus();
     return;
   }
+  stopOffline();
+  clearChatLog();
   if (roomCodeMode === "join") {
     await net.joinByCode(playerName(), code);
     show("room");
@@ -317,6 +312,7 @@ $<HTMLInputElement>("room-code-input").addEventListener("keydown", (e) => {
 function openRules(from: typeof rulesBack = "lobby"): void {
   rulesBack = from;
   show("rules");
+  setChatPanelOpen(false);
   $("btn-help").classList.add("hidden");
 }
 
@@ -343,8 +339,7 @@ function restoreTableChrome(): void {
   const playing = state?.phase === "PLAYING";
   const midRound =
     state?.phase === "ROUND_OVER" && !!lastRound && !lastRound.allDone;
-  const showChrome =
-    (playing || midRound) && (!net.spectating || !!offline);
+  const showChrome = (playing || midRound) && (!net.spectating || !!offline);
   $("btn-help").classList.toggle("hidden", !showChrome);
   setMenuVisible(showChrome);
 }
@@ -356,8 +351,7 @@ $("btn-guide-ok").onclick = () => {
   show("none");
   restoreTableChrome();
 };
-$("btn-help").onclick = () =>
-  openRules(shown("result") ? "result" : "none");
+$("btn-help").onclick = () => openRules(shown("result") ? "result" : "none");
 
 function isHost(): boolean {
   if (offline) return true;
@@ -367,6 +361,7 @@ function isHost(): boolean {
 
 function setMenuVisible(v: boolean): void {
   $("btn-menu").classList.toggle("hidden", !v);
+  if (v) setChatPanelOpen(false);
 }
 
 function openGameMenu(): void {
@@ -376,6 +371,7 @@ function openGameMenu(): void {
     "hidden",
     !offline || !!lastRound?.allDone
   );
+  setChatPanelOpen(false);
   show("game-menu");
 }
 
@@ -394,14 +390,14 @@ function renderScores(): void {
       <div class="res${p.seat === mySeat ? " me" : ""}${i === 0 ? " top" : ""}">
         <span class="rank">${i + 1}</span>
         <span class="who">${p.name}${
-          p.isAi && !String(p.name).startsWith("机器人")
-            ? '<span class="ai-tag">机</span>'
-            : ""
-        }</span>
+        p.isAi && !String(p.name).startsWith("机器人")
+          ? '<span class="ai-tag">机</span>'
+          : ""
+      }</span>
         <span class="calc">本轮 ${p.points}</span>
-        <span class="net ${p.totalNet > 0 ? "win" : p.totalNet < 0 ? "lose" : ""}">${
-          p.totalNet > 0 ? "+" : ""
-        }${p.totalNet}</span>
+        <span class="net ${
+          p.totalNet > 0 ? "win" : p.totalNet < 0 ? "lose" : ""
+        }">${p.totalNet > 0 ? "+" : ""}${p.totalNet}</span>
       </div>`
     )
     .join("");
@@ -489,8 +485,9 @@ $("btn-acc-create").onclick = () =>
   guard(async () => {
     const data = await net.createAccount(playerName());
     $("account-status").textContent = `已绑定账号 ${data.accountId}`;
-    $("account-hint").textContent =
-      `请妥善保存凭证（只显示一次）：${data.token}`;
+    $(
+      "account-hint"
+    ).textContent = `请妥善保存凭证（只显示一次）：${data.token}`;
     $<HTMLInputElement>("acc-id").value = data.accountId;
     $<HTMLInputElement>("acc-token").value = data.token;
     toast("账号已创建并绑定本机");
@@ -503,7 +500,9 @@ $("btn-acc-bind").onclick = () =>
     if (!accountId || !token) throw new Error("请填写账号 ID 与凭证");
     const profile = await net.bindAccount(accountId, token);
     $("account-status").textContent = `已绑定账号 ${accountId}`;
-    $("account-hint").textContent = `战绩已合并：${profile.games} 局 · 净分 ${profile.totalNet}`;
+    $(
+      "account-hint"
+    ).textContent = `战绩已合并：${profile.games} 局 · 净分 ${profile.totalNet}`;
     toast("绑定成功，战绩已合并");
   });
 
@@ -570,12 +569,10 @@ function renderRoom(state: any): void {
       const mine = p.sessionId === net.room?.sessionId;
       div.innerHTML = `<div class="avatar">${label.slice(0, 1)}</div>
          <div class="who">${label}${
-           p.isAi && !String(p.name).startsWith("机器人")
-             ? '<span class="ai-tag">机</span>'
-             : ""
-         }${
-           mine ? "（我）" : ""
-         }</div>
+        p.isAi && !String(p.name).startsWith("机器人")
+          ? '<span class="ai-tag">机</span>'
+          : ""
+      }${mine ? "（我）" : ""}</div>
          <div class="tag">${p.ready ? "已准备" : "等待中"}</div>`;
     } else {
       div.innerHTML = `<div class="avatar">＋</div><div class="who">座位 ${
@@ -685,10 +682,10 @@ function renderResult(r: RoundOver): void {
       }">
         <span class="rank">${i === 0 ? "胜" : i + 1}</span>
         <span class="who">${row.p.name}${
-          row.p.isAi && !String(row.p.name).startsWith("机器人")
-            ? '<span class="ai-tag">机</span>'
-            : ""
-        }</span>
+        row.p.isAi && !String(row.p.name).startsWith("机器人")
+          ? '<span class="ai-tag">机</span>'
+          : ""
+      }</span>
         <span class="calc">${row.points} − ${r.base}${
         r.allDone || row.p.totalNet !== undefined
           ? " | 总 " + row.p.totalNet
@@ -745,7 +742,13 @@ function myTurn(): boolean {
 
 function pickHand(id: number): void {
   const state = playState();
-  if (!myTurn() || !state || state.turnPhase !== "PLAY_HAND" || view.animating || view.turnBlocked)
+  if (
+    !myTurn() ||
+    !state ||
+    state.turnPhase !== "PLAY_HAND" ||
+    view.animating ||
+    view.turnBlocked
+  )
     return;
   const targets = findTargets(id, [...state.table]);
 
@@ -829,11 +832,14 @@ function stopOffline(): void {
   offline?.stop();
   offline = null;
   $("emotes").classList.add("hidden");
+  $("btn-chat-toggle").classList.add("hidden");
+  clearChatLog();
   setMenuVisible(false);
 }
 
 function startOffline(): void {
   stopOffline();
+  clearChatLog();
   void net.leave().catch(() => undefined);
   const session = new LocalPlay(playerName(), maxPlayers);
   offline = session;
@@ -851,11 +857,15 @@ function startOffline(): void {
         shown("settle-confirm");
       if (!overlay) show("none");
       $("emotes").classList.toggle("hidden", overlay);
+      $("btn-chat-toggle").classList.toggle("hidden", overlay);
+      if (overlay) setChatPanelOpen(false);
       $("btn-help").classList.toggle("hidden", overlay);
       setMenuVisible(!overlay);
       if (!overlay) refreshTurnHint();
     } else if (state.phase === "ROUND_OVER") {
       $("emotes").classList.add("hidden");
+      $("btn-chat-toggle").classList.remove("hidden");
+      setChatPanelOpen(false);
       setMenuVisible(!lastRound?.allDone);
     }
     syncSelection();
@@ -901,6 +911,7 @@ net.onState = (state) => {
   if (state.phase === "WAITING") {
     renderRoom(state);
     $("emotes").classList.add("hidden");
+    $("btn-chat-toggle").classList.remove("hidden");
     $("btn-help").classList.add("hidden");
     setMenuVisible(false);
     if (
@@ -920,11 +931,15 @@ net.onState = (state) => {
       shown("settle-confirm");
     if (!overlay) show("none");
     $("emotes").classList.toggle("hidden", overlay);
+    $("btn-chat-toggle").classList.toggle("hidden", overlay);
+    if (overlay) setChatPanelOpen(false);
     $("btn-help").classList.toggle("hidden", overlay);
     setMenuVisible(!overlay && !net.spectating);
     if (!overlay) refreshTurnHint();
   } else if (state.phase === "ROUND_OVER") {
     $("emotes").classList.add("hidden");
+    $("btn-chat-toggle").classList.remove("hidden");
+    setChatPanelOpen(false);
     $("btn-help").classList.toggle("hidden", net.spectating);
     setMenuVisible(!net.spectating && !lastRound?.allDone);
   }
@@ -969,8 +984,136 @@ const EMOTE_ICON: Record<string, string> = {
   哈哈哈: "😄",
 };
 const EMOTE_COOLDOWN_MS = 1200;
+const CHAT_COOLDOWN_MS = 1200;
 let lastEmoteAt = 0;
+let lastChatAt = 0;
 let emoteTimer = 0;
+
+// ---------- 聊天记录 ----------
+interface ChatEntry {
+  seat: number;
+  name: string;
+  text: string;
+  isEmote: boolean;
+  mine: boolean;
+}
+const chatLog: ChatEntry[] = [];
+const CHAT_MAX_ENTRIES = 200;
+let chatUnread = 0;
+
+function clearChatLog(): void {
+  chatLog.length = 0;
+  chatUnread = 0;
+  renderChatLog();
+  updateChatBadge();
+  $("chat-panel").classList.add("hidden");
+}
+
+function isChatOpen(): boolean {
+  return !$("chat-panel").classList.contains("hidden");
+}
+
+function updateChatBadge(): void {
+  const badge = $("chat-unread");
+  if (!badge) return;
+  if (chatUnread <= 0) {
+    badge.classList.add("hidden");
+    badge.textContent = "0";
+    return;
+  }
+  badge.textContent = chatUnread > 99 ? "99+" : String(chatUnread);
+  badge.classList.remove("hidden");
+}
+
+function addChatEntry(e: ChatEntry): void {
+  chatLog.push(e);
+  if (chatLog.length > CHAT_MAX_ENTRIES) chatLog.shift();
+  if (!e.mine && !isChatOpen()) chatUnread += 1;
+  renderChatLog();
+  updateChatBadge();
+}
+
+function renderChatLog(): void {
+  const log = $("chat-log");
+  if (!log) return;
+  log.innerHTML = chatLog
+    .map((e) => {
+      const icon = e.isEmote ? EMOTE_ICON[e.text] ?? "💬" : "";
+      const cls = `chat-msg${e.mine ? " chat-mine" : ""}`;
+      const text = e.isEmote
+        ? `<span class="chat-emote">${icon} ${e.text}</span>`
+        : escapeHtml(e.text);
+      return `<div class="${cls}"><span class="chat-name">${escapeHtml(
+        e.name
+      )}</span>${text}</div>`;
+    })
+    .join("");
+  log.scrollTop = log.scrollHeight;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function setChatPanelOpen(open: boolean): void {
+  $("chat-panel").classList.toggle("hidden", !open);
+  if (open) {
+    chatUnread = 0;
+    updateChatBadge();
+    renderChatLog();
+  }
+}
+
+function toggleChatPanel(): void {
+  setChatPanelOpen(!isChatOpen());
+}
+
+function sendChat(): void {
+  const input = $("chat-input") as HTMLInputElement;
+  const text = input.value.trim().slice(0, 200);
+  if (!text) return;
+  const now = Date.now();
+  if (now - lastChatAt < CHAT_COOLDOWN_MS) {
+    toast("发送太快了");
+    return;
+  }
+  if (offline) {
+    lastChatAt = now;
+    input.value = "";
+    addChatEntry({
+      seat: offline.mySeat,
+      name: playerName(),
+      text,
+      isEmote: false,
+      mine: true,
+    });
+    return;
+  }
+  if (!net.room) {
+    toast("未连接房间");
+    return;
+  }
+  lastChatAt = now;
+  input.value = "";
+  net.chat(text);
+}
+
+$("btn-chat-toggle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleChatPanel();
+});
+$("btn-chat-close").addEventListener("click", () => setChatPanelOpen(false));
+$("btn-chat-send").addEventListener("click", sendChat);
+$("chat-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    sendChat();
+  }
+});
 
 function showEmoteBubble(name: string, id: string): void {
   const el = $("emote-bubble");
@@ -990,10 +1133,20 @@ function sendEmote(id: string): void {
   }
   lastEmoteAt = now;
   if (offline) {
+    addChatEntry({
+      seat: offline.mySeat,
+      name: playerName(),
+      text: id,
+      isEmote: true,
+      mine: true,
+    });
     showEmoteBubble(playerName(), id);
     return;
   }
-  if (!net.room) return;
+  if (!net.room) {
+    toast("未连接房间");
+    return;
+  }
   net.emote(id);
 }
 
@@ -1004,7 +1157,28 @@ $("emotes").addEventListener("click", (e) => {
   if (id) sendEmote(id);
 });
 
-net.onEmote = (e) => showEmoteBubble(e.name, e.id);
+net.onEmote = (e) => {
+  showEmoteBubble(e.name, e.id);
+  const mine = e.seat === (offline?.mySeat ?? net.mySeat);
+  addChatEntry({
+    seat: e.seat,
+    name: e.name,
+    text: e.id,
+    isEmote: true,
+    mine,
+  });
+};
+
+net.onChat = (e) => {
+  const mine = e.seat === (offline?.mySeat ?? net.mySeat);
+  addChatEntry({
+    seat: e.seat,
+    name: e.name,
+    text: e.text,
+    isEmote: false,
+    mine,
+  });
+};
 
 net.onError = (msg) => {
   toast(msg);
@@ -1014,6 +1188,8 @@ net.onError = (msg) => {
 };
 
 net.onLeave = () => {
+  clearChatLog();
+  $("btn-chat-toggle").classList.add("hidden");
   if (offline || lastRound) return;
   toast("已断开连接");
   show("lobby");
@@ -1025,7 +1201,14 @@ if (!import.meta.env.VITE_OFFLINE_ONLY)
     if (ok) toast("已重连回到对局");
   });
 
-if (import.meta.env.DEV) (window as any).__jhd = { net, view, get offline() { return offline; } };
+if (import.meta.env.DEV)
+  (window as any).__jhd = {
+    net,
+    view,
+    get offline() {
+      return offline;
+    },
+  };
 
 let last = performance.now();
 function frame(now: number): void {
