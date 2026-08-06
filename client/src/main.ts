@@ -607,10 +607,6 @@ $("btn-again").onclick = () => {
   if (lastRound && !lastRound.allDone) toast("已确认，等待其他玩家…");
   show("none");
 };
-$("btn-result-restart").onclick = () => {
-  if (!offline) return;
-  restartOffline();
-};
 $("btn-exit").onclick = () => {
   if (offline) {
     stopOffline();
@@ -622,20 +618,6 @@ $("btn-exit").onclick = () => {
     show("lobby");
   });
 };
-
-function restartOffline(): void {
-  if (!offline) return;
-  lastRound = null;
-  pendingRoundOver = null;
-  selected = -1;
-  discardArmed = -1;
-  view.showCaptured = false;
-  view.resetAnimVisuals();
-  offline.start();
-  show("none");
-  restoreTableChrome();
-  toast("已重新开始");
-}
 
 function renderResult(r: RoundOver): void {
   const state = offline?.state ?? net.state;
@@ -693,13 +675,11 @@ function renderResult(r: RoundOver): void {
   const btnAgain = $<HTMLButtonElement>("btn-again");
   const btnExit = $<HTMLButtonElement>("btn-exit");
   const btnSettle = $<HTMLButtonElement>("btn-result-settle");
-  const btnRestart = $<HTMLButtonElement>("btn-result-restart");
   if (r.allDone) {
     btnAgain.textContent = offline ? "再练一局" : "再来一局";
     btnAgain.classList.add("primary");
     btnExit.style.display = "";
     btnSettle.classList.add("hidden");
-    btnRestart.classList.add("hidden");
     setMenuVisible(false);
   } else {
     btnAgain.textContent = "继续下一轮";
@@ -707,7 +687,6 @@ function renderResult(r: RoundOver): void {
     btnExit.style.display = "none";
     btnSettle.classList.toggle("hidden", !offline && !isHost());
     btnSettle.classList.add("primary");
-    btnRestart.classList.toggle("hidden", !offline);
     setMenuVisible(!net.spectating || !!offline);
   }
   show("result");

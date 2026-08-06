@@ -195,22 +195,6 @@ export class GameEntry extends Component {
         this.net.endMatch();
         this.ui.show("none");
       },
-      onMenuRestart: () => {
-        if (!this.offline) return;
-        this.lastRound = null;
-        this.selected = -1;
-        this.discardArmed = -1;
-        this.showCaptured = false;
-        this.deferredReveal.clear();
-        this.matchQueue = [];
-        this.matchBusy = false;
-        this.hitTargetId = -1;
-        this.offline.start();
-        this.ui.show("none");
-        this.ui.setHelpVisible(true);
-        this.ui.setMenuVisible(true);
-        this.ui.toast("已重新开始");
-      },
       isHost: () => {
         if (this.offline) return true;
         if (!this.net.room || !this.net.state) return false;
@@ -222,7 +206,6 @@ export class GameEntry extends Component {
         if (!this.net.room || !this.net.state) return false;
         return this.net.state.hostSessionId === this.net.room.sessionId;
       },
-      canRestartMatch: () => !!this.offline && !this.lastRound?.allDone,
     });
 
     void loadCardAtlas().then((ok) => {

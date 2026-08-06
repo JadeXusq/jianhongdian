@@ -48,10 +48,8 @@ export interface LobbyCallbacks {
   onOpenRules(from: UiScreen): void;
   onMenuScores(): void;
   onMenuSettle(): void;
-  onMenuRestart(): void;
   isHost(): boolean;
   canSettleMatch(): boolean;
-  canRestartMatch(): boolean;
 }
 
 /** 大厅 / 房间等待 / 结算 / 引导 / 规则覆盖层 */
@@ -84,7 +82,6 @@ export class LobbyUI {
   private menuBtn!: Node;
   private settleBtn!: Node;
   private resultSettleBtn!: Node;
-  private resultRestartBtn!: Node;
   private againBtn!: Node;
   private scoresList!: Node;
   private scoresRound!: Label;
@@ -511,14 +508,12 @@ export class LobbyUI {
       : "继续下一轮";
     this.exitBtn.active = !!r.allDone;
     this.resultSettleBtn.active = !r.allDone && this.cb.canSettleMatch();
-    this.resultRestartBtn.active = !r.allDone && this.cb.canRestartMatch();
     if (r.allDone) {
       this.againBtn.setPosition(new Vec3(0, -195, 0));
       this.exitBtn.setPosition(new Vec3(0, -140, 0));
       this.paintBtn(this.againBtn, true);
     } else {
-      this.againBtn.setPosition(new Vec3(0, this.resultRestartBtn.active ? -95 : -140, 0));
-      this.resultRestartBtn.setPosition(new Vec3(0, -140, 0));
+      this.againBtn.setPosition(new Vec3(0, -140, 0));
       this.resultSettleBtn.setPosition(new Vec3(0, -195, 0));
       this.paintBtn(this.againBtn, false);
     }
@@ -788,10 +783,6 @@ export class LobbyUI {
       this.cb.onAgain()
     );
     this.againLbl = this.againBtn.getComponentInChildren(Label)!;
-    this.resultRestartBtn = this.makeBtn(panel, "重新开始", 0, -140, 180, 40, () =>
-      this.cb.onMenuRestart()
-    );
-    this.resultRestartBtn.active = false;
     this.exitBtn = this.makeBtn(panel, "返回大厅", 0, -140, 180, 40, () =>
       this.cb.onExit()
     );
