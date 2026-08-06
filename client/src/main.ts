@@ -41,9 +41,6 @@ void loadCardAtlas(assetBase);
 const view = new TableView($<HTMLCanvasElement>("table"), {
   onPickHand: (id) => pickHand(id),
   onPickTable: (id) => pickTable(id),
-  onToggleCaptured: () => {
-    view.showCaptured = !view.showCaptured;
-  },
   onCancelSelection: () => clearSelection(),
 });
 
@@ -839,7 +836,6 @@ function startOffline(): void {
     selected = -1;
     discardArmed = -1;
     lastRound = null;
-    view.showCaptured = false;
     view.resetAnimVisuals();
     if (localStorage.getItem("jhd.guided") !== "1") show("guide");
     else show("none");
@@ -900,7 +896,6 @@ net.onRoundStart = () => {
   selected = -1;
   discardArmed = -1;
   lastRound = null;
-  view.showCaptured = false;
   view.resetAnimVisuals();
   if (localStorage.getItem("jhd.guided") !== "1") {
     show("guide");

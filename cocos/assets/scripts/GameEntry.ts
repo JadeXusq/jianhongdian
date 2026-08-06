@@ -48,7 +48,6 @@ export class GameEntry extends Component {
   private hintText = "";
   private tableVisible = false;
   private matchBusy = false;
-  private showCaptured = false;
   private stockAnimCredit = 0;
   private wasMyTurn = false;
   private deferredReveal = new Set<number>();
@@ -392,7 +391,6 @@ export class GameEntry extends Component {
       this.discardArmed = -1;
       this.targets = [];
       this.lastRound = null;
-      this.showCaptured = false;
       this.pendingGain.clear();
       this.pendingCards.clear();
       this.pendingHand.clear();
@@ -653,7 +651,6 @@ export class GameEntry extends Component {
       this.discardArmed = -1;
       this.targets = [];
       this.lastRound = null;
-      this.showCaptured = false;
       this.pendingGain.clear();
       this.pendingCards.clear();
       this.pendingHand.clear();
@@ -1321,7 +1318,7 @@ export class GameEntry extends Component {
     );
 
     if (me) {
-      this.drawScoreBar(me, this.displayCaptured(me));
+      this.drawCapturedPile(this.displayCaptured(me));
     }
 
     if (this.hintText && !this.lastRound) {
@@ -1377,81 +1374,26 @@ export class GameEntry extends Component {
     );
   }
 
-  private drawScoreBar(me: any, cards: number[]): void {
-    const bar = new Node("ScoreBar");
-    bar.layer = Layers.Enum.UI_2D;
-    this.infoNode.addChild(bar);
-    const y = -DESIGN.height / 2 + HAND_W * CARD_RATIO + 110;
-    const x = -DESIGN.width / 2 + 90;
-    bar.setPosition(new Vec3(x, y, 0));
-    bar.addComponent(UITransform).setContentSize(new Size(160, 36));
-    const g = bar.addComponent(Graphics);
-    g.fillColor = new Color(8, 26, 20, 184);
-    g.roundRect(-80, -18, 160, 36, 10);
-    g.fill();
-    g.strokeColor = C.goldDim;
-    g.lineWidth = 1;
-    g.roundRect(-80, -18, 160, 36, 10);
-    g.stroke();
-    addLabel(
-      bar,
-      `已吃牌 ${cards.length}${this.showCaptured ? " ∧" : " ∨"}`,
-      0,
-      0,
-      15,
-      C.cream,
-      true
-    );
-    bar.on(Node.EventType.TOUCH_END, () => {
-      this.showCaptured = !this.showCaptured;
-      this.render();
-    });
-
-    if (!this.showCaptured) return;
-    const mobile = sys.isMobile;
-    const cw = mobile ? 36 : 44;
-    const gap = 6;
-    const cols = Math.min(Math.max(cards.length, 1), mobile ? 5 : 8);
-    const rows = Math.max(1, Math.ceil(Math.max(cards.length, 1) / cols));
-    const panelW = cols * (cw + gap) + 16;
-    const panelH = rows * (cw * CARD_RATIO + gap) + 48;
-    const panel = new Node("CapPanel");
-    panel.layer = Layers.Enum.UI_2D;
-    this.infoNode.addChild(panel);
-    const px = -DESIGN.width / 2 + panelW / 2 + 16;
-    const py = y + panelH / 2 + 24;
-    panel.setPosition(new Vec3(px, py, 0));
-    const pg = panel.addComponent(Graphics);
-    pg.fillColor = new Color(8, 26, 20, 235);
-    pg.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
-    pg.fill();
-    pg.strokeColor = C.gold;
-    pg.lineWidth = 1.5;
-    pg.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
-    pg.stroke();
-    addLabel(
-      panel,
-      cards.length ? "已吃牌（再点关闭）" : "暂无已吃牌",
-      0,
-      panelH / 2 - 16,
-      14,
-      C.gold,
-      true
-    );
+  private drawCapturedPile(cards: number[]): void {
+    if (!cards.length) return;
+    const cw = 54;
+    const originX = -DESIGN.width / 2 + 40;
+    const originY = -DESIGN.height / 2 + HAND_W * CARD_RATIO + 150;
+    const step = Math.min(3.2, 28 / Math.max(1, cards.length - 1 || 1));
     cards.forEach((id, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
       const c = createCard(id, cw);
-      c.setPosition(
-        new Vec3(
-          -panelW / 2 + 8 + col * (cw + gap),
-          panelH / 2 - 28 - row * (cw * CARD_RATIO + gap),
-          0
-        )
-      );
-      panel.addChild(c);
+      c.setPosition(new Vec3(originX + i * step, originY + i * step, 0));
+      this.infoNode.addChild(c);
     });
-    addLabel(panel, "∧", 0, -panelH / 2 + 14, 18, C.gold, true);
+    addLabel(
+      this.infoNode,
+      `${cards.length}`,
+      originX + (cards.length - 1) * step + cw + 18,
+      originY + 10,
+      14,
+      C.goldDim,
+      true
+    );
   }
 
   onPickHand(id: number): void {

@@ -82,7 +82,6 @@ interface Step {
 export interface TableCallbacks {
   onPickHand(cardId: number): void;
   onPickTable(cardId: number): void;
-  onToggleCaptured?(): void;
   onCancelSelection?(): void;
 }
 
@@ -116,8 +115,6 @@ export class TableView {
   private pendingCards = new Map<number, Set<number>>();
   /** 状态已扣手牌但出牌动画未完：余牌数先加回 */
   private pendingHand = new Map<number, number>();
-  private capturedHit: { x: number; y: number; w: number; h: number } | null =
-    null;
 
   /** 由外部每帧提供的渲染数据 */
   state: any = null;
@@ -127,8 +124,6 @@ export class TableView {
   targets: number[] = [];
   /** 弃牌二次确认中的牌 id，-1 表示无 */
   discardArmed = -1;
-  /** 展开得分堆明细 */
-  showCaptured = false;
   /** 外部置位：上家动画/状态抖动期间锁手牌与回合 UI */
   turnBlocked = false;
   /** 动画播放中仍高亮出手座位，避免回合指示提前跳走 */
@@ -215,14 +210,6 @@ export class TableView {
     if (this.animating) {
       this.skipHold();
       return;
-    }
-
-    if (this.capturedHit) {
-      const h = this.capturedHit;
-      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
-        this.cb.onToggleCaptured?.();
-        return;
-      }
     }
 
     // 手牌在上层，优先命中；同层从右往左（后绘制的在上）
@@ -655,8 +642,17 @@ export class TableView {
 
     this.pilePos.clear();
     const count = this.state.players.size;
-    for (let seat = 0; seat < count; seat++)
-      this.pilePos.set(seat, this.panelPos(seat));
+    for (let seat = 0; seat < count; seat++) {
+      this.pilePos.set(
+        seat,
+        seat === this.mySeat ? this.myCapturedPileOrigin() : this.panelPos(seat)
+      );
+    }
+  }
+
+  /** 自己已吃牌堆原点（左下，手牌上方） */
+  private myCapturedPileOrigin(): Pt {
+    return { x: 18, y: H - HAND_W * CARD_RATIO - 168 };
   }
 
   /** 座位在屏幕上的面板中心：自己在下，其余按人数排布 */
@@ -795,84 +791,29 @@ export class TableView {
     this.drawCaptured(ctx);
   }
 
-  /** 已吃牌：左下角固定入口，0 张也显示 */
+  /** 自己的已吃牌堆：直接摊开，后吃的画在最上面 */
   private drawCaptured(ctx: CanvasRenderingContext2D): void {
-    this.capturedHit = null;
     const me = [...this.state.players.values()].find(
       (p: any) => p.seat === this.mySeat
     ) as any;
     if (!me) return;
     const cards = this.displayCaptured(me);
-    const barW = 148;
-    const barH = 36;
-    const x = 14;
-    const y = H - HAND_W * CARD_RATIO - 78;
-    this.capturedHit = { x, y, w: barW, h: barH };
-
-    ctx.save();
-    roundRect(ctx, x, y, barW, barH, 10);
-    ctx.fillStyle = "rgba(8,26,20,0.72)";
-    ctx.fill();
-    ctx.strokeStyle = C.goldDim;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = C.cream;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `600 15px "Helvetica Neue", Arial, sans-serif`;
-    ctx.fillText(
-      `已吃牌 ${cards.length}${this.showCaptured ? " ∧" : " ∨"}`,
-      x + barW / 2,
-      y + barH / 2
-    );
-    ctx.restore();
-
-    if (!this.showCaptured) return;
-    const coarse = window.matchMedia("(pointer: coarse)").matches;
-    const cw = coarse ? 36 : 44;
-    const gap = 6;
-    const cols = Math.min(Math.max(cards.length, 1), coarse ? 5 : 8);
-    const rows = Math.max(1, Math.ceil(Math.max(cards.length, 1) / cols));
-    const panelW = cols * (cw + gap) + 16;
-    const panelH = rows * (cw * CARD_RATIO + gap) + 48;
-    const px = 14;
-    const py = Math.max(80, y - panelH - 8);
-    this.capturedHit = {
-      x: Math.min(x, px),
-      y: Math.min(y, py),
-      w: Math.max(x + barW, px + panelW) - Math.min(x, px),
-      h: Math.max(y + barH, py + panelH) - Math.min(y, py),
-    };
-    ctx.save();
-    roundRect(ctx, px, py, panelW, panelH, 12);
-    ctx.fillStyle = "rgba(8,26,20,0.92)";
-    ctx.fill();
-    ctx.strokeStyle = C.gold;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.fillStyle = C.gold;
-    ctx.textAlign = "center";
-    ctx.font = `600 14px "Songti SC", serif`;
-    ctx.fillText(
-      cards.length ? "已吃牌（再点关闭）" : "暂无已吃牌",
-      px + panelW / 2,
-      py + 18
-    );
+    if (!cards.length) return;
+    const origin = this.myCapturedPileOrigin();
+    const cw = 54;
+    const step = Math.min(3.2, 28 / Math.max(1, cards.length - 1 || 1));
     cards.forEach((id, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      drawCard(
-        ctx,
-        id,
-        px + 8 + col * (cw + gap),
-        py + 28 + row * (cw * CARD_RATIO + gap),
-        cw
-      );
+      drawCard(ctx, id, origin.x + i * step, origin.y - i * step, cw);
     });
-    ctx.fillStyle = C.gold;
-    ctx.font = `700 18px "Helvetica Neue", Arial, sans-serif`;
-    ctx.fillText("∧", px + panelW / 2, py + panelH - 12);
-    ctx.restore();
+    ctx.fillStyle = C.goldDim;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.font = `600 13px "Helvetica Neue", Arial, sans-serif`;
+    ctx.fillText(
+      `${cards.length}`,
+      origin.x + (cards.length - 1) * step + cw + 8,
+      origin.y + 4
+    );
   }
 
   private drawPanels(ctx: CanvasRenderingContext2D): void {
