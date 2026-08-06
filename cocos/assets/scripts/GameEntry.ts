@@ -157,7 +157,11 @@ export class GameEntry extends Component {
           this.ui.show("none");
           this.ui.setHelpVisible(true);
           this.ui.setEmotesVisible(!this.offline);
-          this.ui.setMenuVisible(true);
+          this.ui.setMenuVisible(
+            !this.lastRound?.allDone && (!!this.offline || !this.net.spectating)
+          );
+        } else if (this.lastRound) {
+          this.ui.show("result");
         } else {
           this.ui.show(this.net.room && !this.offline ? "room" : "lobby");
         }

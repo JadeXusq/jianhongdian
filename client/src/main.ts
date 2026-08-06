@@ -311,6 +311,7 @@ $("btn-rules").onclick = () => show("rules");
 $("btn-rules-close").onclick = () => {
   if (offline?.state.phase === "PLAYING" || net.state?.phase === "PLAYING")
     show("none");
+  else if (lastRound) show("result");
   else show(net.room ? "room" : "lobby");
 };
 $("btn-guide-ok").onclick = () => {

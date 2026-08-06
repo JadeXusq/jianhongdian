@@ -759,6 +759,11 @@ input:focus {
   padding: 14px 18px;
 }
 
+#ui.rot .compact-panel,
+#ui.rot .dialog-panel {
+  width: min(320px, calc(100% - 64px));
+}
+
 #ui.rot .lobby-panel {
   display: grid;
   grid-template-columns: minmax(230px, 0.9fr) minmax(300px, 1.1fr);
