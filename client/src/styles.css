@@ -44,7 +44,9 @@ body {
 #ui .mute,
 #ui .help,
 #ui .menu-btn,
-#ui .emotes {
+#ui .emotes,
+#ui .chat-toggle-btn,
+#ui .chat-panel {
   pointer-events: auto;
 }
 
@@ -678,18 +680,20 @@ input:focus {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
 }
 
-/* 聊天面板 */
+/* 聊天：右上静音下方，避开底部表情与已吃牌堆 */
 .chat-toggle-btn {
   position: fixed;
-  right: 8px;
-  bottom: 50px;
-  width: 38px;
-  height: 38px;
+  top: calc(58px + env(safe-area-inset-top));
+  right: calc(14px + env(safe-area-inset-right));
+  left: auto;
+  bottom: auto;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--gold-dim);
   border-radius: 50%;
-  background: rgba(8, 24, 18, 0.88);
-  color: var(--cream);
-  font-size: 18px;
+  background: rgba(8, 24, 18, 0.6);
+  color: var(--gold);
+  font-size: 16px;
   cursor: pointer;
   z-index: 6;
   display: flex;
@@ -715,13 +719,17 @@ input:focus {
 .chat-unread.hidden { display: none; }
 
 #ui.rot .chat-toggle-btn {
-  right: calc(8px + env(safe-area-inset-right));
-  bottom: calc(56px + env(safe-area-inset-bottom));
+  top: calc(58px + env(safe-area-inset-top));
+  right: calc(14px + env(safe-area-inset-right));
+  left: auto;
+  bottom: auto;
 }
 @media (pointer: coarse) and (orientation: landscape) {
   .chat-toggle-btn {
-    right: calc(8px + env(safe-area-inset-right));
-    bottom: calc(56px + env(safe-area-inset-bottom));
+    top: calc(58px + env(safe-area-inset-top));
+    right: calc(14px + env(safe-area-inset-right));
+    left: auto;
+    bottom: auto;
   }
 }
 

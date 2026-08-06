@@ -681,9 +681,9 @@ export class LobbyUI {
       this.root,
       "💬",
       DESIGN.width / 2 - 50,
-      -DESIGN.height / 2 + 50,
-      40,
-      40,
+      DESIGN.height / 2 - 90,
+      36,
+      36,
       () => this.setChatPanelOpen(!this.isChatOpen())
     );
     const badge = new Node("Unread");
@@ -703,7 +703,7 @@ export class LobbyUI {
 
   private buildChatPanel(): Node {
     const panel = this.panel("Chat", 320, 360);
-    panel.setPosition(new Vec3(DESIGN.width / 2 - 180, -40, 0));
+    panel.setPosition(new Vec3(DESIGN.width / 2 - 180, 20, 0));
     this.makeCloseX(panel, () => this.setChatPanelOpen(false));
     this.makeLabel(panel, "聊天记录", 0, 150, 20, C.gold);
 
