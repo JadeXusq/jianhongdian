@@ -406,10 +406,7 @@ input:focus {
 }
 
 .result-actions {
-  flex-direction: column;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
+  margin-top: 8px;
 }
 
 .seat .tag {
@@ -544,11 +541,16 @@ input:focus {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  max-height: min(78vh, 520px);
 }
 
 .rules-panel .title,
 .rules-panel .btn {
   flex: none;
+}
+
+.rules-panel .rules-body {
+  flex: 1;
 }
 
 /* 提示 */

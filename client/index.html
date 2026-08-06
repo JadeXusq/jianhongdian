@@ -94,10 +94,10 @@
           <h2 class="title small">本局结算</h2>
           <div id="result-dots" class="result-dots"></div>
           <div id="result-list" class="result-list"></div>
-          <div class="row result-actions">
-            <button id="btn-result-settle" class="btn hidden">结算本场</button>
+          <div class="dialog-actions result-actions">
+            <button id="btn-again" class="btn">再来一局</button>
             <button id="btn-exit" class="btn">返回大厅</button>
-            <button id="btn-again" class="btn primary">再来一局</button>
+            <button id="btn-result-settle" class="btn primary hidden">结算本场</button>
           </div>
         </div>
       </section>
@@ -151,7 +151,7 @@
 
       <!-- 规则 -->
       <section id="rules" class="screen hidden">
-        <div class="panel rules-panel">
+        <div class="panel rules-panel compact-panel">
           <h2 class="title small">玩法规则</h2>
           <div class="rules-body">
             <p>
@@ -198,9 +198,8 @@
           <button id="btn-menu-close" class="panel-x" title="关闭" aria-label="关闭">×</button>
           <h2 class="title small">菜单</h2>
           <button id="btn-menu-scores" class="btn">查看当前积分</button>
-          <button id="btn-menu-settle" class="btn hidden">结算对局</button>
           <button id="btn-menu-rules" class="btn">查看规则</button>
-          <button id="btn-menu-continue" class="btn primary hidden">继续下一轮</button>
+          <button id="btn-menu-settle" class="btn primary hidden">结算对局</button>
         </div>
       </section>
 

@@ -43,6 +43,8 @@ interface Fly {
   t: number;
   dur: number;
   faceUp: boolean;
+  /** 牌堆翻出：飞行中牌背缩→正面展开 */
+  flip?: boolean;
 }
 
 interface Popup {
@@ -292,8 +294,9 @@ export class TableView {
               to,
               w: TABLE_CARD_W,
               t: 0,
-              dur: 0.34,
-              faceUp: true,
+              dur: fromStock ? 0.48 : 0.34,
+              faceUp: !fromStock,
+              flip: fromStock,
             },
           ],
           popups: [],
@@ -333,8 +336,9 @@ export class TableView {
             to: hitSlot,
             w: TABLE_CARD_W,
             t: 0,
-            dur: 0.32,
-            faceUp: true,
+            dur: fromStock ? 0.48 : 0.32,
+            faceUp: !fromStock,
+            flip: fromStock,
           },
         ],
         popups: [],
@@ -379,18 +383,18 @@ export class TableView {
       this.steps.push({
         flies: [
           {
-            id: ev.card,
-            from: hitSlot,
-            to: { x: centerX - matchW - 10, y: centerY },
+            id: ev.target,
+            from: targetSlot,
+            to: { x: centerX + 10, y: centerY },
             w: matchW,
             t: 0,
             dur: 0.35,
             faceUp: true,
           },
           {
-            id: ev.target,
-            from: targetSlot,
-            to: { x: centerX + 10, y: centerY },
+            id: ev.card,
+            from: hitSlot,
+            to: { x: centerX - matchW - 10, y: centerY },
             w: matchW,
             t: 0,
             dur: 0.35,
@@ -424,8 +428,8 @@ export class TableView {
       this.steps.push({
         flies: [
           {
-            id: ev.card,
-            from: { x: centerX - matchW - 10, y: centerY },
+            id: ev.target,
+            from: { x: centerX + 10, y: centerY },
             to: pile,
             w: TABLE_CARD_W,
             t: 0,
@@ -433,8 +437,8 @@ export class TableView {
             faceUp: true,
           },
           {
-            id: ev.target,
-            from: { x: centerX + 10, y: centerY },
+            id: ev.card,
+            from: { x: centerX - matchW - 10, y: centerY },
             to: pile,
             w: TABLE_CARD_W,
             t: 0,
@@ -791,7 +795,7 @@ export class TableView {
     this.drawCaptured(ctx);
   }
 
-  /** 得分堆：默认显示总分，点击展开已吃牌 */
+  /** 已吃牌：左下角固定入口，0 张也显示 */
   private drawCaptured(ctx: CanvasRenderingContext2D): void {
     this.capturedHit = null;
     const me = [...this.state.players.values()].find(
@@ -799,14 +803,9 @@ export class TableView {
     ) as any;
     if (!me) return;
     const cards = this.displayCaptured(me);
-    if (cards.length === 0) return;
-    const score =
-      me.points != null
-        ? this.displayPoints(me)
-        : cards.reduce((s, id) => s + cardScore(id), 0);
-    const barW = 168;
+    const barW = 148;
     const barH = 36;
-    const x = (this.w - barW) / 2;
+    const x = 14;
     const y = H - HAND_W * CARD_RATIO - 78;
     this.capturedHit = { x, y, w: barW, h: barH };
 
@@ -822,7 +821,7 @@ export class TableView {
     ctx.textBaseline = "middle";
     ctx.font = `600 15px "Helvetica Neue", Arial, sans-serif`;
     ctx.fillText(
-      `得分 ${score} · ${cards.length}张${this.showCaptured ? " ∧" : " ∨"}`,
+      `已吃牌 ${cards.length}${this.showCaptured ? " ∧" : " ∨"}`,
       x + barW / 2,
       y + barH / 2
     );
@@ -832,15 +831,12 @@ export class TableView {
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     const cw = coarse ? 36 : 44;
     const gap = 6;
-    const cols = Math.min(cards.length, coarse ? 5 : 8);
-    const rows = Math.ceil(cards.length / cols);
+    const cols = Math.min(Math.max(cards.length, 1), coarse ? 5 : 8);
+    const rows = Math.max(1, Math.ceil(Math.max(cards.length, 1) / cols));
     const panelW = cols * (cw + gap) + 16;
     const panelH = rows * (cw * CARD_RATIO + gap) + 48;
-    // 触屏：贴左侧靠下，少挡桌面中心；桌面：居中浮于得分条上方
-    const px = coarse ? 14 : (this.w - panelW) / 2;
-    const py = coarse
-      ? Math.max(H * 0.42, y - panelH - 8)
-      : Math.max(80, y - panelH - 12);
+    const px = 14;
+    const py = Math.max(80, y - panelH - 8);
     this.capturedHit = {
       x: Math.min(x, px),
       y: Math.min(y, py),
@@ -857,7 +853,11 @@ export class TableView {
     ctx.fillStyle = C.gold;
     ctx.textAlign = "center";
     ctx.font = `600 14px "Songti SC", serif`;
-    ctx.fillText("已吃牌（再点关闭）", px + panelW / 2, py + 18);
+    ctx.fillText(
+      cards.length ? "已吃牌（再点关闭）" : "暂无已吃牌",
+      px + panelW / 2,
+      py + 18
+    );
     cards.forEach((id, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
@@ -983,6 +983,18 @@ export class TableView {
     if (!s) return;
     for (const f of s.flies) {
       const k = ease(Math.min(1, f.t / f.dur));
+      let faceUp = f.faceUp;
+      let scaleX = 1;
+      if (f.flip) {
+        const p = Math.min(1, f.t / f.dur);
+        if (p < 0.5) {
+          faceUp = false;
+          scaleX = 1 - p * 2;
+        } else {
+          faceUp = true;
+          scaleX = (p - 0.5) * 2;
+        }
+      }
       drawCard(
         ctx,
         f.id,
@@ -990,7 +1002,8 @@ export class TableView {
         f.from.y + (f.to.y - f.from.y) * k,
         f.w,
         {
-          faceUp: f.faceUp,
+          faceUp,
+          scaleX,
         }
       );
     }

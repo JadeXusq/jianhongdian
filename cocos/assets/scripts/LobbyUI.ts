@@ -44,11 +44,10 @@ export interface LobbyCallbacks {
   onExit(): void;
   onGuideOk(): void;
   onRulesClose(): void;
+  onOpenRules(from: UiScreen): void;
   onMenuScores(): void;
-  onMenuContinue(): void;
   onMenuSettle(): void;
   isHost(): boolean;
-  canContinueRound(): boolean;
   canSettleMatch(): boolean;
 }
 
@@ -69,8 +68,8 @@ export class LobbyUI {
   private helpBtn!: Node;
   private menuBtn!: Node;
   private settleBtn!: Node;
-  private continueBtn!: Node;
   private resultSettleBtn!: Node;
+  private againBtn!: Node;
   private scoresList!: Node;
   private scoresRound!: Label;
   private emoteBubble!: Label;
@@ -98,6 +97,7 @@ export class LobbyUI {
   private toastLbl!: Label;
   private toastTimer = 0;
   private settleBack: UiScreen = "menu";
+  private rulesBack: UiScreen = "lobby";
 
   constructor(
     private parent: Node,
@@ -131,8 +131,14 @@ export class LobbyUI {
       () => this.openMenu()
     );
     this.menuBtn.active = false;
-    this.helpBtn = this.makeBtn(this.root, "?", DESIGN.width / 2 - 70, DESIGN.height / 2 - 36, 36, 36, () =>
-      this.show("rules")
+    this.helpBtn = this.makeBtn(
+      this.root,
+      "?",
+      DESIGN.width / 2 - 70,
+      DESIGN.height / 2 - 36,
+      36,
+      36,
+      () => this.openRules(this.result.active ? "result" : "none")
     );
     this.helpBtn.active = false;
     this.emoteBubble = this.makeLabel(
@@ -194,8 +200,20 @@ export class LobbyUI {
 
   private openMenu(): void {
     this.settleBtn.active = this.cb.canSettleMatch();
-    this.continueBtn.active = this.cb.canContinueRound();
     this.show("menu");
+  }
+
+  openRules(from: UiScreen = "lobby"): void {
+    this.rulesBack = from;
+    this.show("rules");
+    this.setHelpVisible(false);
+    this.cb.onOpenRules(from);
+  }
+
+  private closeRules(): void {
+    const back = this.rulesBack;
+    this.show(back);
+    this.cb.onRulesClose();
   }
 
   renderScores(state: any, mySeat: number): void {
@@ -388,6 +406,15 @@ export class LobbyUI {
       : "继续下一轮";
     this.exitBtn.active = !!r.allDone;
     this.resultSettleBtn.active = !r.allDone && this.cb.canSettleMatch();
+    if (r.allDone) {
+      this.againBtn.setPosition(new Vec3(0, -195, 0));
+      this.exitBtn.setPosition(new Vec3(0, -140, 0));
+      this.paintBtn(this.againBtn, true);
+    } else {
+      this.againBtn.setPosition(new Vec3(0, -140, 0));
+      this.resultSettleBtn.setPosition(new Vec3(0, -195, 0));
+      this.paintBtn(this.againBtn, false);
+    }
   }
 
   private buildLobby(): Node {
@@ -435,7 +462,9 @@ export class LobbyUI {
     this.makeBtn(panel, "账号绑定", 75, -160, 125, 36, () =>
       this.cb.onAccount()
     );
-    this.makeBtn(panel, "查看规则", 0, -215, 120, 30, () => this.show("rules"));
+    this.makeBtn(panel, "查看规则", 0, -215, 120, 30, () =>
+      this.openRules("lobby")
+    );
     return panel;
   }
 
@@ -582,33 +611,27 @@ export class LobbyUI {
     this.resultList = new Node("ResultList");
     this.resultList.layer = Layers.Enum.UI_2D;
     panel.addChild(this.resultList);
-    const again = this.makeBtn(
-      panel,
-      "再来一局",
-      0,
-      -195,
-      180,
-      40,
-      () => this.cb.onAgain(),
-      true
+    this.againBtn = this.makeBtn(panel, "再来一局", 0, -140, 180, 40, () =>
+      this.cb.onAgain()
     );
-    this.againLbl = again.getComponentInChildren(Label)!;
+    this.againLbl = this.againBtn.getComponentInChildren(Label)!;
+    this.exitBtn = this.makeBtn(panel, "返回大厅", 0, -140, 180, 40, () =>
+      this.cb.onExit()
+    );
     this.resultSettleBtn = this.makeBtn(
       panel,
       "结算本场",
       0,
-      -140,
+      -195,
       180,
       40,
       () => {
         this.settleBack = "result";
         this.show("settle-confirm");
-      }
+      },
+      true
     );
     this.resultSettleBtn.active = false;
-    this.exitBtn = this.makeBtn(panel, "返回大厅", 0, -140, 180, 40, () =>
-      this.cb.onExit()
-    );
     return panel;
   }
 
@@ -647,19 +670,19 @@ export class LobbyUI {
   }
 
   private buildRules(): Node {
-    const panel = this.panel("Rules", 480, 440);
-    this.makeLabel(panel, "玩法规则", 0, 160, 28, C.gold);
+    const panel = this.panel("Rules", 280, 440);
+    this.makeLabel(panel, "玩法规则", 0, 160, 24, C.gold);
     const viewport = new Node("RulesViewport");
     viewport.layer = Layers.Enum.UI_2D;
     panel.addChild(viewport);
     viewport.setPosition(new Vec3(0, 10, 0));
-    viewport.addComponent(UITransform).setContentSize(new Size(430, 250));
+    viewport.addComponent(UITransform).setContentSize(new Size(250, 250));
     viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
 
     const content = new Node("RulesContent");
     content.layer = Layers.Enum.UI_2D;
     viewport.addChild(content);
-    content.addComponent(UITransform).setContentSize(new Size(430, 400));
+    content.addComponent(UITransform).setContentSize(new Size(250, 400));
     content.setPosition(new Vec3(0, -55, 0));
 
     const scroll = viewport.addComponent(ScrollView);
@@ -676,34 +699,33 @@ export class LobbyUI {
       "多轮：不限局数；首轮随机庄、之后逆时针；菜单可查分，房主可结算。",
     ];
     lines.forEach((t, i) =>
-      this.makeLabel(content, t, 0, 140 - i * 58, 15, C.cream)
+      this.makeLabel(content, t, 0, 140 - i * 58, 13, C.cream)
     );
-    this.makeBtn(panel, "明白了", 0, -170, 140, 40, () =>
-      this.cb.onRulesClose()
-    );
+    this.makeBtn(panel, "明白了", 0, -170, 140, 40, () => this.closeRules());
     return panel;
   }
 
   private buildMenu(): Node {
-    const panel = this.panel("Menu", 280, 300);
+    const panel = this.panel("Menu", 280, 260);
     this.makeCloseX(panel, () => this.show("none"));
-    this.makeLabel(panel, "菜单", 0, 110, 26, C.gold);
-    this.makeBtn(panel, "查看当前积分", 0, 50, 200, 40, () =>
+    this.makeLabel(panel, "菜单", 0, 90, 26, C.gold);
+    this.makeBtn(panel, "查看当前积分", 0, 35, 200, 40, () =>
       this.cb.onMenuScores()
     );
-    this.settleBtn = this.makeBtn(panel, "结算对局", 0, -50, 200, 40, () => {
-      this.settleBack = "menu";
-      this.show("settle-confirm");
-    });
-    this.makeBtn(panel, "查看规则", 0, 0, 200, 40, () => this.show("rules"));
-    this.continueBtn = this.makeBtn(
+    this.makeBtn(panel, "查看规则", 0, -20, 200, 40, () =>
+      this.openRules("menu")
+    );
+    this.settleBtn = this.makeBtn(
       panel,
-      "继续下一轮",
+      "结算对局",
       0,
-      -100,
+      -85,
       200,
       40,
-      () => this.cb.onMenuContinue(),
+      () => {
+        this.settleBack = "menu";
+        this.show("settle-confirm");
+      },
       true
     );
     return panel;
@@ -784,7 +806,19 @@ export class LobbyUI {
     parent.addChild(n);
     n.setPosition(new Vec3(x, y, 0));
     n.addComponent(UITransform).setContentSize(new Size(w, h));
-    const g = n.addComponent(Graphics);
+    this.paintBtn(n, primary);
+    this.makeLabel(n, text, 0, 0, 20, C.cream);
+    n.on(Node.EventType.TOUCH_END, onClick);
+    return n;
+  }
+
+  private paintBtn(n: Node, primary: boolean): void {
+    const ut = n.getComponent(UITransform);
+    const w = ut?.contentSize.width ?? 180;
+    const h = ut?.contentSize.height ?? 40;
+    let g = n.getComponent(Graphics);
+    if (!g) g = n.addComponent(Graphics);
+    g.clear();
     g.fillColor = primary ? C.seal : new Color(201, 169, 97, 40);
     g.roundRect(-w / 2, -h / 2, w, h, 8);
     g.fill();
@@ -792,9 +826,6 @@ export class LobbyUI {
     g.lineWidth = 1;
     g.roundRect(-w / 2, -h / 2, w, h, 8);
     g.stroke();
-    this.makeLabel(n, text, 0, 0, 20, C.cream);
-    n.on(Node.EventType.TOUCH_END, onClick);
-    return n;
   }
 
   private makeLabel(

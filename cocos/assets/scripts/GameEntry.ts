@@ -10,6 +10,7 @@ import {
   Size,
   Label,
   sys,
+  tween,
 } from "cc";
 import { createCard, addLabel, loadCardAtlas } from "./CardNode";
 import {
@@ -152,34 +153,33 @@ export class GameEntry extends Component {
         this.ui.setEmotesVisible(!this.offline);
         this.ui.setMenuVisible(true);
       },
+      onOpenRules: () => {
+        this.ui.setHelpVisible(false);
+      },
       onRulesClose: () => {
-        if (this.playState()?.phase === "PLAYING") {
-          this.ui.show("none");
+        if (this.ui.isOverlay()) {
+          this.ui.setHelpVisible(false);
+          return;
+        }
+        const playing = this.playState()?.phase === "PLAYING";
+        const midRound =
+          this.playState()?.phase === "ROUND_OVER" &&
+          !!this.lastRound &&
+          !this.lastRound.allDone;
+        if (playing || midRound) {
           this.ui.setHelpVisible(true);
-          this.ui.setEmotesVisible(!this.offline);
+          this.ui.setEmotesVisible(playing && !this.offline);
           this.ui.setMenuVisible(
             !this.lastRound?.allDone && (!!this.offline || !this.net.spectating)
           );
-        } else if (this.lastRound) {
-          this.ui.show("result");
         } else {
-          this.ui.show(this.net.room && !this.offline ? "room" : "lobby");
+          this.ui.setHelpVisible(false);
+          this.ui.setMenuVisible(false);
         }
       },
       onMenuScores: () => {
         const state = this.playState();
         if (state) this.ui.renderScores(state, this.mySeatNum());
-      },
-      onMenuContinue: () => {
-        if (this.offline) {
-          this.offline.continueRound();
-          this.lastRound = null;
-          this.ui.show("none");
-          return;
-        }
-        this.net.nextRound();
-        this.ui.toast("已确认，等待其他玩家…");
-        this.ui.show("none");
       },
       onMenuSettle: () => {
         if (this.offline) {
@@ -196,10 +196,6 @@ export class GameEntry extends Component {
         if (!this.net.room || !this.net.state) return false;
         return this.net.state.hostSessionId === this.net.room.sessionId;
       },
-      canContinueRound: () =>
-        !!this.lastRound &&
-        !this.lastRound.allDone &&
-        this.playState()?.phase === "ROUND_OVER",
       canSettleMatch: () => {
         if (this.lastRound?.allDone) return false;
         if (this.offline) return true;
@@ -759,14 +755,77 @@ export class GameEntry extends Component {
         this.pendingDiscardHands.push(e.player);
       }
     }
-    const stockFlip = events.some((e) => e.type === "FLIP" && e.fromStock);
-    if (stockFlip)
-      this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
-    const delay = stockFlip ? 0.4 : DISCARD_HOLD_S;
+    const stockFlip = events.find((e) => e.type === "FLIP" && e.fromStock);
+    if (stockFlip) {
+      const to =
+        stockFlip.awaitChoice
+          ? { x: -TABLE_CARD_W / 2, y: DESIGN.height / 2 - 140 }
+          : this.lastTablePos.get(stockFlip.card) ?? {
+              x: 0,
+              y: 40,
+            };
+      this.playStockFlip(stockFlip.card, to.x, to.y, () => {
+        this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
+        this.revealDeferredFlips();
+      });
+      return;
+    }
     this.unschedule(this.revealDeferredFlips);
-    this.scheduleOnce(this.revealDeferredFlips, delay);
+    this.scheduleOnce(this.revealDeferredFlips, DISCARD_HOLD_S);
     this.syncSelection();
     if (this.tableVisible && !this.matchBusy) this.render();
+  }
+
+  private playStockFlip(
+    cardId: number,
+    toX: number,
+    toY: number,
+    onDone: () => void
+  ): void {
+    this.matchBusy = true;
+    const layer = new Node("StockFlip");
+    layer.layer = Layers.Enum.UI_2D;
+    this.matchNode.active = true;
+    this.matchNode.addChild(layer);
+    const from = new Vec3(-540, 220, 0);
+    const back = createCard(0, TABLE_CARD_W, { faceUp: false });
+    back.setPosition(from.clone());
+    layer.addChild(back);
+    const mid = new Vec3((from.x + toX) / 2, (from.y + toY) / 2, 0);
+    tween(back)
+      .to(
+        0.22,
+        { position: mid, scale: new Vec3(0.02, 1, 1) },
+        { easing: "sineIn" }
+      )
+      .call(() => {
+        layer.removeAllChildren();
+        const face = createCard(cardId, TABLE_CARD_W, { faceUp: true });
+        face.setPosition(mid.clone());
+        face.setScale(new Vec3(0.02, 1, 1));
+        layer.addChild(face);
+        tween(face)
+          .to(
+            0.26,
+            {
+              position: new Vec3(toX, toY, 0),
+              scale: new Vec3(1, 1, 1),
+            },
+            { easing: "sineOut" }
+          )
+          .call(() => {
+            layer.removeFromParent();
+            if (!this.matchQueue.length) {
+              this.matchNode.removeAllChildren();
+              this.matchNode.active = false;
+              this.matchBusy = false;
+            }
+            onDone();
+          })
+          .start();
+      })
+      .start();
+    if (this.tableVisible) this.render();
   }
 
   private playNextMatch(): void {
@@ -775,6 +834,20 @@ export class GameEntry extends Component {
     this.matchBusy = true;
     this.visualTurnSeat = next.seat;
     this.lingerCards.add(next.targetId);
+    if (next.fromStock) {
+      const hitPos = this.lastTablePos.get(next.targetId) ?? { x: 0, y: 40 };
+      const hitY = hitPos.y - TABLE_CARD_W * CARD_RATIO * 0.28;
+      this.playStockFlip(next.cardId, hitPos.x + 6, hitY, () => {
+        this.hitTargetId = next.targetId;
+        if (this.tableVisible) this.render();
+        this.unschedule(this.finishHitThenMatch);
+        this.scheduleOnce(
+          this.finishHitThenMatch,
+          FLY_TARGET_HOLD_S + HIT_HOLD_S
+        );
+      });
+      return;
+    }
     this.hitTargetId = next.targetId;
     if (this.tableVisible) this.render();
     this.unschedule(this.finishHitThenMatch);
@@ -848,12 +921,12 @@ export class GameEntry extends Component {
       sg.fill();
     }
 
-    const left = createCard(cardId, w);
     const right = createCard(targetId, w);
-    left.setPosition(new Vec3(-w - 10, h / 2, 0));
+    const left = createCard(cardId, w);
     right.setPosition(new Vec3(10, h / 2, 0));
-    this.matchNode.addChild(left);
+    left.setPosition(new Vec3(-w - 10, h / 2, 0));
     this.matchNode.addChild(right);
+    this.matchNode.addChild(left);
     addLabel(
       this.matchNode,
       gain > 0 ? `MATCH! +${gain}` : "MATCH!",
@@ -1248,8 +1321,7 @@ export class GameEntry extends Component {
     );
 
     if (me) {
-      const shownCards = this.displayCaptured(me);
-      if (shownCards.length) this.drawScoreBar(me, shownCards);
+      this.drawScoreBar(me, this.displayCaptured(me));
     }
 
     if (this.hintText && !this.lastRound) {
@@ -1306,27 +1378,24 @@ export class GameEntry extends Component {
   }
 
   private drawScoreBar(me: any, cards: number[]): void {
-    const score =
-      me.points != null
-        ? this.displayPoints(me)
-        : cards.reduce((s, id) => s + cardScore(id), 0);
     const bar = new Node("ScoreBar");
     bar.layer = Layers.Enum.UI_2D;
     this.infoNode.addChild(bar);
     const y = -DESIGN.height / 2 + HAND_W * CARD_RATIO + 110;
-    bar.setPosition(new Vec3(0, y, 0));
-    bar.addComponent(UITransform).setContentSize(new Size(180, 36));
+    const x = -DESIGN.width / 2 + 90;
+    bar.setPosition(new Vec3(x, y, 0));
+    bar.addComponent(UITransform).setContentSize(new Size(160, 36));
     const g = bar.addComponent(Graphics);
     g.fillColor = new Color(8, 26, 20, 184);
-    g.roundRect(-90, -18, 180, 36, 10);
+    g.roundRect(-80, -18, 160, 36, 10);
     g.fill();
     g.strokeColor = C.goldDim;
     g.lineWidth = 1;
-    g.roundRect(-90, -18, 180, 36, 10);
+    g.roundRect(-80, -18, 160, 36, 10);
     g.stroke();
     addLabel(
       bar,
-      `得分 ${score} · ${cards.length}张${this.showCaptured ? " ∧" : " ∨"}`,
+      `已吃牌 ${cards.length}${this.showCaptured ? " ∧" : " ∨"}`,
       0,
       0,
       15,
@@ -1342,15 +1411,14 @@ export class GameEntry extends Component {
     const mobile = sys.isMobile;
     const cw = mobile ? 36 : 44;
     const gap = 6;
-    const cols = Math.min(cards.length, mobile ? 5 : 8);
-    const rows = Math.ceil(cards.length / cols);
+    const cols = Math.min(Math.max(cards.length, 1), mobile ? 5 : 8);
+    const rows = Math.max(1, Math.ceil(Math.max(cards.length, 1) / cols));
     const panelW = cols * (cw + gap) + 16;
     const panelH = rows * (cw * CARD_RATIO + gap) + 48;
     const panel = new Node("CapPanel");
     panel.layer = Layers.Enum.UI_2D;
     this.infoNode.addChild(panel);
-    // 移动端靠左下，少挡桌面中心
-    const px = mobile ? -DESIGN.width / 2 + panelW / 2 + 16 : 0;
+    const px = -DESIGN.width / 2 + panelW / 2 + 16;
     const py = y + panelH / 2 + 24;
     panel.setPosition(new Vec3(px, py, 0));
     const pg = panel.addComponent(Graphics);
@@ -1361,7 +1429,15 @@ export class GameEntry extends Component {
     pg.lineWidth = 1.5;
     pg.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
     pg.stroke();
-    addLabel(panel, "已吃牌（再点关闭）", 0, panelH / 2 - 16, 14, C.gold, true);
+    addLabel(
+      panel,
+      cards.length ? "已吃牌（再点关闭）" : "暂无已吃牌",
+      0,
+      panelH / 2 - 16,
+      14,
+      C.gold,
+      true
+    );
     cards.forEach((id, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);

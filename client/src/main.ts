@@ -121,6 +121,13 @@ muteBtn.onclick = () => {
 
 let toastTimer = 0;
 let settleBack: "result" | "game-menu" = "game-menu";
+let rulesBack:
+  | "lobby"
+  | "room"
+  | "result"
+  | "game-menu"
+  | "none" = "lobby";
+
 function toast(msg: string, ms = 2200): void {
   const el = $("toast");
   el.textContent = msg;
@@ -307,18 +314,50 @@ $<HTMLInputElement>("room-code-input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") void guard(submitRoomCode);
 });
 
-$("btn-rules").onclick = () => show("rules");
-$("btn-rules-close").onclick = () => {
-  if (offline?.state.phase === "PLAYING" || net.state?.phase === "PLAYING")
+function openRules(from: typeof rulesBack = "lobby"): void {
+  rulesBack = from;
+  show("rules");
+  $("btn-help").classList.add("hidden");
+}
+
+function closeRules(): void {
+  const back = rulesBack;
+  if (back === "none") {
     show("none");
-  else if (lastRound) show("result");
-  else show(net.room ? "room" : "lobby");
-};
+    restoreTableChrome();
+    return;
+  }
+  show(back);
+  if (back === "result") {
+    const mid = !!lastRound && !lastRound.allDone;
+    const showChrome = mid && (!net.spectating || !!offline);
+    $("btn-help").classList.toggle("hidden", !showChrome);
+    setMenuVisible(showChrome);
+    return;
+  }
+  if (back === "game-menu") $("btn-help").classList.add("hidden");
+}
+
+function restoreTableChrome(): void {
+  const state = playState();
+  const playing = state?.phase === "PLAYING";
+  const midRound =
+    state?.phase === "ROUND_OVER" && !!lastRound && !lastRound.allDone;
+  const showChrome =
+    (playing || midRound) && (!net.spectating || !!offline);
+  $("btn-help").classList.toggle("hidden", !showChrome);
+  setMenuVisible(showChrome);
+}
+
+$("btn-rules").onclick = () => openRules(net.room ? "room" : "lobby");
+$("btn-rules-close").onclick = () => closeRules();
 $("btn-guide-ok").onclick = () => {
   localStorage.setItem("jhd.guided", "1");
   show("none");
+  restoreTableChrome();
 };
-$("btn-help").onclick = () => show("rules");
+$("btn-help").onclick = () =>
+  openRules(shown("result") ? "result" : "none");
 
 function isHost(): boolean {
   if (offline) return true;
@@ -331,10 +370,7 @@ function setMenuVisible(v: boolean): void {
 }
 
 function openGameMenu(): void {
-  const midRound =
-    !!lastRound && !lastRound.allDone && playState()?.phase === "ROUND_OVER";
   const canSettle = isHost() && !lastRound?.allDone;
-  $("btn-menu-continue").classList.toggle("hidden", !midRound);
   $("btn-menu-settle").classList.toggle("hidden", !canSettle);
   show("game-menu");
 }
@@ -367,19 +403,15 @@ function renderScores(): void {
 }
 
 $("btn-menu").onclick = () => openGameMenu();
-$("btn-menu-close").onclick = () => show("none");
-$("btn-menu-rules").onclick = () => show("rules");
-$("btn-menu-scores").onclick = () => renderScores();
-$("btn-scores-close").onclick = () => show("none");
-$("btn-menu-continue").onclick = () => {
-  if (offline) {
-    offline.continueRound();
-    show("none");
-    return;
-  }
-  net.nextRound();
-  toast("已确认，等待其他玩家…");
+$("btn-menu-close").onclick = () => {
   show("none");
+  restoreTableChrome();
+};
+$("btn-menu-rules").onclick = () => openRules("game-menu");
+$("btn-menu-scores").onclick = () => renderScores();
+$("btn-scores-close").onclick = () => {
+  show("none");
+  restoreTableChrome();
 };
 $("btn-menu-settle").onclick = () => {
   settleBack = "game-menu";
@@ -642,16 +674,23 @@ function renderResult(r: RoundOver): void {
   const btnSettle = $<HTMLButtonElement>("btn-result-settle");
   if (r.allDone) {
     btnAgain.textContent = offline ? "再练一局" : "再来一局";
+    btnAgain.classList.add("primary");
     btnExit.style.display = "";
     btnSettle.classList.add("hidden");
     setMenuVisible(false);
   } else {
     btnAgain.textContent = "继续下一轮";
+    btnAgain.classList.remove("primary");
     btnExit.style.display = "none";
     btnSettle.classList.toggle("hidden", !offline && !isHost());
+    btnSettle.classList.add("primary");
     setMenuVisible(!net.spectating || !!offline);
   }
   show("result");
+  $("btn-help").classList.toggle(
+    "hidden",
+    !(!r.allDone && (!net.spectating || !!offline))
+  );
 }
 
 // ---------- 出牌交互 ----------

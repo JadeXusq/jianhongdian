@@ -36,6 +36,8 @@ export interface CardStyle {
   discard?: boolean;
   /** 可选目标脉冲高亮用时间戳（秒） */
   pulse?: number;
+  /** 水平缩放（翻牌用，绕牌心） */
+  scaleX?: number;
 }
 
 interface AtlasMeta {
@@ -112,6 +114,16 @@ export function drawCard(
   const h = w * CARD_RATIO;
   const r = w * 0.09;
   const faceUp = style.faceUp !== false;
+  const sx = Math.max(0.02, Math.abs(style.scaleX ?? 1));
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+
+  ctx.save();
+  if (sx !== 1) {
+    ctx.translate(cx, cy);
+    ctx.scale(sx, 1);
+    ctx.translate(-cx, -cy);
+  }
 
   ctx.save();
   ctx.shadowColor = C.shadow;
@@ -174,6 +186,7 @@ export function drawCard(
     ctx.fillText("弃", x + w / 2, y + h / 2);
     ctx.restore();
   }
+  ctx.restore();
 }
 
 function blitAtlas(
