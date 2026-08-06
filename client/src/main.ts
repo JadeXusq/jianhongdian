@@ -367,10 +367,6 @@ function setMenuVisible(v: boolean): void {
 function openGameMenu(): void {
   const canSettle = isHost() && !lastRound?.allDone;
   $("btn-menu-settle").classList.toggle("hidden", !canSettle);
-  $("btn-menu-restart").classList.toggle(
-    "hidden",
-    !offline || !!lastRound?.allDone
-  );
   setChatPanelOpen(false);
   show("game-menu");
 }
@@ -418,10 +414,6 @@ $("btn-scores-close").onclick = () => {
 $("btn-menu-settle").onclick = () => {
   settleBack = "game-menu";
   show("settle-confirm");
-};
-$("btn-menu-restart").onclick = () => {
-  if (!offline) return;
-  restartOffline();
 };
 $("btn-result-settle").onclick = () => {
   settleBack = "result";

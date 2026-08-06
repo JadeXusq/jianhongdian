@@ -83,7 +83,6 @@ export class LobbyUI {
   private helpBtn!: Node;
   private menuBtn!: Node;
   private settleBtn!: Node;
-  private restartBtn!: Node;
   private resultSettleBtn!: Node;
   private resultRestartBtn!: Node;
   private againBtn!: Node;
@@ -298,7 +297,6 @@ export class LobbyUI {
 
   private openMenu(): void {
     this.settleBtn.active = this.cb.canSettleMatch();
-    this.restartBtn.active = this.cb.canRestartMatch();
     this.setChatPanelOpen(false);
     this.show("menu");
   }
@@ -885,24 +883,20 @@ export class LobbyUI {
   }
 
   private buildMenu(): Node {
-    const panel = this.panel("Menu", 280, 300);
+    const panel = this.panel("Menu", 280, 260);
     this.makeCloseX(panel, () => this.show("none"));
-    this.makeLabel(panel, "菜单", 0, 110, 26, C.gold);
-    this.makeBtn(panel, "查看当前积分", 0, 50, 200, 40, () =>
+    this.makeLabel(panel, "菜单", 0, 90, 26, C.gold);
+    this.makeBtn(panel, "查看当前积分", 0, 30, 200, 40, () =>
       this.cb.onMenuScores()
     );
-    this.makeBtn(panel, "查看规则", 0, 0, 200, 40, () =>
+    this.makeBtn(panel, "查看规则", 0, -20, 200, 40, () =>
       this.openRules("menu")
     );
-    this.restartBtn = this.makeBtn(panel, "重新开始对局", 0, -50, 200, 40, () =>
-      this.cb.onMenuRestart()
-    );
-    this.restartBtn.active = false;
     this.settleBtn = this.makeBtn(
       panel,
       "结算对局",
       0,
-      -105,
+      -75,
       200,
       40,
       () => {
