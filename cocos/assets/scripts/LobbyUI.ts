@@ -70,6 +70,8 @@ export class LobbyUI {
   private chatToggle!: Node;
   private chatUnreadLbl!: Label;
   private chatLogLbl!: Label;
+  private chatContent!: Node;
+  private chatScroll!: ScrollView;
   private chatInput!: EditBox;
   private chatLog: Array<{
     name: string;
@@ -270,7 +272,16 @@ export class LobbyUI {
       }
       return `${mark}${e.name}：${e.text}`;
     });
-    this.chatLogLbl.string = lines.join("\n") || "暂无消息";
+    const text = lines.join("\n") || "暂无消息";
+    this.chatLogLbl.string = text;
+    const lineCount = Math.max(1, text.split("\n").length);
+    const h = Math.max(200, lineCount * 22 + 16);
+    const contentUt = this.chatContent.getComponent(UITransform)!;
+    contentUt.setContentSize(new Size(280, h));
+    this.chatLogLbl.node.setPosition(new Vec3(0, h / 2 - 8, 0));
+    const logUt = this.chatLogLbl.node.getComponent(UITransform)!;
+    logUt.setContentSize(new Size(270, h));
+    this.chatScroll.scrollToBottom(0.05);
   }
 
   setHelpVisible(v: boolean): void {
@@ -695,38 +706,47 @@ export class LobbyUI {
   }
 
   private buildChatPanel(): Node {
-    const panel = this.panel("Chat", 320, 360);
+    const panel = this.panel("Chat", 320, 340);
     panel.setPosition(new Vec3(DESIGN.width / 2 - 180, 20, 0));
     this.makeCloseX(panel, () => this.setChatPanelOpen(false));
-    this.makeLabel(panel, "聊天记录", 0, 150, 20, C.gold);
+    this.makeLabel(panel, "聊天记录", 0, 140, 20, C.gold);
 
     const viewport = new Node("ChatViewport");
     viewport.layer = Layers.Enum.UI_2D;
     panel.addChild(viewport);
-    viewport.setPosition(new Vec3(0, 20, 0));
-    viewport.addComponent(UITransform).setContentSize(new Size(290, 220));
+    viewport.setPosition(new Vec3(0, 10, 0));
+    viewport.addComponent(UITransform).setContentSize(new Size(290, 200));
     viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
 
-    const content = new Node("ChatContent");
-    content.layer = Layers.Enum.UI_2D;
-    viewport.addChild(content);
-    content.addComponent(UITransform).setContentSize(new Size(280, 220));
-    content.setPosition(new Vec3(0, 0, 0));
+    this.chatContent = new Node("ChatContent");
+    this.chatContent.layer = Layers.Enum.UI_2D;
+    viewport.addChild(this.chatContent);
+    this.chatContent
+      .addComponent(UITransform)
+      .setContentSize(new Size(280, 200));
+    this.chatContent.setPosition(new Vec3(0, 0, 0));
 
-    this.chatLogLbl = this.makeLabel(content, "暂无消息", 0, 0, 13, C.cream);
+    this.chatLogLbl = this.makeLabel(
+      this.chatContent,
+      "暂无消息",
+      0,
+      92,
+      13,
+      C.cream
+    );
     this.chatLogLbl.overflow = Label.Overflow.RESIZE_HEIGHT;
     this.chatLogLbl.horizontalAlign = Label.HorizontalAlign.LEFT;
     this.chatLogLbl.verticalAlign = Label.VerticalAlign.TOP;
     const logUt = this.chatLogLbl.node.getComponent(UITransform)!;
-    logUt.setContentSize(new Size(270, 220));
+    logUt.setContentSize(new Size(270, 200));
 
-    const scroll = viewport.addComponent(ScrollView);
-    scroll.content = content;
-    scroll.horizontal = false;
-    scroll.vertical = true;
+    this.chatScroll = viewport.addComponent(ScrollView);
+    this.chatScroll.content = this.chatContent;
+    this.chatScroll.horizontal = false;
+    this.chatScroll.vertical = true;
 
-    this.chatInput = this.makeEdit(panel, -40, -140, 200, 34, "说点什么…");
-    this.makeBtn(panel, "发送", 110, -140, 70, 34, () => {
+    this.chatInput = this.makeEdit(panel, -40, -130, 200, 34, "说点什么…");
+    this.makeBtn(panel, "发送", 110, -130, 70, 34, () => {
       const text = (this.chatInput.string || "").trim().slice(0, 200);
       if (!text) return;
       this.cb.onChat(text);
@@ -839,19 +859,20 @@ export class LobbyUI {
 
   private buildRules(): Node {
     const panel = this.panel("Rules", 280, 440);
-    this.makeLabel(panel, "玩法规则", 0, 160, 24, C.gold);
+    this.makeCloseX(panel, () => this.closeRules());
+    this.makeLabel(panel, "玩法规则", 0, 180, 24, C.gold);
     const viewport = new Node("RulesViewport");
     viewport.layer = Layers.Enum.UI_2D;
     panel.addChild(viewport);
-    viewport.setPosition(new Vec3(0, 10, 0));
-    viewport.addComponent(UITransform).setContentSize(new Size(250, 250));
+    viewport.setPosition(new Vec3(0, -10, 0));
+    viewport.addComponent(UITransform).setContentSize(new Size(250, 320));
     viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
 
     const content = new Node("RulesContent");
     content.layer = Layers.Enum.UI_2D;
     viewport.addChild(content);
     content.addComponent(UITransform).setContentSize(new Size(250, 400));
-    content.setPosition(new Vec3(0, -55, 0));
+    content.setPosition(new Vec3(0, -40, 0));
 
     const scroll = viewport.addComponent(ScrollView);
     scroll.content = content;
@@ -869,7 +890,6 @@ export class LobbyUI {
     lines.forEach((t, i) =>
       this.makeLabel(content, t, 0, 140 - i * 58, 13, C.cream)
     );
-    this.makeBtn(panel, "明白了", 0, -170, 140, 40, () => this.closeRules());
     return panel;
   }
 
@@ -900,13 +920,13 @@ export class LobbyUI {
   }
 
   private buildScores(): Node {
-    const panel = this.panel("Scores", 320, 340);
+    const panel = this.panel("Scores", 320, 320);
+    this.makeCloseX(panel, () => this.show("none"));
     this.makeLabel(panel, "当前积分", 0, 120, 26, C.gold);
     this.scoresRound = this.makeLabel(panel, "", 0, 85, 15, C.goldDim);
     this.scoresList = new Node("ScoresList");
     this.scoresList.layer = Layers.Enum.UI_2D;
     panel.addChild(this.scoresList);
-    this.makeBtn(panel, "关闭", 0, -130, 130, 38, () => this.show("none"));
     return panel;
   }
 

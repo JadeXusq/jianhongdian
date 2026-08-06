@@ -348,8 +348,7 @@ input:focus {
 .result-panel > .row,
 .guide-panel > .title,
 .guide-panel > .btn,
-#rank .title,
-#rank .btn {
+#rank .title {
   flex: none;
 }
 
@@ -546,13 +545,13 @@ input:focus {
   max-height: min(78vh, 520px);
 }
 
-.rules-panel .title,
-.rules-panel .btn {
+.rules-panel .title {
   flex: none;
 }
 
 .rules-panel .rules-body {
   flex: 1;
+  min-height: 0;
 }
 
 /* 提示 */
@@ -739,9 +738,11 @@ input:focus {
   bottom: 56px;
   transform: translateX(-50%);
   width: min(340px, 88vw);
-  max-height: 50vh;
+  height: min(46vh, 360px);
+  max-height: min(46vh, 360px);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: rgba(8, 24, 18, 0.96);
   border: 1px solid var(--gold-dim);
   border-radius: 14px;
@@ -765,10 +766,13 @@ input:focus {
   letter-spacing: 1px;
 }
 .chat-log {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  max-height: calc(50vh - 90px);
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 4px 0;
   font-size: 13px;
   color: var(--cream);
@@ -783,6 +787,7 @@ input:focus {
 .chat-log .chat-msg .chat-emote { color: var(--gold); }
 .chat-log .chat-msg.chat-mine .chat-name { color: var(--gold); }
 .chat-input-row {
+  flex: none;
   display: flex;
   gap: 6px;
   margin-top: 8px;
@@ -818,9 +823,9 @@ input:focus {
   top: 8px;
   transform: none;
   width: min(300px, calc(100% - 130px));
-  max-height: 70vh;
+  height: min(62vh, 360px);
+  max-height: min(62vh, 360px);
 }
-#ui.rot .chat-log { max-height: calc(70vh - 90px); }
 
 @media (pointer: coarse) and (orientation: landscape) {
   .chat-panel {
@@ -830,9 +835,9 @@ input:focus {
     top: 8px;
     transform: none;
     width: min(300px, calc(100% - 130px));
-    max-height: 70vh;
+    height: min(62vh, 360px);
+    max-height: min(62vh, 360px);
   }
-  .chat-log { max-height: calc(70vh - 90px); }
 }
 
 /* 对局内菜单 */
@@ -1106,11 +1111,6 @@ input:focus {
 
 #ui.rot .rules-panel .title {
   margin: 0 0 4px;
-}
-
-#ui.rot .rules-panel .btn {
-  margin-top: 8px;
-  padding: 9px 0;
 }
 
 @media (orientation: landscape) and (max-height: 500px) {
