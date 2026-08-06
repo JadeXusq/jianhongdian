@@ -663,9 +663,10 @@ export class TableView {
     }
   }
 
-  /** 自己已吃牌堆原点（左下，手牌上方） */
+  /** 自己已吃牌堆原点（左下角，避开用户信息） */
   private myCapturedPileOrigin(): Pt {
-    return { x: 18, y: H - HAND_W * CARD_RATIO - 168 };
+    const cardH = 54 * CARD_RATIO;
+    return { x: 18, y: H - cardH - 14 };
   }
 
   /** 座位在屏幕上的面板中心：自己在下，其余按人数排布 */
@@ -846,8 +847,8 @@ export class TableView {
     const rows = Math.ceil(cards.length / cols);
     const panelW = cols * (tw + gap) + 16;
     const panelH = rows * (tw * CARD_RATIO + gap) + 48;
-    const px = 14;
-    const py = Math.max(80, origin.y - panelH - 12);
+    const px = 200;
+    const py = H - panelH - 16;
     this.capturedHit = {
       x: Math.min(this.capturedHit.x, px),
       y: Math.min(this.capturedHit.y, py),

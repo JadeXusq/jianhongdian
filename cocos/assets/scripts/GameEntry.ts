@@ -1398,14 +1398,21 @@ export class GameEntry extends Component {
     if (!cards.length) return;
     const cw = 54;
     const originX = -DESIGN.width / 2 + 40;
-    const originY = -DESIGN.height / 2 + HAND_W * CARD_RATIO + 150;
+    const originY = -DESIGN.height / 2 + cw * CARD_RATIO + 14;
     const step = Math.min(3.2, 28 / Math.max(1, cards.length - 1 || 1));
     const stackW = cw + (cards.length - 1) * step + 36;
     const stackH = cw * CARD_RATIO + (cards.length - 1) * step;
+    const stackOffset = (cards.length - 1) * step;
     const hit = new Node("CapHit");
     hit.layer = Layers.Enum.UI_2D;
     this.infoNode.addChild(hit);
-    hit.setPosition(new Vec3(originX + stackW / 2, originY + stackH / 2, 0));
+    hit.setPosition(
+      new Vec3(
+        originX + stackW / 2,
+        originY + stackOffset / 2 - (cw * CARD_RATIO) / 2,
+        0
+      )
+    );
     hit.addComponent(UITransform).setContentSize(new Size(stackW, stackH));
     hit.on(Node.EventType.TOUCH_END, () => {
       this.showCaptured = !this.showCaptured;
@@ -1437,8 +1444,8 @@ export class GameEntry extends Component {
     const panel = new Node("CapPanel");
     panel.layer = Layers.Enum.UI_2D;
     this.infoNode.addChild(panel);
-    const px = -DESIGN.width / 2 + panelW / 2 + 16;
-    const py = originY + panelH / 2 + 24;
+    const px = -DESIGN.width / 2 + panelW / 2 + 200;
+    const py = -DESIGN.height / 2 + panelH / 2 + 16;
     panel.setPosition(new Vec3(px, py, 0));
     panel.addComponent(UITransform).setContentSize(new Size(panelW, panelH));
     const pg = panel.addComponent(Graphics);
