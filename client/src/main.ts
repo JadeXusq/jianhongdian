@@ -332,8 +332,9 @@ function setMenuVisible(v: boolean): void {
 function openGameMenu(): void {
   const midRound =
     !!lastRound && !lastRound.allDone && playState()?.phase === "ROUND_OVER";
+  const canSettle = isHost() && !lastRound?.allDone;
   $("btn-menu-continue").classList.toggle("hidden", !midRound);
-  $("btn-menu-settle").classList.toggle("hidden", !isHost());
+  $("btn-menu-settle").classList.toggle("hidden", !canSettle);
   show("game-menu");
 }
 
@@ -642,13 +643,14 @@ function renderResult(r: RoundOver): void {
     btnAgain.textContent = offline ? "再练一局" : "再来一局";
     btnExit.style.display = "";
     btnSettle.classList.add("hidden");
+    setMenuVisible(false);
   } else {
     btnAgain.textContent = "继续下一轮";
     btnExit.style.display = "none";
     btnSettle.classList.toggle("hidden", !offline && !isHost());
+    setMenuVisible(!net.spectating || !!offline);
   }
   show("result");
-  if (!r.allDone) setMenuVisible(!net.spectating || !!offline);
 }
 
 // ---------- 出牌交互 ----------
@@ -779,7 +781,7 @@ function startOffline(): void {
       if (!overlay) refreshTurnHint();
     } else if (state.phase === "ROUND_OVER") {
       $("emotes").classList.add("hidden");
-      setMenuVisible(true);
+      setMenuVisible(!lastRound?.allDone);
     }
     syncSelection();
   };
@@ -849,7 +851,7 @@ net.onState = (state) => {
   } else if (state.phase === "ROUND_OVER") {
     $("emotes").classList.add("hidden");
     $("btn-help").classList.toggle("hidden", net.spectating);
-    setMenuVisible(!net.spectating);
+    setMenuVisible(!net.spectating && !lastRound?.allDone);
   }
   syncSelection();
 };

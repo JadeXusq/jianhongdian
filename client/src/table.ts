@@ -343,14 +343,13 @@ export class TableView {
         flies: [],
         popups: [
           {
-            text: "命中",
+            text: "√",
             at: {
               x: targetSlot.x + TABLE_CARD_W / 2,
-              y: targetSlot.y - 12,
+              y: targetSlot.y + TABLE_CARD_W * CARD_RATIO * 0.35,
             },
             t: 0,
             hit: true,
-            sparkle: true,
             gain,
           },
         ],
@@ -1006,18 +1005,13 @@ export class TableView {
       }
       const k = Math.min(1, p.t / 0.7);
       if (p.hit) {
-        const pulse = 0.55 + 0.45 * Math.sin(this.animClock * 10);
+        const pulse = 0.7 + 0.3 * Math.sin(this.animClock * 10);
         ctx.save();
         ctx.globalAlpha = pulse;
-        ctx.strokeStyle = C.seal;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(p.at.x, p.at.y + 40, 28 + pulse * 8, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = C.gold;
+        ctx.fillStyle = "#6fcf97";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.font = `700 16px "Songti SC", serif`;
+        ctx.font = `700 42px "Helvetica Neue", Arial, sans-serif`;
         ctx.fillText(p.text, p.at.x, p.at.y);
         ctx.restore();
         continue;

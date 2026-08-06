@@ -196,6 +196,12 @@ export class GameEntry extends Component {
         !!this.lastRound &&
         !this.lastRound.allDone &&
         this.playState()?.phase === "ROUND_OVER",
+      canSettleMatch: () => {
+        if (this.lastRound?.allDone) return false;
+        if (this.offline) return true;
+        if (!this.net.room || !this.net.state) return false;
+        return this.net.state.hostSessionId === this.net.room.sessionId;
+      },
     });
 
     void loadCardAtlas().then((ok) => {
@@ -376,7 +382,7 @@ export class GameEntry extends Component {
       } else if (state.phase === "ROUND_OVER") {
         this.ui.setEmotesVisible(false);
         this.ui.setHelpVisible(true);
-        this.ui.setMenuVisible(true);
+        this.ui.setMenuVisible(!this.lastRound?.allDone);
       }
       if (this.tableVisible && !this.matchBusy) this.render();
     };
@@ -484,7 +490,9 @@ export class GameEntry extends Component {
     if (!state) return;
     this.ui.setEmotesVisible(false);
     this.ui.setHelpVisible(true);
-    this.ui.setMenuVisible(!!this.offline || !this.net.spectating);
+    this.ui.setMenuVisible(
+      !r.allDone && (!!this.offline || !this.net.spectating)
+    );
     this.ui.renderResult(
       r,
       state,
@@ -634,7 +642,7 @@ export class GameEntry extends Component {
       } else if (state.phase === "ROUND_OVER") {
         this.ui.setEmotesVisible(false);
         this.ui.setHelpVisible(true);
-        this.ui.setMenuVisible(!this.net.spectating);
+        this.ui.setMenuVisible(!this.net.spectating && !this.lastRound?.allDone);
       }
       if (this.tableVisible && !this.matchBusy) this.render();
     };
@@ -1105,11 +1113,11 @@ export class GameEntry extends Component {
       if (isHit) {
         addLabel(
           this.tableNode,
-          "命中",
+          "√",
           pos.x + TABLE_CARD_W / 2,
-          pos.y + TABLE_CARD_W * CARD_RATIO * 0.5 + 18,
-          20,
-          C.gold,
+          pos.y + TABLE_CARD_W * CARD_RATIO * 0.35,
+          36,
+          new Color(111, 207, 151),
           true
         );
       }

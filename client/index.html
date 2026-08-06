@@ -69,7 +69,7 @@
       </section>
 
       <section id="room-code-dialog" class="screen hidden">
-        <div class="panel dialog-panel">
+        <div class="panel dialog-panel compact-panel">
           <h2 id="room-code-title" class="title small">加入房间</h2>
           <label class="field dialog-field">
             <span>房号</span>
@@ -194,18 +194,18 @@
       <button id="btn-mute" class="mute" title="音效">♪</button>
 
       <section id="game-menu" class="screen hidden">
-        <div class="panel menu-panel">
+        <div class="panel menu-panel compact-panel">
+          <button id="btn-menu-close" class="panel-x" title="关闭" aria-label="关闭">×</button>
           <h2 class="title small">菜单</h2>
           <button id="btn-menu-scores" class="btn">查看当前积分</button>
           <button id="btn-menu-continue" class="btn primary hidden">继续下一轮</button>
           <button id="btn-menu-settle" class="btn primary hidden">结算对局</button>
           <button id="btn-menu-rules" class="btn">查看规则</button>
-          <button id="btn-menu-close" class="btn">关闭</button>
         </div>
       </section>
 
       <section id="scores" class="screen hidden">
-        <div class="panel">
+        <div class="panel compact-panel">
           <h2 class="title small">当前积分</h2>
           <p class="subtitle" id="scores-round"></p>
           <div id="scores-list" class="result-list"></div>
@@ -214,7 +214,7 @@
       </section>
 
       <section id="settle-confirm" class="screen hidden">
-        <div class="panel menu-panel">
+        <div class="panel compact-panel">
           <h2 class="title small">结算对局</h2>
           <p class="subtitle">确定结算本场对局？</p>
           <div class="row">

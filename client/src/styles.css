@@ -101,8 +101,9 @@ body {
   text-align: center;
 }
 
-.dialog-panel {
-  width: min(360px, 88vw);
+.dialog-panel,
+.compact-panel {
+  width: min(300px, 86vw);
 }
 
 .dialog-field {
@@ -112,6 +113,29 @@ body {
 .dialog-field input {
   text-align: center;
   letter-spacing: 6px;
+}
+
+.panel-x {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(243, 234, 214, 0.7);
+  font-size: 26px;
+  line-height: 1;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  cursor: pointer;
+}
+
+.panel-x:active {
+  color: var(--gold);
+  transform: scale(0.94);
 }
 
 /* 四角回纹装饰 */
@@ -665,6 +689,10 @@ input:focus {
 
 .menu-panel .btn {
   margin-top: 10px;
+}
+
+.menu-panel {
+  padding-top: 30px;
 }
 
 /* 对局内规则入口 */

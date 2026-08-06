@@ -49,6 +49,7 @@ export interface LobbyCallbacks {
   onMenuSettle(): void;
   isHost(): boolean;
   canContinueRound(): boolean;
+  canSettleMatch(): boolean;
 }
 
 /** 大厅 / 房间等待 / 结算 / 引导 / 规则覆盖层 */
@@ -192,7 +193,7 @@ export class LobbyUI {
   }
 
   private openMenu(): void {
-    this.settleBtn.active = this.cb.isHost();
+    this.settleBtn.active = this.cb.canSettleMatch();
     this.continueBtn.active = this.cb.canContinueRound();
     this.show("menu");
   }
@@ -386,7 +387,7 @@ export class LobbyUI {
       ? againAllDone
       : "继续下一轮";
     this.exitBtn.active = !!r.allDone;
-    this.resultSettleBtn.active = !r.allDone && this.cb.isHost();
+    this.resultSettleBtn.active = !r.allDone && this.cb.canSettleMatch();
   }
 
   private buildLobby(): Node {
@@ -439,16 +440,16 @@ export class LobbyUI {
   }
 
   private buildRoomCodeDialog(): Node {
-    const panel = this.panel("RoomCodeDialog", 380, 280);
-    this.roomCodeTitle = this.makeLabel(panel, "加入房间", 0, 90, 28, C.gold);
-    this.makeLabel(panel, "房号", -125, 25, 17, C.goldDim);
-    this.codeBox = this.makeEdit(panel, 25, 20, 220, 40, "请输入6位房号");
+    const panel = this.panel("RoomCodeDialog", 300, 240);
+    this.roomCodeTitle = this.makeLabel(panel, "加入房间", 0, 75, 24, C.gold);
+    this.makeLabel(panel, "房号", -105, 18, 16, C.goldDim);
+    this.codeBox = this.makeEdit(panel, 20, 14, 190, 36, "请输入6位房号");
     this.codeBox.inputMode = EditBox.InputMode.NUMERIC;
     this.codeBox.maxLength = 6;
-    this.makeBtn(panel, "确认", -80, -70, 130, 40, () =>
+    this.makeBtn(panel, "确认", -70, -60, 120, 38, () =>
       this.submitRoomCode()
     );
-    this.makeBtn(panel, "取消", 80, -70, 130, 40, () => this.show("lobby"));
+    this.makeBtn(panel, "取消", 70, -60, 120, 38, () => this.show("lobby"));
     return panel;
   }
 
@@ -647,42 +648,42 @@ export class LobbyUI {
   }
 
   private buildMenu(): Node {
-    const panel = this.panel("Menu", 320, 380);
-    this.makeLabel(panel, "菜单", 0, 140, 28, C.gold);
-    this.makeBtn(panel, "查看当前积分", 0, 70, 220, 42, () =>
+    const panel = this.panel("Menu", 280, 300);
+    this.makeCloseX(panel, () => this.show("none"));
+    this.makeLabel(panel, "菜单", 0, 110, 26, C.gold);
+    this.makeBtn(panel, "查看当前积分", 0, 50, 200, 40, () =>
       this.cb.onMenuScores()
     );
-    this.continueBtn = this.makeBtn(panel, "继续下一轮", 0, 10, 220, 42, () =>
+    this.continueBtn = this.makeBtn(panel, "继续下一轮", 0, 0, 200, 40, () =>
       this.cb.onMenuContinue()
     );
-    this.settleBtn = this.makeBtn(panel, "结算对局", 0, -50, 220, 42, () => {
+    this.settleBtn = this.makeBtn(panel, "结算对局", 0, -50, 200, 40, () => {
       this.settleBack = "menu";
       this.show("settle-confirm");
     });
-    this.makeBtn(panel, "查看规则", 0, -110, 220, 42, () => this.show("rules"));
-    this.makeBtn(panel, "关闭", 0, -170, 160, 40, () => this.show("none"));
+    this.makeBtn(panel, "查看规则", 0, -100, 200, 40, () => this.show("rules"));
     return panel;
   }
 
   private buildScores(): Node {
-    const panel = this.panel("Scores", 420, 380);
-    this.makeLabel(panel, "当前积分", 0, 140, 28, C.gold);
-    this.scoresRound = this.makeLabel(panel, "", 0, 100, 16, C.goldDim);
+    const panel = this.panel("Scores", 320, 340);
+    this.makeLabel(panel, "当前积分", 0, 120, 26, C.gold);
+    this.scoresRound = this.makeLabel(panel, "", 0, 85, 15, C.goldDim);
     this.scoresList = new Node("ScoresList");
     this.scoresList.layer = Layers.Enum.UI_2D;
     panel.addChild(this.scoresList);
-    this.makeBtn(panel, "关闭", 0, -150, 140, 40, () => this.show("none"));
+    this.makeBtn(panel, "关闭", 0, -130, 130, 38, () => this.show("none"));
     return panel;
   }
 
   private buildSettleConfirm(): Node {
-    const panel = this.panel("SettleConfirm", 360, 240);
-    this.makeLabel(panel, "结算对局", 0, 70, 26, C.gold);
-    this.makeLabel(panel, "确定结算本场对局？", 0, 20, 18, C.cream);
-    this.makeBtn(panel, "确定结算", -80, -70, 140, 42, () =>
+    const panel = this.panel("SettleConfirm", 300, 210);
+    this.makeLabel(panel, "结算对局", 0, 60, 24, C.gold);
+    this.makeLabel(panel, "确定结算本场对局？", 0, 18, 17, C.cream);
+    this.makeBtn(panel, "确定结算", -75, -60, 130, 40, () =>
       this.cb.onMenuSettle()
     );
-    this.makeBtn(panel, "取消", 80, -70, 120, 42, () =>
+    this.makeBtn(panel, "取消", 75, -60, 110, 40, () =>
       this.show(this.settleBack)
     );
     return panel;
@@ -702,6 +703,19 @@ export class LobbyUI {
     g.roundRect(-w / 2, -h / 2, w, h, 16);
     g.stroke();
     return n;
+  }
+
+  private makeCloseX(parent: Node, onClick: () => void): void {
+    const ut = parent.getComponent(UITransform);
+    const w = ut?.contentSize.width ?? 280;
+    const h = ut?.contentSize.height ?? 300;
+    const n = new Node("CloseX");
+    n.layer = Layers.Enum.UI_2D;
+    parent.addChild(n);
+    n.setPosition(new Vec3(w / 2 - 22, h / 2 - 22, 0));
+    n.addComponent(UITransform).setContentSize(new Size(36, 36));
+    this.makeLabel(n, "×", 0, 0, 28, new Color(243, 234, 214, 180));
+    n.on(Node.EventType.TOUCH_END, onClick);
   }
 
   private makeBtn(
