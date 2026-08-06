@@ -422,15 +422,20 @@ export class GameRoom extends Room<RoomState> {
 
   private static readonly EMOTES = new Set([
     "加油",
-    "好棋",
+    "好牌",
     "厉害",
     "等等",
     "哈哈哈",
   ]);
+  private lastEmoteAt = new Map<string, number>();
 
   private onEmote(client: Client, msg: { id?: string }): void {
     const text = (msg?.id || "").slice(0, 8);
     if (!GameRoom.EMOTES.has(text)) return;
+    const now = Date.now();
+    const prev = this.lastEmoteAt.get(client.sessionId) ?? 0;
+    if (now - prev < 1200) return;
+    this.lastEmoteAt.set(client.sessionId, now);
     const p = this.state.players.get(client.sessionId);
     const name = p?.name ?? "观众";
     const seat = p?.seat ?? -1;

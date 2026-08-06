@@ -261,7 +261,7 @@ export class LobbyUI {
   showEmote(name: string, id: string): void {
     const icons: Record<string, string> = {
       加油: "💪",
-      好棋: "👏",
+      好牌: "👏",
       厉害: "👍",
       等等: "⏳",
       哈哈哈: "😄",
@@ -272,7 +272,7 @@ export class LobbyUI {
     clearTimeout(this.emoteTimer);
     this.emoteTimer = setTimeout(() => {
       this.emoteBubble.node.active = false;
-    }, 3000) as unknown as number;
+    }, 2800) as unknown as number;
   }
 
   playerName(): string {
@@ -566,7 +566,7 @@ export class LobbyUI {
     this.root.addChild(bar);
     // 右侧竖排，避开底部手牌点击区
     bar.setPosition(new Vec3(DESIGN.width / 2 - 56, -DESIGN.height / 2 + 170, 0));
-    const list = ["加油", "好棋", "厉害", "等等", "哈哈哈"];
+    const list = ["加油", "好牌", "厉害", "等等", "哈哈哈"];
     list.forEach((text, i) => {
       this.makeBtn(bar, text, 0, i * 38, 88, 32, () => this.cb.onEmote(text));
     });

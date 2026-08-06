@@ -432,9 +432,9 @@ $("btn-result-settle").onclick = () => {
 $("btn-settle-cancel").onclick = () => show(settleBack);
 $("btn-settle-ok").onclick = () => {
   if (offline) {
-    const r = offline.endMatch();
+    view.resetAnimVisuals();
+    offline.endMatch();
     show("none");
-    if (r.deferred) toast("本轮结束后将结算本场");
     return;
   }
   net.endMatch();
@@ -844,7 +844,7 @@ function startOffline(): void {
         shown("scores") ||
         shown("settle-confirm");
       if (!overlay) show("none");
-      $("emotes").classList.add("hidden");
+      $("emotes").classList.toggle("hidden", overlay);
       $("btn-help").classList.toggle("hidden", overlay);
       setMenuVisible(!overlay);
       if (!overlay) refreshTurnHint();
@@ -955,30 +955,50 @@ net.onRoundOver = (r) => {
   queueRoundOver(r);
 };
 
-$("emotes").addEventListener("click", (e) => {
-  const btn = (e.target as HTMLElement).closest("button");
-  if (!btn || !net.room) return;
-  const id = (btn as HTMLButtonElement).dataset.e;
-  if (id) net.emote(id);
-});
-
 const EMOTE_ICON: Record<string, string> = {
   加油: "💪",
-  好棋: "👏",
+  好牌: "👏",
   厉害: "👍",
   等等: "⏳",
   哈哈哈: "😄",
 };
-
+const EMOTE_COOLDOWN_MS = 1200;
+let lastEmoteAt = 0;
 let emoteTimer = 0;
-net.onEmote = (e) => {
+
+function showEmoteBubble(name: string, id: string): void {
   const el = $("emote-bubble");
-  const icon = EMOTE_ICON[e.id] ?? "💬";
-  el.textContent = `${icon} ${e.name}：${e.id}`;
+  const icon = EMOTE_ICON[id] ?? "💬";
+  el.textContent = `${icon} ${name}：${id}`;
   el.classList.remove("hidden");
   clearTimeout(emoteTimer);
-  emoteTimer = window.setTimeout(() => el.classList.add("hidden"), 3000);
-};
+  emoteTimer = window.setTimeout(() => el.classList.add("hidden"), 2800);
+}
+
+function sendEmote(id: string): void {
+  if (!EMOTE_ICON[id]) return;
+  const now = Date.now();
+  if (now - lastEmoteAt < EMOTE_COOLDOWN_MS) {
+    toast("发送太快了");
+    return;
+  }
+  lastEmoteAt = now;
+  if (offline) {
+    showEmoteBubble(playerName(), id);
+    return;
+  }
+  if (!net.room) return;
+  net.emote(id);
+}
+
+$("emotes").addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest("button");
+  if (!btn) return;
+  const id = (btn as HTMLButtonElement).dataset.e;
+  if (id) sendEmote(id);
+});
+
+net.onEmote = (e) => showEmoteBubble(e.name, e.id);
 
 net.onError = (msg) => {
   toast(msg);

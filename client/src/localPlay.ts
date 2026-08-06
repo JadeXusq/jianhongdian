@@ -118,12 +118,23 @@ export class LocalPlay {
     this.afterMove(events);
   }
 
-  /** 本机玩家即房主：结算本场 */
+  /** 本机玩家即房主：结算本场（人机立即结束，不等本轮） */
   endMatch(): { deferred: boolean } {
     if (this.matchClosed) return { deferred: false };
-    if (this.state.phase === "PLAYING") {
-      this.settleAfterRound = true;
-      return { deferred: true };
+    clearTimeout(this.aiTimer);
+    this.settleAfterRound = false;
+    if (this.state.phase === "PLAYING" && this.game) {
+      const base = 240 / this.playerCount;
+      for (let i = 0; i < this.playerCount; i++) {
+        const pts = this.game.players[i].captured.reduce(
+          (s, id) => s + cardScore(id),
+          0
+        );
+        this.totals[i] += pts - base;
+      }
+      this.game = null;
+      this.closeMatch();
+      return { deferred: false };
     }
     if (this.state.phase === "ROUND_OVER") {
       this.closeMatch();

@@ -117,9 +117,7 @@ export class GameEntry extends Component {
       },
       onAccCreate: (name) => this.guard(() => this.doAccCreate(name)),
       onAccBind: (id, tok) => this.guard(() => this.doAccBind(id, tok)),
-      onEmote: (id) => {
-        if (!this.offline) this.net.emote(id);
-      },
+      onEmote: (id) => this.sendEmote(id),
       onReady: () => {
         if (this.offline) return;
         const me = this.net.state?.players.get(this.net.room!.sessionId);
@@ -150,7 +148,7 @@ export class GameEntry extends Component {
         }
         this.ui.show("none");
         this.ui.setHelpVisible(true);
-        this.ui.setEmotesVisible(!this.offline);
+        this.ui.setEmotesVisible(true);
         this.ui.setMenuVisible(true);
       },
       onOpenRules: () => {
@@ -168,7 +166,7 @@ export class GameEntry extends Component {
           !this.lastRound.allDone;
         if (playing || midRound) {
           this.ui.setHelpVisible(true);
-          this.ui.setEmotesVisible(playing && !this.offline);
+          this.ui.setEmotesVisible(playing);
           this.ui.setMenuVisible(
             !this.lastRound?.allDone && (!!this.offline || !this.net.spectating)
           );
@@ -183,9 +181,12 @@ export class GameEntry extends Component {
       },
       onMenuSettle: () => {
         if (this.offline) {
-          const r = this.offline.endMatch();
+          this.matchBusy = false;
+          this.matchQueue = [];
+          this.hitTargetId = -1;
+          this.deferredReveal.clear();
+          this.offline.endMatch();
           this.ui.show("none");
-          if (r.deferred) this.ui.toast("本轮结束后将结算本场");
           return;
         }
         this.net.endMatch();
@@ -390,7 +391,7 @@ export class GameEntry extends Component {
         this.setTableVisible(true);
         if (!this.ui.isOverlay()) {
           this.ui.show("none");
-          this.ui.setEmotesVisible(false);
+          this.ui.setEmotesVisible(true);
           this.ui.setHelpVisible(true);
           this.ui.setMenuVisible(true);
         }
@@ -437,7 +438,7 @@ export class GameEntry extends Component {
         this.ui.setMenuVisible(false);
       } else {
         this.ui.show("none");
-        this.ui.setEmotesVisible(false);
+        this.ui.setEmotesVisible(true);
         this.ui.setHelpVisible(true);
         this.ui.setMenuVisible(true);
       }
@@ -1526,6 +1527,31 @@ export class GameEntry extends Component {
     }
     if (this.selected < 0 || this.targets.indexOf(id) < 0) return;
     this.send(this.selected, id);
+  }
+
+  private lastEmoteAt = 0;
+  private static readonly EMOTE_IDS = new Set([
+    "加油",
+    "好牌",
+    "厉害",
+    "等等",
+    "哈哈哈",
+  ]);
+
+  private sendEmote(id: string): void {
+    if (!GameEntry.EMOTE_IDS.has(id)) return;
+    const now = Date.now();
+    if (now - this.lastEmoteAt < 1200) {
+      this.ui.toast("发送太快了");
+      return;
+    }
+    this.lastEmoteAt = now;
+    if (this.offline) {
+      this.ui.showEmote(this.ui.playerName(), id);
+      return;
+    }
+    if (!this.net.room) return;
+    this.net.emote(id);
   }
 
   private send(cardId: number, targetId?: number): void {
