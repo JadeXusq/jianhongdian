@@ -861,6 +861,21 @@ input:focus {
   margin-top: 10px;
 }
 
+#scores .panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: min(78vh, 480px);
+}
+
+#scores .result-list {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
 .menu-panel {
   padding-top: 30px;
 }
