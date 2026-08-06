@@ -63,7 +63,7 @@ export class LocalPlay {
   readonly humanId = HUMAN;
   private aiTimer = 0;
   private humanName: string;
-  private aiName = "机";
+  private aiName = "机器人";
   private playerCount: number;
   private round = 0;
   private totals: number[] = [];

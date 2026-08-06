@@ -234,7 +234,9 @@ export class LobbyUI {
         (p.totalNet > 0 ? "+" : "") + p.totalNet;
       this.makeLabel(
         this.scoresList,
-        `${i + 1}. ${p.name}${p.isAi ? "〔机〕" : ""}${mark}  本轮${p.points}  总${net}`,
+        `${i + 1}. ${p.name}${
+          p.isAi && !String(p.name).startsWith("机器人") ? "〔机〕" : ""
+        }${mark}  本轮${p.points}  总${net}`,
         0,
         50 - i * 36,
         18,
@@ -323,7 +325,9 @@ export class LobbyUI {
       if (p) {
         const dup = (nameCount.get(p.name) ?? 0) > 1;
         const label = dup ? `${p.name}·座${i + 1}` : p.name;
-        line = `${label}${p.isAi ? "〔机〕" : ""}${
+        line = `${label}${
+          p.isAi && !String(p.name).startsWith("机器人") ? "〔机〕" : ""
+        }${
           p.sessionId === mySessionId ? "（我）" : ""
         }  ${p.ready ? "已准备" : "等待中"}`;
       }
@@ -399,7 +403,9 @@ export class LobbyUI {
         (r.allDone ? ` | 总 ${row.p.totalNet}` : ` | 总 ${row.p.totalNet}`);
       this.makeLabel(
         this.resultList,
-        `${rank}. ${row.p.name}${row.p.isAi ? "〔机〕" : ""}${mark}  ${row.points}分  ${net}`,
+        `${rank}. ${row.p.name}${
+          row.p.isAi && !String(row.p.name).startsWith("机器人") ? "〔机〕" : ""
+        }${mark}  ${row.points}分  ${net}`,
         0,
         50 - i * 36,
         20,

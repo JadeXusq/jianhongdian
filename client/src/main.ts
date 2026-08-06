@@ -394,7 +394,9 @@ function renderScores(): void {
       <div class="res${p.seat === mySeat ? " me" : ""}${i === 0 ? " top" : ""}">
         <span class="rank">${i + 1}</span>
         <span class="who">${p.name}${
-          p.isAi ? '<span class="ai-tag">机</span>' : ""
+          p.isAi && !String(p.name).startsWith("机器人")
+            ? '<span class="ai-tag">机</span>'
+            : ""
         }</span>
         <span class="calc">本轮 ${p.points}</span>
         <span class="net ${p.totalNet > 0 ? "win" : p.totalNet < 0 ? "lose" : ""}">${
@@ -568,7 +570,9 @@ function renderRoom(state: any): void {
       const mine = p.sessionId === net.room?.sessionId;
       div.innerHTML = `<div class="avatar">${label.slice(0, 1)}</div>
          <div class="who">${label}${
-           p.isAi ? '<span class="ai-tag">机</span>' : ""
+           p.isAi && !String(p.name).startsWith("机器人")
+             ? '<span class="ai-tag">机</span>'
+             : ""
          }${
            mine ? "（我）" : ""
          }</div>
@@ -681,7 +685,9 @@ function renderResult(r: RoundOver): void {
       }">
         <span class="rank">${i === 0 ? "胜" : i + 1}</span>
         <span class="who">${row.p.name}${
-          row.p.isAi ? '<span class="ai-tag">机</span>' : ""
+          row.p.isAi && !String(row.p.name).startsWith("机器人")
+            ? '<span class="ai-tag">机</span>'
+            : ""
         }</span>
         <span class="calc">${row.points} − ${r.base}${
         r.allDone || row.p.totalNet !== undefined
