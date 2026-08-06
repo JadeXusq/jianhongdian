@@ -440,16 +440,25 @@ export class LobbyUI {
   }
 
   private buildRoomCodeDialog(): Node {
-    const panel = this.panel("RoomCodeDialog", 300, 240);
-    this.roomCodeTitle = this.makeLabel(panel, "加入房间", 0, 75, 24, C.gold);
-    this.makeLabel(panel, "房号", -105, 18, 16, C.goldDim);
-    this.codeBox = this.makeEdit(panel, 20, 14, 190, 36, "请输入6位房号");
+    const panel = this.panel("RoomCodeDialog", 300, 270);
+    this.roomCodeTitle = this.makeLabel(panel, "加入房间", 0, 90, 24, C.gold);
+    this.makeLabel(panel, "房号", -105, 35, 16, C.goldDim);
+    this.codeBox = this.makeEdit(panel, 20, 30, 190, 36, "请输入6位房号");
     this.codeBox.inputMode = EditBox.InputMode.NUMERIC;
     this.codeBox.maxLength = 6;
-    this.makeBtn(panel, "确认", -70, -60, 120, 38, () =>
-      this.submitRoomCode()
+    this.makeBtn(panel, "取消", 0, -35, 180, 38, () =>
+      this.show("lobby")
     );
-    this.makeBtn(panel, "取消", 70, -60, 120, 38, () => this.show("lobby"));
+    this.makeBtn(
+      panel,
+      "确认",
+      0,
+      -85,
+      180,
+      40,
+      () => this.submitRoomCode(),
+      true
+    );
     return panel;
   }
 
@@ -491,10 +500,7 @@ export class LobbyUI {
     this.accIdBox = this.makeEdit(panel, 40, 45, 220, 36, "accountId");
     this.makeLabel(panel, "凭证", -150, 0, 16, C.goldDim);
     this.accTokenBox = this.makeEdit(panel, 40, -5, 220, 36, "token");
-    this.makeBtn(panel, "创建并绑定", -80, -70, 150, 40, () =>
-      this.cb.onAccCreate(this.playerName())
-    );
-    this.makeBtn(panel, "绑定已有", 90, -70, 130, 40, () => {
+    this.makeBtn(panel, "绑定已有", 0, -60, 180, 40, () => {
       const id = (this.accIdBox.string || "").trim();
       const tok = (this.accTokenBox.string || "").trim();
       if (!id || !tok) {
@@ -503,8 +509,18 @@ export class LobbyUI {
       }
       this.cb.onAccBind(id, tok);
     });
-    this.accHintLbl = this.makeLabel(panel, "", 0, -120, 14, C.goldDim);
-    this.makeBtn(panel, "返回", 0, -160, 120, 36, () => this.show("lobby"));
+    this.makeBtn(panel, "返回", 0, -95, 180, 36, () => this.show("lobby"));
+    this.accHintLbl = this.makeLabel(panel, "", 0, -128, 14, C.goldDim);
+    this.makeBtn(
+      panel,
+      "创建并绑定",
+      0,
+      -170,
+      180,
+      40,
+      () => this.cb.onAccCreate(this.playerName()),
+      true
+    );
     return panel;
   }
 
@@ -541,8 +557,15 @@ export class LobbyUI {
     this.aiBtn = this.makeBtn(panel, "＋ 添加机器人", -90, -150, 150, 40, () =>
       this.cb.onAddAi()
     );
-    const readyBtn = this.makeBtn(panel, "准备", 90, -150, 120, 40, () =>
-      this.cb.onReady()
+    const readyBtn = this.makeBtn(
+      panel,
+      "准备",
+      90,
+      -150,
+      120,
+      40,
+      () => this.cb.onReady(),
+      true
     );
     this.readyLbl = readyBtn.getComponentInChildren(Label)!;
     this.makeBtn(panel, "离开房间", 0, -205, 160, 36, () => this.cb.onQuit());
@@ -559,16 +582,23 @@ export class LobbyUI {
     this.resultList = new Node("ResultList");
     this.resultList.layer = Layers.Enum.UI_2D;
     panel.addChild(this.resultList);
-    const again = this.makeBtn(panel, "再来一局", -90, -140, 150, 40, () =>
-      this.cb.onAgain()
+    const again = this.makeBtn(
+      panel,
+      "再来一局",
+      0,
+      -195,
+      180,
+      40,
+      () => this.cb.onAgain(),
+      true
     );
     this.againLbl = again.getComponentInChildren(Label)!;
     this.resultSettleBtn = this.makeBtn(
       panel,
       "结算本场",
-      90,
+      0,
       -140,
-      130,
+      180,
       40,
       () => {
         this.settleBack = "result";
@@ -576,7 +606,7 @@ export class LobbyUI {
       }
     );
     this.resultSettleBtn.active = false;
-    this.exitBtn = this.makeBtn(panel, "返回大厅", 0, -195, 160, 40, () =>
+    this.exitBtn = this.makeBtn(panel, "返回大厅", 0, -140, 180, 40, () =>
       this.cb.onExit()
     );
     return panel;
@@ -603,8 +633,15 @@ export class LobbyUI {
         i === 1 ? C.gold : C.cream
       )
     );
-    this.makeBtn(panel, "知道了，开打", 0, -180, 200, 40, () =>
-      this.cb.onGuideOk()
+    this.makeBtn(
+      panel,
+      "知道了，开打",
+      0,
+      -180,
+      200,
+      40,
+      () => this.cb.onGuideOk(),
+      true
     );
     return panel;
   }
@@ -654,14 +691,21 @@ export class LobbyUI {
     this.makeBtn(panel, "查看当前积分", 0, 50, 200, 40, () =>
       this.cb.onMenuScores()
     );
-    this.continueBtn = this.makeBtn(panel, "继续下一轮", 0, 0, 200, 40, () =>
-      this.cb.onMenuContinue()
-    );
     this.settleBtn = this.makeBtn(panel, "结算对局", 0, -50, 200, 40, () => {
       this.settleBack = "menu";
       this.show("settle-confirm");
     });
-    this.makeBtn(panel, "查看规则", 0, -100, 200, 40, () => this.show("rules"));
+    this.makeBtn(panel, "查看规则", 0, 0, 200, 40, () => this.show("rules"));
+    this.continueBtn = this.makeBtn(
+      panel,
+      "继续下一轮",
+      0,
+      -100,
+      200,
+      40,
+      () => this.cb.onMenuContinue(),
+      true
+    );
     return panel;
   }
 
@@ -677,14 +721,21 @@ export class LobbyUI {
   }
 
   private buildSettleConfirm(): Node {
-    const panel = this.panel("SettleConfirm", 300, 210);
-    this.makeLabel(panel, "结算对局", 0, 60, 24, C.gold);
-    this.makeLabel(panel, "确定结算本场对局？", 0, 18, 17, C.cream);
-    this.makeBtn(panel, "确定结算", -75, -60, 130, 40, () =>
-      this.cb.onMenuSettle()
-    );
-    this.makeBtn(panel, "取消", 75, -60, 110, 40, () =>
+    const panel = this.panel("SettleConfirm", 300, 250);
+    this.makeLabel(panel, "结算对局", 0, 82, 24, C.gold);
+    this.makeLabel(panel, "确定结算本场对局？", 0, 40, 17, C.cream);
+    this.makeBtn(panel, "取消", 0, -25, 180, 38, () =>
       this.show(this.settleBack)
+    );
+    this.makeBtn(
+      panel,
+      "确定结算",
+      0,
+      -78,
+      180,
+      40,
+      () => this.cb.onMenuSettle(),
+      true
     );
     return panel;
   }
@@ -725,7 +776,8 @@ export class LobbyUI {
     y: number,
     w: number,
     h: number,
-    onClick: () => void
+    onClick: () => void,
+    primary = false
   ): Node {
     const n = new Node(text);
     n.layer = Layers.Enum.UI_2D;
@@ -733,10 +785,10 @@ export class LobbyUI {
     n.setPosition(new Vec3(x, y, 0));
     n.addComponent(UITransform).setContentSize(new Size(w, h));
     const g = n.addComponent(Graphics);
-    g.fillColor = new Color(201, 169, 97, 40);
+    g.fillColor = primary ? C.seal : new Color(201, 169, 97, 40);
     g.roundRect(-w / 2, -h / 2, w, h, 8);
     g.fill();
-    g.strokeColor = C.gold;
+    g.strokeColor = primary ? C.seal : C.gold;
     g.lineWidth = 1;
     g.roundRect(-w / 2, -h / 2, w, h, 8);
     g.stroke();

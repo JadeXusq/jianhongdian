@@ -270,6 +270,11 @@ input:focus {
   gap: 10px;
 }
 
+.dialog-actions {
+  display: flex;
+  flex-direction: column;
+}
+
 .link {
   margin-top: 16px;
   border: none;
@@ -401,6 +406,7 @@ input:focus {
 }
 
 .result-actions {
+  flex-direction: column;
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;

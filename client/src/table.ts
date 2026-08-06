@@ -316,6 +316,11 @@ export class TableView {
         };
       if (this.tableSlots.has(ev.target))
         this.lingerTable.set(ev.target, { ...this.tableSlots.get(ev.target)! });
+      const hitSlot = {
+        x: targetSlot.x + 6,
+        y: targetSlot.y + TABLE_CARD_W * CARD_RATIO * 0.28,
+        w: TABLE_CARD_W,
+      };
       const gain = cardScore(ev.card) + cardScore(ev.target);
       this.deferCapture(ev.player, [ev.card, ev.target], gain);
       if (ev.type === "PLAY") this.deferHand(ev.player);
@@ -325,7 +330,7 @@ export class TableView {
           {
             id: ev.card,
             from,
-            to: targetSlot,
+            to: hitSlot,
             w: TABLE_CARD_W,
             t: 0,
             dur: 0.32,
@@ -340,13 +345,23 @@ export class TableView {
       });
       // 第 2 步：命中反馈
       this.steps.push({
-        flies: [],
+        flies: [
+          {
+            id: ev.card,
+            from: hitSlot,
+            to: hitSlot,
+            w: TABLE_CARD_W,
+            t: 0,
+            dur: HIT_HOLD_S,
+            faceUp: true,
+          },
+        ],
         popups: [
           {
             text: "√",
             at: {
-              x: targetSlot.x + TABLE_CARD_W / 2,
-              y: targetSlot.y + TABLE_CARD_W * CARD_RATIO * 0.35,
+              x: hitSlot.x + TABLE_CARD_W * 0.82,
+              y: hitSlot.y + TABLE_CARD_W * CARD_RATIO * 0.22,
             },
             t: 0,
             hit: true,
@@ -354,7 +369,7 @@ export class TableView {
           },
         ],
         hide: [ev.card],
-        hold: HIT_HOLD_S,
+        hold: 0,
         visualSeat: ev.player,
       });
       // 第 3 步：两张牌飞到屏幕正中展示
@@ -365,7 +380,7 @@ export class TableView {
         flies: [
           {
             id: ev.card,
-            from: targetSlot,
+            from: hitSlot,
             to: { x: centerX - matchW - 10, y: centerY },
             w: matchW,
             t: 0,
@@ -1008,7 +1023,7 @@ export class TableView {
         const pulse = 0.7 + 0.3 * Math.sin(this.animClock * 10);
         ctx.save();
         ctx.globalAlpha = pulse;
-        ctx.fillStyle = "#6fcf97";
+        ctx.fillStyle = C.seal;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.font = `700 42px "Helvetica Neue", Arial, sans-serif`;

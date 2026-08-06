@@ -1114,17 +1114,24 @@ export class GameEntry extends Component {
       const card = createCard(id, TABLE_CARD_W, { highlight: isHit });
       card.setPosition(new Vec3(pos.x, pos.y, 0));
       this.tableNode.addChild(card);
-      if (isHit) {
-        addLabel(
-          this.tableNode,
-          "√",
-          pos.x + TABLE_CARD_W / 2,
-          pos.y + TABLE_CARD_W * CARD_RATIO * 0.35,
-          36,
-          new Color(111, 207, 151),
-          true
-        );
-      }
+    }
+
+    const hit = this.matchQueue[0];
+    const hitPos = this.lastTablePos.get(this.hitTargetId);
+    if (hit && hitPos) {
+      const hitY = hitPos.y - TABLE_CARD_W * CARD_RATIO * 0.28;
+      const played = createCard(hit.cardId, TABLE_CARD_W);
+      played.setPosition(new Vec3(hitPos.x + 6, hitY, 0));
+      this.tableNode.addChild(played);
+      addLabel(
+        this.tableNode,
+        "√",
+        hitPos.x + TABLE_CARD_W * 0.82,
+        hitY - TABLE_CARD_W * CARD_RATIO * 0.22,
+        36,
+        C.seal,
+        true
+      );
     }
   }
 

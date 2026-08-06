@@ -81,9 +81,9 @@
               placeholder="请输入 6 位房号"
             />
           </label>
-          <div class="row">
-            <button id="btn-room-code-ok" class="btn primary">确认加入</button>
+          <div class="dialog-actions">
             <button id="btn-room-code-cancel" class="btn">取消</button>
+            <button id="btn-room-code-ok" class="btn primary">确认加入</button>
           </div>
         </div>
       </section>
@@ -95,9 +95,9 @@
           <div id="result-dots" class="result-dots"></div>
           <div id="result-list" class="result-list"></div>
           <div class="row result-actions">
-            <button id="btn-again" class="btn primary">再来一局</button>
             <button id="btn-result-settle" class="btn hidden">结算本场</button>
             <button id="btn-exit" class="btn">返回大厅</button>
+            <button id="btn-again" class="btn primary">再来一局</button>
           </div>
         </div>
       </section>
@@ -123,7 +123,7 @@
         <div class="panel">
           <h2 class="title small">累计排行榜</h2>
           <div id="rank-list" class="result-list"></div>
-          <button id="btn-rank-close" class="btn primary">返回</button>
+          <button id="btn-rank-close" class="btn">返回</button>
         </div>
       </section>
 
@@ -140,12 +140,12 @@
             <span>凭证</span>
             <input id="acc-token" maxlength="64" placeholder="创建时下发的 token" />
           </label>
-          <div class="row">
-            <button id="btn-acc-create" class="btn primary">创建并绑定</button>
-            <button id="btn-acc-bind" class="btn">绑定已有</button>
-          </div>
           <p class="subtitle" id="account-hint"></p>
-          <button id="btn-account-close" class="btn">返回</button>
+          <div class="dialog-actions">
+            <button id="btn-acc-bind" class="btn">绑定已有</button>
+            <button id="btn-account-close" class="btn">返回</button>
+            <button id="btn-acc-create" class="btn primary">创建并绑定</button>
+          </div>
         </div>
       </section>
 
@@ -175,7 +175,7 @@
               <b>多轮</b>：不限局数，首轮随机庄、之后逆时针轮庄。对局中点「菜单」可查看累计积分；房主可结算本场。
             </p>
           </div>
-          <button id="btn-rules-close" class="btn primary">明白了</button>
+          <button id="btn-rules-close" class="btn">明白了</button>
         </div>
       </section>
 
@@ -198,9 +198,9 @@
           <button id="btn-menu-close" class="panel-x" title="关闭" aria-label="关闭">×</button>
           <h2 class="title small">菜单</h2>
           <button id="btn-menu-scores" class="btn">查看当前积分</button>
-          <button id="btn-menu-continue" class="btn primary hidden">继续下一轮</button>
-          <button id="btn-menu-settle" class="btn primary hidden">结算对局</button>
+          <button id="btn-menu-settle" class="btn hidden">结算对局</button>
           <button id="btn-menu-rules" class="btn">查看规则</button>
+          <button id="btn-menu-continue" class="btn primary hidden">继续下一轮</button>
         </div>
       </section>
 
@@ -209,7 +209,7 @@
           <h2 class="title small">当前积分</h2>
           <p class="subtitle" id="scores-round"></p>
           <div id="scores-list" class="result-list"></div>
-          <button id="btn-scores-close" class="btn primary">关闭</button>
+          <button id="btn-scores-close" class="btn">关闭</button>
         </div>
       </section>
 
@@ -217,9 +217,9 @@
         <div class="panel compact-panel">
           <h2 class="title small">结算对局</h2>
           <p class="subtitle">确定结算本场对局？</p>
-          <div class="row">
-            <button id="btn-settle-ok" class="btn primary">确定结算</button>
+          <div class="dialog-actions">
             <button id="btn-settle-cancel" class="btn">取消</button>
+            <button id="btn-settle-ok" class="btn primary">确定结算</button>
           </div>
         </div>
       </section>
