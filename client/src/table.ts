@@ -160,10 +160,13 @@ export class TableView {
   private dealArmed = false;
   private layoutBufW = 0;
   private layoutBufH = 0;
+  private layoutDpr = 0;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
+    this.updateLayout();
     onOrientationChange(() => this.updateLayout());
+    new ResizeObserver(() => this.updateLayout()).observe(canvas);
     canvas.addEventListener("pointerdown", (e) => this.onPointer(e));
   }
 
@@ -227,27 +230,34 @@ export class TableView {
     return { x: 236, y: 168, w: this.w - 472, h: 280 };
   }
 
-  private cssSize(): { cw: number; ch: number } {
-    const vv = window.visualViewport;
-    if (vv && vv.width >= 200 && vv.height >= 200)
-      return { cw: vv.width, ch: vv.height };
-    const cw = this.canvas.clientWidth || window.innerWidth;
-    const ch = this.canvas.clientHeight || window.innerHeight;
-    return { cw, ch };
+  private canvasCssSize(): { cw: number; ch: number } {
+    const cw = this.canvas.clientWidth;
+    const ch = this.canvas.clientHeight;
+    if (cw >= 80 && ch >= 80) return { cw, ch };
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      cw: Math.max(1, rect.width || window.innerWidth),
+      ch: Math.max(1, rect.height || window.innerHeight),
+    };
   }
 
   private updateLayout(): void {
     const dpr = window.devicePixelRatio || 1;
-    const { cw, ch } = this.cssSize();
+    const { cw, ch } = this.canvasCssSize();
     if (cw < 80 || ch < 80) return;
 
     const bufW = Math.round(cw * dpr);
     const bufH = Math.round(ch * dpr);
-    if (bufW !== this.layoutBufW || bufH !== this.layoutBufH) {
+    if (
+      bufW !== this.layoutBufW ||
+      bufH !== this.layoutBufH ||
+      dpr !== this.layoutDpr
+    ) {
       this.canvas.width = bufW;
       this.canvas.height = bufH;
       this.layoutBufW = bufW;
       this.layoutBufH = bufH;
+      this.layoutDpr = dpr;
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
@@ -270,17 +280,23 @@ export class TableView {
     };
   }
 
-  private onPointer(e: PointerEvent): void {
+  private pointerPos(e: PointerEvent): { x: number; y: number } {
+    const { cw, ch } = this.canvasCssSize();
     const rect = this.canvas.getBoundingClientRect();
-    let sx = e.clientX - rect.left;
-    let sy = e.clientY - rect.top;
-    if (this.rotated) {
-      // 渲染时做了 translate(cw,0) + rotate(90°)，这里取其逆变换
-      const cw = rect.width;
-      [sx, sy] = [sy, cw - sx];
-    }
-    const x = (sx - this.pad.x) / this.scale;
-    const y = (sy - this.pad.y) / this.scale;
+    const rw = rect.width > 0 ? rect.width : cw;
+    const rh = rect.height > 0 ? rect.height : ch;
+    let sx = ((e.clientX - rect.left) / rw) * cw;
+    let sy = ((e.clientY - rect.top) / rh) * ch;
+    if (this.rotated) [sx, sy] = [sy, cw - sx];
+    return {
+      x: (sx - this.pad.x) / this.scale,
+      y: (sy - this.pad.y) / this.scale,
+    };
+  }
+
+  private onPointer(e: PointerEvent): void {
+    this.updateLayout();
+    const { x, y } = this.pointerPos(e);
 
     if (this.animating) {
       this.skipHold();
@@ -830,7 +846,7 @@ export class TableView {
 
   render(dt: number): void {
     this.updateLayout();
-    const { cw, ch } = this.cssSize();
+    const { cw, ch } = this.canvasCssSize();
     const ctx = this.ctx;
     ctx.save();
     ctx.fillStyle = C.feltOuter;
