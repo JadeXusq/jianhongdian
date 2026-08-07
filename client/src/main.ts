@@ -131,6 +131,11 @@ function toast(msg: string, ms = 2200): void {
   toastTimer = window.setTimeout(() => el.classList.add("hidden"), ms);
 }
 
+function clearToast(): void {
+  clearTimeout(toastTimer);
+  $("toast").classList.add("hidden");
+}
+
 function hint(msg: string | null): void {
   const el = $("turn-hint");
   el.classList.toggle("hidden", !msg);
@@ -213,6 +218,8 @@ function onDealRoundStart(): void {
   lastRound = null;
   view.showCaptured = false;
   view.resetAnimVisuals();
+  clearToast();
+  hint(null);
   armDealRound();
 }
 
@@ -399,9 +406,11 @@ function renderScores(): void {
   const players = [...state.players.values()] as any[];
   const rows = [...players].sort((a, b) => b.totalNet - a.totalNet);
   const mySeat = offline ? offline.mySeat : net.mySeat;
-  $("scores-round").textContent = state.round
-    ? `已完成 ${state.round} 轮 · 累计净分`
-    : "尚未完成轮次";
+  $("scores-round").textContent = !state.round
+    ? "尚未完成轮次"
+    : state.phase === "PLAYING"
+      ? `第 ${state.round} 轮进行中 · 累计净分`
+      : `已完成 ${state.round} 轮 · 累计净分`;
   $("scores-list").innerHTML = rows
     .map(
       (p, i) => `
@@ -795,6 +804,7 @@ function send(cardId: number, targetId?: number): void {
   }
   selected = -1;
   discardArmed = -1;
+  clearToast();
   syncSelection();
   hint(null);
 }
@@ -1211,14 +1221,19 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  view.hand = offline ? offline.hand : net.hand;
-  if (dealRoundPending) tryStartDealAnim();
-  view.render(dt);
-  flushRoundOverIfReady();
-  if (playState()?.phase === "PLAYING") {
-    syncSelection();
-    refreshTurnHint();
+  try {
+    view.hand = offline ? offline.hand : net.hand;
+    if (dealRoundPending) tryStartDealAnim();
+    view.render(dt);
+    flushRoundOverIfReady();
+    if (playState()?.phase === "PLAYING") {
+      syncSelection();
+      refreshTurnHint();
+    }
+  } catch (e) {
+    if (import.meta.env.DEV) console.error("[jhd] frame", e);
+  } finally {
+    requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

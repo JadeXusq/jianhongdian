@@ -326,9 +326,11 @@ export class LobbyUI {
   renderScores(state: any, mySeat: number): void {
     const players = [...state.players.values()] as any[];
     const rows = [...players].sort((a, b) => b.totalNet - a.totalNet);
-    this.scoresRound.string = state.round
-      ? `已完成 ${state.round} 轮 · 累计净分`
-      : "尚未完成轮次";
+    this.scoresRound.string = !state.round
+      ? "尚未完成轮次"
+      : state.phase === "PLAYING"
+        ? `第 ${state.round} 轮进行中 · 累计净分`
+        : `已完成 ${state.round} 轮 · 累计净分`;
     this.scoresList.removeAllChildren();
     rows.forEach((p, i) => {
       const mark = p.seat === mySeat ? " ▶" : "";
@@ -360,6 +362,11 @@ export class LobbyUI {
     this.toastTimer = setTimeout(() => {
       this.toastLbl.node.active = false;
     }, ms) as unknown as number;
+  }
+
+  clearToast(): void {
+    clearTimeout(this.toastTimer);
+    this.toastLbl.node.active = false;
   }
 
   showEmote(name: string, id: string): void {

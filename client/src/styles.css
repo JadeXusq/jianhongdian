@@ -569,12 +569,18 @@ input:focus {
   z-index: 30;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .toast.hidden,
 .turn-hint.hidden,
 .emotes.hidden,
 .emote-bubble.hidden,
 .help.hidden,
-.menu-btn.hidden {
+.menu-btn.hidden,
+.btn.hidden,
+.panel-x.hidden {
   display: none;
 }
 
@@ -822,9 +828,9 @@ input:focus {
   bottom: auto;
   top: 8px;
   transform: none;
-  width: min(300px, calc(100% - 130px));
-  height: min(62vh, 360px);
-  max-height: min(62vh, 360px);
+  width: min(280px, calc(100% - 130px));
+  height: min(42vh, 260px);
+  max-height: min(42vh, 260px);
 }
 
 @media (pointer: coarse) and (orientation: landscape) {
@@ -834,9 +840,9 @@ input:focus {
     bottom: auto;
     top: 8px;
     transform: none;
-    width: min(300px, calc(100% - 130px));
-    height: min(62vh, 360px);
-    max-height: min(62vh, 360px);
+    width: min(280px, calc(100% - 130px));
+    height: min(42vh, 260px);
+    max-height: min(42vh, 260px);
   }
 }
 

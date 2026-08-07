@@ -835,6 +835,7 @@ export class GameEntry extends Component {
       ? this.offline.hand.slice()
       : this.net.hand.slice();
     this.setTableVisible(true);
+    this.ui.clearToast();
     this.armDealRound();
   }
 
@@ -1471,6 +1472,8 @@ export class GameEntry extends Component {
 
     for (const id of this.lingerCards) {
       if (table.indexOf(id) >= 0) continue;
+      if (this.matchQueue.some((m) => m.targetId === id || m.cardId === id))
+        continue;
       const pos = this.lastTablePos.get(id);
       if (!pos) continue;
       const isHit = id === this.hitTargetId;
@@ -1883,6 +1886,7 @@ export class GameEntry extends Component {
     this.discardArmed = -1;
     this.targets = [];
     this.hintText = "";
+    this.ui.clearToast();
     this.render();
   }
 

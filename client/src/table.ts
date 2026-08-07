@@ -28,6 +28,7 @@ const W_MIN = 1040;
 const W_MAX = 1700;
 const HAND_W = 96;
 const TABLE_CARD_W = 74;
+const MAX_ANIM_STEPS = 24;
 // 牌堆放在左上角：左/右/上三个方向均可能有对手面板，此处不会重叠
 const DECK = { x: 118, y: 128, w: 66 };
 
@@ -466,6 +467,39 @@ export class TableView {
         visualSeat: ev.player,
       });
     }
+    this.drainAnimBacklog();
+  }
+
+  /** 动画积压过多时快进，避免长时间卡在「出牌结算中」 */
+  private drainAnimBacklog(): void {
+    if (this.steps.length < MAX_ANIM_STEPS) return;
+    if (this.current) {
+      for (const f of this.current.flies) f.t = f.dur;
+      this.current.hold = 0;
+    }
+    for (const step of this.steps) {
+      for (const f of step.flies) f.t = f.dur;
+      step.hold = 0;
+    }
+  }
+
+  private pruneLingerTable(table: number[]): void {
+    const onTable = new Set(table);
+    const busy = new Set<number>();
+    const mark = (id: number) => {
+      if (id >= 0) busy.add(id);
+    };
+    if (this.current) {
+      for (const f of this.current.flies) mark(f.id);
+      for (const id of this.current.hide ?? []) mark(id);
+    }
+    for (const step of this.steps) {
+      for (const f of step.flies) mark(f.id);
+      for (const id of step.hide ?? []) mark(id);
+    }
+    for (const id of [...this.lingerTable.keys()]) {
+      if (!onTable.has(id) && !busy.has(id)) this.lingerTable.delete(id);
+    }
   }
 
   private deferHand(seat: number): void {
@@ -772,6 +806,7 @@ export class TableView {
       (id) => !this.deferredReveal.has(id)
     );
     this.tableSlots = this.computeTableSlots(table);
+    this.pruneLingerTable(table);
 
     this.handSlots.clear();
     const n = this.hand.length;
