@@ -161,6 +161,7 @@ export class TableView {
   private layoutBufW = 0;
   private layoutBufH = 0;
   private layoutDpr = 0;
+  private layoutStable = { cw: 0, ch: 0, rot: false };
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -230,18 +231,40 @@ export class TableView {
     return { x: 236, y: 168, w: this.w - 472, h: 280 };
   }
 
+  /**
+   * 全屏 canvas 尺寸。安卓 Chrome 偶发把 clientWidth/Height 报成约一半，
+   * 竖屏旋转下 scale=vh/H 会减半 → 画面约 1/4；#ui 是 DOM 不受影响。
+   */
   private canvasCssSize(): { cw: number; ch: number } {
-    const cw = this.canvas.clientWidth;
-    const ch = this.canvas.clientHeight;
-    if (cw >= 80 && ch >= 80) return { cw, ch };
     const rect = this.canvas.getBoundingClientRect();
-    return {
-      cw: Math.max(1, rect.width || window.innerWidth),
-      ch: Math.max(1, rect.height || window.innerHeight),
-    };
+    const winW = window.innerWidth;
+    const winH = window.innerHeight;
+    let cw = Math.max(rect.width, this.canvas.clientWidth, 1);
+    let ch = Math.max(rect.height, this.canvas.clientHeight, 1);
+    if (cw < winW * 0.92) cw = winW;
+    if (ch < winH * 0.92) ch = winH;
+
+    const rot = shouldRotate();
+    const s = this.layoutStable;
+    if (s.cw > 0 && s.ch > 0) {
+      const nextA = cw * ch;
+      const prevA = s.cw * s.ch;
+      if (rot !== s.rot || nextA > prevA * 1.03) {
+        this.layoutStable = { cw, ch, rot };
+      } else if (nextA < prevA * 0.64) {
+        return { cw: s.cw, ch: s.ch };
+      } else {
+        this.layoutStable = { cw, ch, rot };
+      }
+    } else {
+      this.layoutStable = { cw, ch, rot };
+    }
+    return { cw: this.layoutStable.cw, ch: this.layoutStable.ch };
   }
 
   private updateLayout(): void {
+    this.canvas.style.width = "100%";
+    this.canvas.style.height = "100%";
     const dpr = window.devicePixelRatio || 1;
     const { cw, ch } = this.canvasCssSize();
     if (cw < 80 || ch < 80) return;
