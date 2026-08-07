@@ -82,6 +82,8 @@ interface Step {
   commitHand?: number;
   /** 本步开始时高亮该座位 */
   visualSeat?: number;
+  /** 发牌动效配套音效 */
+  dealSfx?: "shuffle" | "round" | "table";
 }
 
 export interface TableCallbacks {
@@ -89,6 +91,7 @@ export interface TableCallbacks {
   onPickTable(cardId: number): void;
   onToggleCaptured?(): void;
   onCancelSelection?(): void;
+  onDealSfx?(kind: "shuffle" | "round" | "table"): void;
 }
 
 export class TableView {
@@ -686,6 +689,7 @@ export class TableView {
       ],
       hide: allIds,
       hold: DEAL_SHUFFLE_S,
+      dealSfx: "shuffle",
     });
 
     for (let r = 0; r < handSize; r++) {
@@ -730,6 +734,7 @@ export class TableView {
         hide,
         hold: DEAL_ROUND_PAUSE_S,
         revealOnDone: reveal,
+        dealSfx: "round",
       });
     }
 
@@ -761,6 +766,7 @@ export class TableView {
         hide: table,
         hold: DEAL_TABLE_PAUSE_S,
         revealOnDone: table,
+        dealSfx: "table",
       });
     }
 
@@ -781,6 +787,8 @@ export class TableView {
       }
       if (this.current.decStock)
         this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
+      if (this.current.dealSfx)
+        this.cb.onDealSfx?.(this.current.dealSfx);
     }
     const s = this.current;
     let done = true;

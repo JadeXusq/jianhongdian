@@ -44,6 +44,11 @@ const view = new TableView($<HTMLCanvasElement>("table"), {
     view.showCaptured = !view.showCaptured;
   },
   onCancelSelection: () => clearSelection(),
+  onDealSfx: (kind) => {
+    if (kind === "shuffle") sfx.dealShuffle();
+    else if (kind === "round") sfx.dealRound();
+    else sfx.dealTable();
+  },
 });
 
 // ---------- 界面切换 ----------

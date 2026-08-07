@@ -930,6 +930,8 @@ export class GameEntry extends Component {
     });
     return true;
   }
+
+  private playDealShuffle(onDone: () => void): void {
     this.matchNode.active = true;
     this.matchNode.removeAllChildren();
     addLabel(this.matchNode, "洗牌中…", 0, 60, 26, C.gold, true);

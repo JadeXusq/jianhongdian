@@ -46,7 +46,7 @@ class Sfx {
   }
 
   /** 出牌：短促的纸牌摩擦声（噪声爆发） */
-  playCard(): void {
+  playCard(gain = 0.18): void {
     if (this.muted || !this.ctx) return;
     const dur = 0.09;
     const rate = this.ctx.sampleRate;
@@ -60,9 +60,53 @@ class Sfx {
     src.buffer = buf;
     filter.type = "highpass";
     filter.frequency.value = 1600;
-    g.gain.value = 0.18;
+    g.gain.value = gain;
     src.connect(filter).connect(g).connect(this.ctx.destination);
     src.start();
+  }
+
+  private noiseBurst(dur: number, gain: number, delay = 0): void {
+    if (this.muted || !this.ctx) return;
+    const rate = this.ctx.sampleRate;
+    const buf = this.ctx.createBuffer(1, Math.max(1, rate * dur), rate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++)
+      data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 1.6;
+    const src = this.ctx.createBufferSource();
+    const filter = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    src.buffer = buf;
+    filter.type = "bandpass";
+    filter.frequency.value = 2200;
+    filter.Q.value = 0.7;
+    const t0 = this.ctx.currentTime + delay;
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(filter).connect(g).connect(this.ctx.destination);
+    src.start(t0);
+    src.stop(t0 + dur);
+  }
+
+  /** 洗牌：连续短促搓牌声 */
+  dealShuffle(): void {
+    if (this.muted || !this.ctx) return;
+    const n = 11;
+    for (let i = 0; i < n; i++)
+      this.noiseBurst(0.055, 0.1 - i * 0.003, i * 0.075);
+    this.tone(196, 0.35, "triangle", 0.025);
+  }
+
+  /** 发牌轮：轻快落牌 */
+  dealRound(): void {
+    this.playCard(0.11);
+    this.tone(520, 0.05, "triangle", 0.035);
+  }
+
+  /** 桌面开牌：翻牌 + 连发 */
+  dealTable(): void {
+    this.tone(360, 0.07, "square", 0.03);
+    this.tone(540, 0.09, "triangle", 0.04, 0.04);
+    for (let i = 0; i < 4; i++) this.playCard(0.07 + i * 0.008);
   }
 
   /** 弃牌落桌：更低沉的放置音 */
