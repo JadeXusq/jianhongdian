@@ -1253,6 +1253,7 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  if ($("ui").classList.contains("rot") !== shouldRotate()) applyOrientation();
   try {
     view.hand = offline ? offline.hand : net.hand;
     if (dealRoundPending) view.syncDealHidden();

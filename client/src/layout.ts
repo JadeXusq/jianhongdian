@@ -14,9 +14,19 @@ export function shouldRotate(): boolean {
 
 /** 监听方向/尺寸变化（含移动端旋转后的延迟上报） */
 export function onOrientationChange(fn: () => void): void {
-  window.addEventListener("resize", fn);
-  // iOS 旋转后 innerWidth/Height 更新有延迟，补一次
-  window.addEventListener("orientationchange", () => setTimeout(fn, 120));
+  let pending = 0;
+  const run = () => {
+    if (pending) cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => {
+      pending = requestAnimationFrame(fn);
+    });
+  };
+  window.addEventListener("resize", run);
+  window.addEventListener("orientationchange", () => {
+    setTimeout(run, 120);
+    setTimeout(run, 320);
+  });
+  window.visualViewport?.addEventListener("resize", run);
 }
 
 /**

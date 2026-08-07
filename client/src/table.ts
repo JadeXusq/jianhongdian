@@ -151,6 +151,11 @@ export class TableView {
   /** 开局发牌动画进行中 */
   private openingDeal = false;
   private dealArmed = false;
+  private layoutCw = 0;
+  private layoutCh = 0;
+  private layoutDpr = 0;
+  private layoutRotated = false;
+  private resizeRaf = 0;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -189,20 +194,53 @@ export class TableView {
     return { x: 236, y: 168, w: this.w - 472, h: 280 };
   }
 
+  private scheduleResize(): void {
+    if (this.resizeRaf) return;
+    this.resizeRaf = requestAnimationFrame(() => {
+      this.resizeRaf = 0;
+      this.resize();
+    });
+  }
+
+  private layoutDirty(): boolean {
+    const cw = this.canvas.clientWidth;
+    const ch = this.canvas.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    const rotated = shouldRotate();
+    return (
+      cw !== this.layoutCw ||
+      ch !== this.layoutCh ||
+      dpr !== this.layoutDpr ||
+      rotated !== this.layoutRotated
+    );
+  }
+
   private resize(): void {
     const dpr = window.devicePixelRatio || 1;
     const cw = this.canvas.clientWidth;
     const ch = this.canvas.clientHeight;
+    if (cw < 80 || ch < 80) {
+      this.scheduleResize();
+      return;
+    }
+    if (this.layoutCw > 0 && this.layoutCh > 0) {
+      const area = cw * ch;
+      const prevArea = this.layoutCw * this.layoutCh;
+      const grew = cw > this.layoutCw * 1.08 || ch > this.layoutCh * 1.08;
+      if (prevArea > 0 && area < prevArea * 0.5 && !grew) {
+        this.scheduleResize();
+        return;
+      }
+    }
+
     this.canvas.width = Math.round(cw * dpr);
     this.canvas.height = Math.round(ch * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     this.rotated = shouldRotate();
-    // 旋转后，“视觉上的横屏尺寸”是屏幕宽高互换
     const vw = this.rotated ? ch : cw;
     const vh = this.rotated ? cw : ch;
 
-    // 优先按高度贴合并用逻辑宽度吸收比例差异；超出限制时才留黑边
     let w = (vw / vh) * H;
     if (w < W_MIN) {
       w = W_MIN;
@@ -216,6 +254,10 @@ export class TableView {
       x: (vw - w * this.scale) / 2,
       y: (vh - H * this.scale) / 2,
     };
+    this.layoutCw = cw;
+    this.layoutCh = ch;
+    this.layoutDpr = dpr;
+    this.layoutRotated = this.rotated;
   }
 
   private onPointer(e: PointerEvent): void {
@@ -765,6 +807,7 @@ export class TableView {
   }
 
   render(dt: number): void {
+    if (this.layoutDirty()) this.resize();
     const ctx = this.ctx;
     const cw = this.canvas.clientWidth;
     const ch = this.canvas.clientHeight;
