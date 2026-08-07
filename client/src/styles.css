@@ -542,7 +542,9 @@ input:focus {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  max-height: min(78vh, 520px);
+  width: min(66.67vw, calc(100vw - 24px));
+  height: min(66.67vh, calc(100dvh - 24px));
+  max-height: min(66.67vh, calc(100dvh - 24px));
 }
 
 .rules-panel .title {
@@ -990,7 +992,9 @@ input:focus {
 }
 
 #ui.rot .rules-panel {
-  height: calc(100% - 12px);
+  width: 66.67%;
+  height: 66.67%;
+  max-height: 66.67%;
 }
 
 #ui.rot .room-panel,

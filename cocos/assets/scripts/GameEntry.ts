@@ -1725,7 +1725,7 @@ export class GameEntry extends Component {
     const originX = -DESIGN.width / 2 + 40;
     const originY = -DESIGN.height / 2 + cw * CARD_RATIO + 14;
     const step = Math.min(3.2, 28 / Math.max(1, cards.length - 1 || 1));
-    const stackW = cw + (cards.length - 1) * step + 36;
+    const stackW = cw + (cards.length - 1) * step;
     const stackH = cw * CARD_RATIO + (cards.length - 1) * step;
     const stackOffset = (cards.length - 1) * step;
     const hit = new Node("CapHit");
@@ -1748,30 +1748,26 @@ export class GameEntry extends Component {
       c.setPosition(new Vec3(originX + i * step, originY + i * step, 0));
       this.infoNode.addChild(c);
     });
-    addLabel(
-      this.infoNode,
-      `${cards.length}${this.showCaptured ? " ∧" : " ∨"}`,
-      originX + (cards.length - 1) * step + cw + 18,
-      originY + 10,
-      14,
-      C.goldDim,
-      true
-    );
-
     if (!this.showCaptured) return;
     const mobile = sys.isMobile;
     const tw = mobile ? 36 : 44;
     const gap = 6;
-    const cols = Math.min(cards.length, mobile ? 5 : 8);
+    const innerPad = 12;
+    const panelW = DESIGN.width * 0.5;
+    const cols = Math.max(
+      1,
+      Math.min(
+        cards.length,
+        Math.floor((panelW - innerPad * 2) / (tw + gap))
+      )
+    );
     const rows = Math.ceil(cards.length / cols);
-    const panelW = cols * (tw + gap) + 16;
-    const panelH = rows * (tw * CARD_RATIO + gap) + 48;
+    const panelH =
+      rows * (tw * CARD_RATIO + gap) + innerPad * 2 + 36;
     const panel = new Node("CapPanel");
     panel.layer = Layers.Enum.UI_2D;
     this.infoNode.addChild(panel);
-    const px = -DESIGN.width / 2 + panelW / 2 + 200;
-    const py = -DESIGN.height / 2 + panelH / 2 + 16;
-    panel.setPosition(new Vec3(px, py, 0));
+    panel.setPosition(new Vec3(0, 0, 0));
     panel.addComponent(UITransform).setContentSize(new Size(panelW, panelH));
     const pg = panel.addComponent(Graphics);
     pg.fillColor = new Color(8, 26, 20, 235);
@@ -1781,24 +1777,37 @@ export class GameEntry extends Component {
     pg.lineWidth = 1.5;
     pg.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
     pg.stroke();
-    addLabel(panel, "已吃牌（再点关闭）", 0, panelH / 2 - 16, 14, C.gold, true);
+    addLabel(panel, "已吃牌", 0, panelH / 2 - 22, 14, C.gold, true);
+    const close = new Node("CapClose");
+    close.layer = Layers.Enum.UI_2D;
+    panel.addChild(close);
+    close.setPosition(new Vec3(panelW / 2 - 24, panelH / 2 - 24, 0));
+    close.addComponent(UITransform).setContentSize(new Size(32, 32));
+    addLabel(
+      close,
+      "×",
+      0,
+      0,
+      22,
+      new Color(243, 234, 214, 190),
+      true
+    );
+    close.on(Node.EventType.TOUCH_END, () => {
+      this.showCaptured = false;
+      this.render();
+    });
     cards.forEach((id, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const c = createCard(id, tw);
       c.setPosition(
         new Vec3(
-          -panelW / 2 + 8 + col * (tw + gap),
-          panelH / 2 - 28 - row * (tw * CARD_RATIO + gap),
+          -panelW / 2 + innerPad + col * (tw + gap),
+          panelH / 2 - 40 - row * (tw * CARD_RATIO + gap),
           0
         )
       );
       panel.addChild(c);
-    });
-    addLabel(panel, "∧", 0, -panelH / 2 + 14, 18, C.gold, true);
-    panel.on(Node.EventType.TOUCH_END, () => {
-      this.showCaptured = false;
-      this.render();
     });
   }
 

@@ -121,8 +121,18 @@ export class TableView {
   private pendingCards = new Map<number, Set<number>>();
   /** 状态已扣手牌但出牌动画未完：余牌数先加回 */
   private pendingHand = new Map<number, number>();
-  private capturedHit: { x: number; y: number; w: number; h: number } | null =
-    null;
+  private capturedStackHit: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null = null;
+  private capturedCloseHit: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null = null;
 
   /** 由外部每帧提供的渲染数据 */
   state: any = null;
@@ -225,8 +235,15 @@ export class TableView {
       return;
     }
 
-    if (this.capturedHit) {
-      const h = this.capturedHit;
+    if (this.capturedCloseHit) {
+      const h = this.capturedCloseHit;
+      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
+        this.showCaptured = false;
+        return;
+      }
+    }
+    if (this.capturedStackHit) {
+      const h = this.capturedStackHit;
       if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
         this.cb.onToggleCaptured?.();
         return;
@@ -1008,7 +1025,8 @@ export class TableView {
 
   /** 自己的已吃牌堆：直接摊开，点击展开看全部 */
   private drawCaptured(ctx: CanvasRenderingContext2D): void {
-    this.capturedHit = null;
+    this.capturedStackHit = null;
+    this.capturedCloseHit = null;
     const me = [...this.state.players.values()].find(
       (p: any) => p.seat === this.mySeat
     ) as any;
@@ -1021,42 +1039,41 @@ export class TableView {
     const step = Math.min(3.2, 28 / Math.max(1, cards.length - 1 || 1));
     const stackW = cw + (cards.length - 1) * step;
     const stackH = ch + (cards.length - 1) * step;
-    this.capturedHit = {
+    const stackY = origin.y - (cards.length - 1) * step;
+    this.capturedStackHit = {
       x: origin.x,
-      y: origin.y - (cards.length - 1) * step,
-      w: stackW + 36,
+      y: stackY,
+      w: stackW,
       h: stackH,
     };
     cards.forEach((id, i) => {
       drawCard(ctx, id, origin.x + i * step, origin.y - i * step, cw);
     });
-    ctx.fillStyle = C.goldDim;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.font = `600 13px "Helvetica Neue", Arial, sans-serif`;
-    ctx.fillText(
-      `${cards.length}${this.showCaptured ? " ∧" : " ∨"}`,
-      origin.x + (cards.length - 1) * step + cw + 8,
-      origin.y + 4
-    );
 
     if (!this.showCaptured) return;
     const coarse = window.matchMedia("(pointer: coarse)").matches;
     const tw = coarse ? 36 : 44;
     const gap = 6;
-    const cols = Math.min(cards.length, coarse ? 5 : 8);
+    const panelW = this.w * 0.5;
+    const innerPad = 12;
+    const cols = Math.max(
+      1,
+      Math.min(
+        cards.length,
+        Math.floor((panelW - innerPad * 2) / (tw + gap))
+      )
+    );
     const rows = Math.ceil(cards.length / cols);
-    const panelW = cols * (tw + gap) + 16;
-    const panelH = rows * (tw * CARD_RATIO + gap) + 48;
-    const px = 200;
-    const py = H - panelH - 16;
-    this.capturedHit = {
-      x: Math.min(this.capturedHit.x, px),
-      y: Math.min(this.capturedHit.y, py),
-      w: Math.max(this.capturedHit.x + this.capturedHit.w, px + panelW) -
-        Math.min(this.capturedHit.x, px),
-      h: Math.max(this.capturedHit.y + this.capturedHit.h, py + panelH) -
-        Math.min(this.capturedHit.y, py),
+    const panelH =
+      rows * (tw * CARD_RATIO + gap) + innerPad * 2 + 36;
+    const px = (this.w - panelW) / 2;
+    const py = (H - panelH) / 2;
+    const closeSize = 32;
+    this.capturedCloseHit = {
+      x: px + panelW - closeSize - 8,
+      y: py + 8,
+      w: closeSize,
+      h: closeSize,
     };
     ctx.save();
     roundRect(ctx, px, py, panelW, panelH, 12);
@@ -1067,22 +1084,27 @@ export class TableView {
     ctx.stroke();
     ctx.fillStyle = C.gold;
     ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
     ctx.font = `600 14px "Songti SC", serif`;
-    ctx.fillText("已吃牌（再点关闭）", px + panelW / 2, py + 18);
+    ctx.fillText("已吃牌", px + panelW / 2, py + 22);
+    ctx.fillStyle = "rgba(243, 234, 214, 0.75)";
+    ctx.font = `600 22px "Helvetica Neue", Arial, sans-serif`;
+    ctx.fillText(
+      "×",
+      this.capturedCloseHit.x + closeSize / 2,
+      this.capturedCloseHit.y + closeSize / 2
+    );
     cards.forEach((id, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
       drawCard(
         ctx,
         id,
-        px + 8 + col * (tw + gap),
-        py + 28 + row * (tw * CARD_RATIO + gap),
+        px + innerPad + col * (tw + gap),
+        py + 40 + row * (tw * CARD_RATIO + gap),
         tw
       );
     });
-    ctx.fillStyle = C.gold;
-    ctx.font = `700 18px "Helvetica Neue", Arial, sans-serif`;
-    ctx.fillText("∧", px + panelW / 2, py + panelH - 12);
     ctx.restore();
   }
 

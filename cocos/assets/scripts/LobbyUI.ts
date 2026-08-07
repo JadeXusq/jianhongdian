@@ -867,20 +867,24 @@ export class LobbyUI {
   }
 
   private buildRules(): Node {
-    const panel = this.panel("Rules", 280, 440);
+    const rw = Math.round((DESIGN.width * 2) / 3);
+    const rh = Math.round((DESIGN.height * 2) / 3);
+    const panel = this.panel("Rules", rw, rh);
     this.makeCloseX(panel, () => this.closeRules());
-    this.makeLabel(panel, "玩法规则", 0, 180, 24, C.gold);
+    this.makeLabel(panel, "玩法规则", 0, rh / 2 - 40, 24, C.gold);
     const viewport = new Node("RulesViewport");
     viewport.layer = Layers.Enum.UI_2D;
     panel.addChild(viewport);
     viewport.setPosition(new Vec3(0, -10, 0));
-    viewport.addComponent(UITransform).setContentSize(new Size(250, 320));
+    const viewW = rw - 60;
+    const viewH = rh - 130;
+    viewport.addComponent(UITransform).setContentSize(new Size(viewW, viewH));
     viewport.addComponent(Mask).type = Mask.Type.GRAPHICS_RECT;
 
     const content = new Node("RulesContent");
     content.layer = Layers.Enum.UI_2D;
     viewport.addChild(content);
-    content.addComponent(UITransform).setContentSize(new Size(250, 400));
+    content.addComponent(UITransform).setContentSize(new Size(viewW, viewH + 80));
     content.setPosition(new Vec3(0, -40, 0));
 
     const scroll = viewport.addComponent(ScrollView);
@@ -903,7 +907,7 @@ export class LobbyUI {
       panel,
       "明白了",
       0,
-      -195,
+      -rh / 2 + 45,
       200,
       40,
       () => this.closeRules(),
