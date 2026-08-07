@@ -13,7 +13,14 @@
   <body>
     <canvas id="table"></canvas>
 
-    <!-- 竖屏时这个容器会整体旋转 90°，与牌桌保持一致方向 -->
+    <div id="portrait-lock" class="hidden" aria-live="polite">
+      <div class="portrait-lock-panel">
+        <p class="portrait-lock-icon">↻</p>
+        <p class="portrait-lock-title">请旋转手机</p>
+        <p class="portrait-lock-hint">本游戏仅支持横屏游玩</p>
+      </div>
+    </div>
+
     <div id="ui">
       <!-- 大厅 -->
       <section id="lobby" class="screen">

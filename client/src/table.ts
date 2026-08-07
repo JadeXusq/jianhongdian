@@ -1,9 +1,8 @@
 /**
  * 牌桌视图：布局 / 绘制 / 命中测试 / 动画
  *
- * 坐标系：逻辑高度固定 720，逻辑宽度随屏幕比例伸缩（限制在 W_MIN~W_MAX），
- * 以便从 4:3 平板到 21:9 长屏都尽量铺满、不留黑边。
- * 竖屏时整幅画面软件旋转 90°，保证永远是横屏玩法。
+ * 坐标系：逻辑高度固定 720，逻辑宽度随屏幕比例伸缩（限制在 W_MIN~W_MAX）。
+ * 仅横屏游玩；竖屏触屏设备显示旋转提示。
  */
 import { cardScore, DECK_SIZE } from "@jhd/shared";
 import type { GameEvent } from "@jhd/shared";
@@ -19,7 +18,7 @@ import {
   DEAL_TABLE_PAUSE_S,
 } from "@jhd/shared";
 import { drawCard, roundRect } from "./cardRender";
-import { shouldRotate, onOrientationChange } from "./layout";
+import { onOrientationChange } from "./layout";
 import { C, CARD_RATIO } from "./theme";
 
 const H = 720;
@@ -97,12 +96,10 @@ export interface TableCallbacks {
 export class TableView {
   private ctx: CanvasRenderingContext2D;
   private scale = 1;
-  /** 居中留边（在“视觉横屏”坐标系下）*/
+  /** 居中留边 */
   private pad: Pt = { x: 0, y: 0 };
   /** 当前逻辑宽度，随屏幕比例变化 */
   private w = 1280;
-  /** 是否软件旋转（竖屏手机）*/
-  private rotated = false;
 
   private handSlots = new Map<number, Slot>();
   private tableSlots = new Map<number, Slot>();
@@ -161,7 +158,7 @@ export class TableView {
   private layoutBufW = 0;
   private layoutBufH = 0;
   private layoutDpr = 0;
-  private layoutStable = { cw: 0, ch: 0, rot: false };
+  private layoutStable = { cw: 0, ch: 0 };
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -232,8 +229,7 @@ export class TableView {
   }
 
   /**
-   * 全屏 canvas 尺寸。安卓 Chrome 偶发把 clientWidth/Height 报成约一半，
-   * 竖屏旋转下 scale=vh/H 会减半 → 画面约 1/4；#ui 是 DOM 不受影响。
+   * 全屏 canvas 尺寸。安卓偶发把尺寸报成约一半，用窗口尺寸兜底并拦截骤降。
    */
   private canvasCssSize(): { cw: number; ch: number } {
     const rect = this.canvas.getBoundingClientRect();
@@ -244,20 +240,19 @@ export class TableView {
     if (cw < winW * 0.92) cw = winW;
     if (ch < winH * 0.92) ch = winH;
 
-    const rot = shouldRotate();
     const s = this.layoutStable;
     if (s.cw > 0 && s.ch > 0) {
       const nextA = cw * ch;
       const prevA = s.cw * s.ch;
-      if (rot !== s.rot || nextA > prevA * 1.03) {
-        this.layoutStable = { cw, ch, rot };
+      if (nextA > prevA * 1.03) {
+        this.layoutStable = { cw, ch };
       } else if (nextA < prevA * 0.64) {
         return { cw: s.cw, ch: s.ch };
       } else {
-        this.layoutStable = { cw, ch, rot };
+        this.layoutStable = { cw, ch };
       }
     } else {
-      this.layoutStable = { cw, ch, rot };
+      this.layoutStable = { cw, ch };
     }
     return { cw: this.layoutStable.cw, ch: this.layoutStable.ch };
   }
@@ -284,9 +279,8 @@ export class TableView {
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    this.rotated = shouldRotate();
-    const vw = this.rotated ? ch : cw;
-    const vh = this.rotated ? cw : ch;
+    const vw = cw;
+    const vh = ch;
 
     let w = (vw / vh) * H;
     if (w < W_MIN) {
@@ -310,7 +304,6 @@ export class TableView {
     const rh = rect.height > 0 ? rect.height : ch;
     let sx = ((e.clientX - rect.left) / rw) * cw;
     let sy = ((e.clientY - rect.top) / rh) * ch;
-    if (this.rotated) [sx, sy] = [sy, cw - sx];
     return {
       x: (sx - this.pad.x) / this.scale,
       y: (sy - this.pad.y) / this.scale,
@@ -344,7 +337,7 @@ export class TableView {
     // 手牌在上层，优先命中；同层从右往左（后绘制的在上）
     // 触屏加大命中外扩；竖屏软件旋转后再放大（物理牌面更窄）
     const coarse = window.matchMedia("(pointer: coarse)").matches;
-    const pad = coarse ? (this.rotated ? 22 : 12) : 0;
+    const pad = coarse ? 12 : 0;
     const hit = (slots: Map<number, Slot>) => {
       const entries = [...slots.entries()].reverse();
       for (const [id, s] of entries)
@@ -532,7 +525,7 @@ export class TableView {
           },
           {
             text: "点击任意处跳过",
-            at: { x: centerX, y: this.rotated ? H - 64 : H - 48 },
+            at: { x: centerX, y: H - 48 },
             t: 0,
             hint: true,
           },
@@ -874,11 +867,6 @@ export class TableView {
     ctx.save();
     ctx.fillStyle = C.feltOuter;
     ctx.fillRect(0, 0, cw, ch);
-    if (this.rotated) {
-      // 竖屏：整幅画面顺时针旋 90°，逻辑原点落在屏幕右上角
-      ctx.translate(cw, 0);
-      ctx.rotate(Math.PI / 2);
-    }
     ctx.translate(this.pad.x, this.pad.y);
     ctx.scale(this.scale, this.scale);
 
@@ -1353,9 +1341,9 @@ export class TableView {
         const flying = s.flies.some((f) => f.t < f.dur);
         if (flying || s.hold <= 0) continue;
         const pulse = 0.65 + 0.35 * Math.sin(this.animClock * 4);
-        const capW = this.rotated ? 248 : 220;
-        const capH = this.rotated ? 42 : 36;
-        const fontPx = this.rotated ? 18 : 16;
+        const capW = 220;
+        const capH = 36;
+        const fontPx = 16;
         ctx.save();
         ctx.globalAlpha = pulse;
         roundRect(ctx, p.at.x - capW / 2, p.at.y - capH / 2, capW, capH, 18);
