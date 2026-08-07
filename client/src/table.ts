@@ -5,7 +5,7 @@
  * 以便从 4:3 平板到 21:9 长屏都尽量铺满、不留黑边。
  * 竖屏时整幅画面软件旋转 90°，保证永远是横屏玩法。
  */
-import { cardScore } from "@jhd/shared";
+import { cardScore, DECK_SIZE } from "@jhd/shared";
 import type { GameEvent } from "@jhd/shared";
 import {
   DISCARD_HOLD_S,
@@ -139,6 +139,7 @@ export class TableView {
   private visualTurnSeat: number | null = null;
   /** 开局发牌动画进行中 */
   private openingDeal = false;
+  private dealArmed = false;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -478,6 +479,7 @@ export class TableView {
   }
 
   private displayHandCount(p: { seat: number; handCount?: number }): number {
+    if (this.openingDeal) return 0;
     return (p.handCount ?? 0) + (this.pendingHand.get(p.seat) ?? 0);
   }
 
@@ -523,9 +525,49 @@ export class TableView {
     return this.current !== null || this.steps.length > 0 || this.openingDeal;
   }
 
+  /** 新一轮开始时清掉未提交的显示延迟 */
+  resetAnimVisuals(): void {
+    this.steps.length = 0;
+    this.current = null;
+    this.hidden.clear();
+    this.deferredReveal.clear();
+    this.lingerTable.clear();
+    this.stockAnimCredit = 0;
+    this.pendingGain.clear();
+    this.pendingCards.clear();
+    this.pendingHand.clear();
+    this.visualTurnSeat = null;
+    this.openingDeal = false;
+    this.dealArmed = false;
+  }
+
+  /** 开局发牌前先藏牌，等状态与手牌就绪再播动画 */
+  prepDealAnim(): void {
+    this.openingDeal = true;
+    this.dealArmed = true;
+    this.hideAllDealtCards();
+  }
+
+  tryDealAnim(): boolean {
+    if (!this.dealArmed) return false;
+    if (!this.state || this.state.phase !== "PLAYING") return false;
+    if (!this.hand.length) return false;
+    this.startDealAnim();
+    return true;
+  }
+
+  private hideAllDealtCards(): void {
+    for (const id of this.hand) this.deferredReveal.add(id);
+    const table: number[] = this.state?.table ? [...this.state.table] : [];
+    for (const id of table) this.deferredReveal.add(id);
+  }
+
   /** 新一轮：洗牌 + 逐轮发手牌 + 桌面开牌 */
   startDealAnim(): void {
+    if (!this.dealArmed) return;
     if (!this.state || this.state.phase !== "PLAYING") return;
+    if (!this.hand.length) return;
+    this.dealArmed = false;
     this.openingDeal = true;
     const count = this.state.players.size as number;
     const handSize = this.hand.length;
@@ -625,21 +667,6 @@ export class TableView {
     }
 
     this.steps.push({ flies: [], popups: [], hide: [], hold: 0.05 });
-  }
-
-  /** 新一轮开始时清掉未提交的显示延迟 */
-  resetAnimVisuals(): void {
-    this.steps.length = 0;
-    this.current = null;
-    this.hidden.clear();
-    this.deferredReveal.clear();
-    this.lingerTable.clear();
-    this.stockAnimCredit = 0;
-    this.pendingGain.clear();
-    this.pendingCards.clear();
-    this.pendingHand.clear();
-    this.visualTurnSeat = null;
-    this.openingDeal = false;
   }
 
   private stepAnim(dt: number): void {
@@ -862,7 +889,9 @@ export class TableView {
   }
 
   private drawDeck(ctx: CanvasRenderingContext2D): void {
-    const n = (this.state.stockCount as number) + this.stockAnimCredit;
+    const n = this.openingDeal
+      ? Math.min(4, DECK_SIZE)
+      : (this.state.stockCount as number) + this.stockAnimCredit;
     const shuffling =
       this.openingDeal &&
       this.current &&
@@ -878,7 +907,7 @@ export class TableView {
     ctx.textAlign = "center";
     ctx.font = `600 20px "Helvetica Neue", Arial, sans-serif`;
     ctx.fillText(
-      `牌堆 ${n}`,
+      this.openingDeal ? "洗牌发牌" : `牌堆 ${n}`,
       DECK.x + DECK.w / 2,
       DECK.y + DECK.w * CARD_RATIO + 26
     );

@@ -30,6 +30,8 @@ let turnUiLockUntil = 0;
 /** 待展示的结算（等动画结束或超时） */
 let pendingRoundOver: RoundOver | null = null;
 let roundOverWaitStarted = 0;
+let dealRoundPending = false;
+let lastDealRound = 0;
 let roomCodeMode: "join" | "spectate" = "join";
 
 const assetBase = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
@@ -192,6 +194,26 @@ function flushRoundOverIfReady(): boolean {
   sfx.roundOver();
   renderResult(r);
   return true;
+}
+
+function tryStartDealAnim(): void {
+  if (!dealRoundPending) return;
+  if (view.tryDealAnim()) dealRoundPending = false;
+}
+
+function armDealRound(): void {
+  dealRoundPending = true;
+  view.prepDealAnim();
+  tryStartDealAnim();
+}
+
+function onDealRoundStart(): void {
+  selected = -1;
+  discardArmed = -1;
+  lastRound = null;
+  view.showCaptured = false;
+  view.resetAnimVisuals();
+  armDealRound();
 }
 
 function queueRoundOver(r: RoundOver): void {
@@ -819,6 +841,11 @@ function startOffline(): void {
     view.state = state;
     view.hand = session.hand;
     view.mySeat = session.mySeat;
+    if (state.phase === "PLAYING" && state.round !== lastDealRound) {
+      lastDealRound = state.round;
+      if (!dealRoundPending) armDealRound();
+    }
+    tryStartDealAnim();
     if (state.phase === "PLAYING") {
       const overlay =
         shown("rules") ||
@@ -852,12 +879,7 @@ function startOffline(): void {
     }
   };
   session.onRoundStart = () => {
-    selected = -1;
-    discardArmed = -1;
-    lastRound = null;
-    view.showCaptured = false;
-    view.resetAnimVisuals();
-    view.startDealAnim();
+    onDealRoundStart();
     if (localStorage.getItem("jhd.guided") !== "1") show("guide");
     else show("none");
   };
@@ -879,6 +901,11 @@ net.onState = (state) => {
   view.state = state;
   view.hand = net.hand;
   view.mySeat = net.mySeat;
+  if (state.phase === "PLAYING" && state.round !== lastDealRound) {
+    lastDealRound = state.round;
+    if (!dealRoundPending) armDealRound();
+  }
+  tryStartDealAnim();
 
   if (state.phase === "WAITING") {
     renderRoom(state);
@@ -919,18 +946,15 @@ net.onState = (state) => {
 };
 
 net.onRoundStart = () => {
-  selected = -1;
-  discardArmed = -1;
-  lastRound = null;
-  view.showCaptured = false;
-  view.resetAnimVisuals();
-  view.startDealAnim();
+  onDealRoundStart();
   if (localStorage.getItem("jhd.guided") !== "1") {
     show("guide");
   } else {
     show("none");
   }
 };
+
+net.onHand = () => tryStartDealAnim();
 
 net.onEvents = (events) => {
   if (offline) return;
@@ -1188,6 +1212,7 @@ function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   view.hand = offline ? offline.hand : net.hand;
+  if (dealRoundPending) tryStartDealAnim();
   view.render(dt);
   flushRoundOverIfReady();
   if (playState()?.phase === "PLAYING") {

@@ -189,8 +189,8 @@ export class LocalPlay {
     this.state.phase = "PLAYING";
     this.state.round = this.round;
     this.state.roundStarter = this.roundStarter;
-    this.emitState();
     this.onRoundStart?.();
+    this.emitState();
     this.scheduleAi(0);
   }
 

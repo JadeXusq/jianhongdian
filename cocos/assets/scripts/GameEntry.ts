@@ -82,6 +82,8 @@ export class GameEntry extends Component {
   private lastTablePos = new Map<number, { x: number; y: number }>();
   private hitTargetId = -1;
   private dealBusy = false;
+  private dealRoundPending = false;
+  private lastDealRound = 0;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -377,9 +379,13 @@ export class GameEntry extends Component {
 
     session.onState = (state) => {
       this.hand = session.hand.slice();
+      if (state.phase === "PLAYING" && state.round !== this.lastDealRound) {
+        this.lastDealRound = state.round;
+        if (!this.dealRoundPending) this.armDealRound();
+      }
       if (state.phase === "PLAYING") {
         const table: number[] = [...state.table];
-        if (this.lastTableIds.length > 0) {
+        if (!this.dealRoundPending && this.lastTableIds.length > 0) {
           const old = new Set(this.lastTableIds);
           for (const id of table) {
             if (!old.has(id)) this.deferredReveal.add(id);
@@ -407,6 +413,7 @@ export class GameEntry extends Component {
         }
         this.syncSelection();
         this.refreshTurnHint();
+        this.tryStartDealAnim();
       } else if (state.phase === "ROUND_OVER") {
         this.ui.setEmotesVisible(false);
         this.ui.setChatToggleVisible(true);
@@ -417,26 +424,7 @@ export class GameEntry extends Component {
     };
 
     session.onRoundStart = () => {
-      this.selected = -1;
-      this.discardArmed = -1;
-      this.targets = [];
-      this.lastRound = null;
-      this.showCaptured = false;
-      this.pendingGain.clear();
-      this.pendingCards.clear();
-      this.pendingHand.clear();
-      this.pendingDiscardHands = [];
-      this.visualTurnSeat = null;
-      this.matchCommit = null;
-      this.matchQueue = [];
-      this.lingerCards.clear();
-      this.lastTablePos.clear();
-      this.hitTargetId = -1;
-      this.matchBusy = false;
-      this.dealBusy = false;
-      this.deferredReveal.clear();
-      this.hand = session.hand.slice();
-      this.setTableVisible(true);
+      this.onDealRoundStart();
       let guided = false;
       try {
         guided = localStorage.getItem("jhd.guided") === "1";
@@ -454,7 +442,6 @@ export class GameEntry extends Component {
         this.ui.setHelpVisible(true);
         this.ui.setMenuVisible(true);
       }
-      this.playDealAnim();
     };
 
     session.onEvents = (events: GameEvent[]) => {
@@ -496,6 +483,7 @@ export class GameEntry extends Component {
     const busy =
       this.matchBusy ||
       this.dealBusy ||
+      this.dealRoundPending ||
       this.deferredReveal.size > 0 ||
       this.stockAnimCredit > 0 ||
       this.pendingDiscardHands.length > 0;
@@ -651,8 +639,12 @@ export class GameEntry extends Component {
         this.ui.renderRoom(state, this.net.room!.sessionId);
         if (!this.lastRound) this.ui.show("room");
       } else if (state.phase === "PLAYING") {
+        if (state.round !== this.lastDealRound) {
+          this.lastDealRound = state.round;
+          if (!this.dealRoundPending) this.armDealRound();
+        }
         const table: number[] = state.table ? [...state.table] : [];
-        if (this.lastTableIds.length > 0) {
+        if (!this.dealRoundPending && this.lastTableIds.length > 0) {
           const old = new Set(this.lastTableIds);
           for (const id of table) {
             if (!old.has(id)) this.deferredReveal.add(id);
@@ -680,6 +672,7 @@ export class GameEntry extends Component {
         }
         this.syncSelection();
         this.refreshTurnHint();
+        this.tryStartDealAnim();
       } else if (state.phase === "ROUND_OVER") {
         this.ui.setEmotesVisible(false);
         this.ui.setChatToggleVisible(true);
@@ -691,26 +684,7 @@ export class GameEntry extends Component {
 
     this.net.onRoundStart = () => {
       if (this.offline) return;
-      this.selected = -1;
-      this.discardArmed = -1;
-      this.targets = [];
-      this.lastRound = null;
-      this.showCaptured = false;
-      this.pendingGain.clear();
-      this.pendingCards.clear();
-      this.pendingHand.clear();
-      this.pendingDiscardHands = [];
-      this.visualTurnSeat = null;
-      this.matchCommit = null;
-      this.matchQueue = [];
-      this.lingerCards.clear();
-      this.lastTablePos.clear();
-      this.hitTargetId = -1;
-      this.matchBusy = false;
-      this.dealBusy = false;
-      this.deferredReveal.clear();
-      this.hand = this.net.hand.slice();
-      this.setTableVisible(true);
+      this.onDealRoundStart();
       let guided = false;
       try {
         guided = localStorage.getItem("jhd.guided") === "1";
@@ -726,8 +700,9 @@ export class GameEntry extends Component {
         this.ui.setEmotesVisible(true);
         this.ui.setHelpVisible(true);
       }
-      this.playDealAnim();
     };
+
+    this.net.onHand = () => this.tryStartDealAnim();
 
     this.net.onEvents = (events: GameEvent[]) => {
       if (this.offline) return;
@@ -834,6 +809,57 @@ export class GameEntry extends Component {
     this.scheduleOnce(this.revealDeferredFlips, DISCARD_HOLD_S);
     this.syncSelection();
     if (this.tableVisible && !this.matchBusy) this.render();
+  }
+
+  private onDealRoundStart(): void {
+    this.selected = -1;
+    this.discardArmed = -1;
+    this.targets = [];
+    this.lastRound = null;
+    this.showCaptured = false;
+    this.pendingGain.clear();
+    this.pendingCards.clear();
+    this.pendingHand.clear();
+    this.pendingDiscardHands = [];
+    this.visualTurnSeat = null;
+    this.matchCommit = null;
+    this.matchQueue = [];
+    this.lingerCards.clear();
+    this.lastTablePos.clear();
+    this.hitTargetId = -1;
+    this.matchBusy = false;
+    this.dealBusy = false;
+    this.dealRoundPending = false;
+    this.deferredReveal.clear();
+    this.hand = this.offline
+      ? this.offline.hand.slice()
+      : this.net.hand.slice();
+    this.setTableVisible(true);
+    this.armDealRound();
+  }
+
+  private armDealRound(): void {
+    this.dealRoundPending = true;
+    this.prepDealHidden();
+    this.hintText = "洗牌中…";
+    this.tryStartDealAnim();
+  }
+
+  private prepDealHidden(): void {
+    for (const id of this.hand) this.deferredReveal.add(id);
+    const state = this.playState();
+    if (state?.table) {
+      for (const id of state.table as number[]) this.deferredReveal.add(id);
+    }
+  }
+
+  private tryStartDealAnim(): void {
+    if (!this.dealRoundPending) return;
+    const state = this.playState();
+    if (!state || state.phase !== "PLAYING") return;
+    if (!this.hand.length) return;
+    this.dealRoundPending = false;
+    this.playDealAnim();
   }
 
   private playDealAnim(): void {
@@ -1258,6 +1284,7 @@ export class GameEntry extends Component {
   }
 
   private displayHandCount(p: { seat: number; handCount?: number }): number {
+    if (this.dealRoundPending || this.dealBusy) return 0;
     return (p.handCount ?? 0) + (this.pendingHand.get(p.seat) ?? 0);
   }
 
@@ -1315,6 +1342,7 @@ export class GameEntry extends Component {
     const busy =
       this.matchBusy ||
       this.dealBusy ||
+      this.dealRoundPending ||
       this.deferredReveal.size > 0 ||
       this.stockAnimCredit > 0 ||
       this.pendingDiscardHands.length > 0;
@@ -1368,8 +1396,10 @@ export class GameEntry extends Component {
 
   private renderDeck(): void {
     this.deckNode.removeAllChildren();
-    const n =
-      ((this.playState()?.stockCount as number) ?? 0) + this.stockAnimCredit;
+    const dealing = this.dealRoundPending || this.dealBusy;
+    const n = dealing
+      ? 4
+      : ((this.playState()?.stockCount as number) ?? 0) + this.stockAnimCredit;
     for (let i = Math.min(3, n) - 1; i >= 0; i--) {
       const card = createCard(0, 66, { faceUp: false });
       card.setPosition(new Vec3(-540 + i * 2, 220 - i * 2, 0));
@@ -1381,7 +1411,7 @@ export class GameEntry extends Component {
     lbl.setPosition(-540 + 33, 120, 0);
     lbl.addComponent(UITransform);
     const l = lbl.addComponent(Label);
-    l.string = `牌堆 ${n}`;
+    l.string = dealing ? "洗牌发牌" : `牌堆 ${n}`;
     l.fontSize = 18;
     l.color = C.cream;
   }
@@ -1524,6 +1554,7 @@ export class GameEntry extends Component {
     const busy =
       this.matchBusy ||
       this.dealBusy ||
+      this.dealRoundPending ||
       this.deferredReveal.size > 0 ||
       this.stockAnimCredit > 0 ||
       this.pendingDiscardHands.length > 0;

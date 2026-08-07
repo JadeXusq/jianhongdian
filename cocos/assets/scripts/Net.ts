@@ -88,6 +88,7 @@ export class Net {
   onRoundStart?: () => void;
   onRoundOver?: (r: RoundOver) => void;
   onEmote?: (e: { seat: number; name: string; id: string }) => void;
+  onHand?: () => void;
   onChat?: (e: {
     seat: number;
     name: string;
@@ -225,6 +226,7 @@ export class Net {
     });
     room.onMessage("hand", (hand: number[]) => {
       this.hand = hand;
+      this.onHand?.();
     });
     room.onMessage("roundStart", () => this.onRoundStart?.());
     room.onMessage("events", (e: GameEvent[]) => this.onEvents?.(e));
