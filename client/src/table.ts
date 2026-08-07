@@ -590,6 +590,12 @@ export class TableView {
     return true;
   }
 
+  /** 状态与手牌更新后重新藏牌（发牌动画启动前） */
+  syncDealHidden(): void {
+    if (!this.dealArmed && !this.openingDeal) return;
+    this.hideAllDealtCards();
+  }
+
   private hideAllDealtCards(): void {
     for (const id of this.hand) this.deferredReveal.add(id);
     const table: number[] = this.state?.table ? [...this.state.table] : [];
@@ -990,7 +996,7 @@ export class TableView {
       !this.animating &&
       !this.turnBlocked;
     for (const [id, s] of this.handSlots) {
-      if (this.hidden.has(id)) continue;
+      if (this.hidden.has(id) || this.deferredReveal.has(id)) continue;
       drawCard(ctx, id, s.x, s.y, s.w, {
         selected: this.selected === id && this.discardArmed !== id && myTurn,
         discard: this.discardArmed === id && myTurn,

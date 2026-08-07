@@ -378,11 +378,7 @@ export class GameEntry extends Component {
     this.offline = session;
 
     session.onState = (state) => {
-      this.hand = session.hand.slice();
-      if (state.phase === "PLAYING" && state.round !== this.lastDealRound) {
-        this.lastDealRound = state.round;
-        if (!this.dealRoundPending) this.armDealRound();
-      }
+      this.applyPlayState(state, session.hand);
       if (state.phase === "PLAYING") {
         const table: number[] = [...state.table];
         if (!this.dealRoundPending && this.lastTableIds.length > 0) {
@@ -639,10 +635,7 @@ export class GameEntry extends Component {
         this.ui.renderRoom(state, this.net.room!.sessionId);
         if (!this.lastRound) this.ui.show("room");
       } else if (state.phase === "PLAYING") {
-        if (state.round !== this.lastDealRound) {
-          this.lastDealRound = state.round;
-          if (!this.dealRoundPending) this.armDealRound();
-        }
+        this.applyPlayState(state, this.net.hand);
         const table: number[] = state.table ? [...state.table] : [];
         if (!this.dealRoundPending && this.lastTableIds.length > 0) {
           const old = new Set(this.lastTableIds);
@@ -702,7 +695,12 @@ export class GameEntry extends Component {
       }
     };
 
-    this.net.onHand = () => this.tryStartDealAnim();
+    this.net.onHand = () => {
+      if (this.offline) return;
+      this.hand = this.net.hand.slice();
+      if (this.dealRoundPending) this.prepDealHidden();
+      this.tryStartDealAnim();
+    };
 
     this.net.onEvents = (events: GameEvent[]) => {
       if (this.offline) return;
@@ -811,7 +809,7 @@ export class GameEntry extends Component {
     if (this.tableVisible && !this.matchBusy) this.render();
   }
 
-  private onDealRoundStart(): void {
+  private resetRoundDealPrep(): void {
     this.selected = -1;
     this.discardArmed = -1;
     this.targets = [];
@@ -829,14 +827,16 @@ export class GameEntry extends Component {
     this.hitTargetId = -1;
     this.matchBusy = false;
     this.dealBusy = false;
-    this.dealRoundPending = false;
     this.deferredReveal.clear();
+  }
+
+  private onDealRoundStart(): void {
+    this.resetRoundDealPrep();
     this.hand = this.offline
       ? this.offline.hand.slice()
       : this.net.hand.slice();
     this.setTableVisible(true);
     this.ui.clearToast();
-    this.armDealRound();
   }
 
   private armDealRound(): void {
@@ -851,6 +851,17 @@ export class GameEntry extends Component {
     const state = this.playState();
     if (state?.table) {
       for (const id of state.table as number[]) this.deferredReveal.add(id);
+    }
+  }
+
+  private applyPlayState(state: any, hand: number[]): void {
+    this.hand = hand.slice();
+    if (state.phase === "PLAYING" && state.round !== this.lastDealRound) {
+      this.lastDealRound = state.round;
+      this.resetRoundDealPrep();
+      this.armDealRound();
+    } else if (this.dealRoundPending) {
+      this.prepDealHidden();
     }
   }
 
@@ -1520,6 +1531,8 @@ export class GameEntry extends Component {
 
     const hitPad = sys.isMobile ? 22 : 0;
     this.hand.forEach((id, i) => {
+      if (this.deferredReveal.has(id) || this.dealRoundPending || this.dealBusy)
+        return;
       const k = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
       const lift = this.selected === id ? 22 : 0;
       const discarding = this.discardArmed === id;

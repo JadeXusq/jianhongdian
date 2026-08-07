@@ -217,10 +217,23 @@ function onDealRoundStart(): void {
   discardArmed = -1;
   lastRound = null;
   view.showCaptured = false;
-  view.resetAnimVisuals();
   clearToast();
   hint(null);
-  armDealRound();
+}
+
+function applyPlayState(state: any, hand: number[], mySeat: number): void {
+  view.deferStateArrivals(view.state, state);
+  view.state = state;
+  view.hand = hand;
+  view.mySeat = mySeat;
+  if (state.phase === "PLAYING" && state.round !== lastDealRound) {
+    lastDealRound = state.round;
+    view.resetAnimVisuals();
+    armDealRound();
+  } else if (dealRoundPending) {
+    view.syncDealHidden();
+  }
+  tryStartDealAnim();
 }
 
 function queueRoundOver(r: RoundOver): void {
@@ -847,15 +860,7 @@ function startOffline(): void {
   const session = new LocalPlay(playerName(), maxPlayers);
   offline = session;
   session.onState = (state) => {
-    view.deferStateArrivals(view.state, state);
-    view.state = state;
-    view.hand = session.hand;
-    view.mySeat = session.mySeat;
-    if (state.phase === "PLAYING" && state.round !== lastDealRound) {
-      lastDealRound = state.round;
-      if (!dealRoundPending) armDealRound();
-    }
-    tryStartDealAnim();
+    applyPlayState(state, session.hand, session.mySeat);
     if (state.phase === "PLAYING") {
       const overlay =
         shown("rules") ||
@@ -907,15 +912,7 @@ function startOffline(): void {
 
 net.onState = (state) => {
   if (offline) return;
-  view.deferStateArrivals(view.state, state);
-  view.state = state;
-  view.hand = net.hand;
-  view.mySeat = net.mySeat;
-  if (state.phase === "PLAYING" && state.round !== lastDealRound) {
-    lastDealRound = state.round;
-    if (!dealRoundPending) armDealRound();
-  }
-  tryStartDealAnim();
+  applyPlayState(state, net.hand, net.mySeat);
 
   if (state.phase === "WAITING") {
     renderRoom(state);
@@ -964,7 +961,12 @@ net.onRoundStart = () => {
   }
 };
 
-net.onHand = () => tryStartDealAnim();
+net.onHand = () => {
+  if (offline) return;
+  view.hand = net.hand;
+  if (dealRoundPending) view.syncDealHidden();
+  tryStartDealAnim();
+};
 
 net.onEvents = (events) => {
   if (offline) return;
@@ -1223,6 +1225,7 @@ function frame(now: number): void {
   last = now;
   try {
     view.hand = offline ? offline.hand : net.hand;
+    if (dealRoundPending) view.syncDealHidden();
     if (dealRoundPending) tryStartDealAnim();
     view.render(dt);
     flushRoundOverIfReady();
