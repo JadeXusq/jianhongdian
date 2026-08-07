@@ -3,7 +3,7 @@
  * 交互约定：点手牌 → 唯一目标直接吃；多目标高亮待选；无目标需再点一次确认弃牌。
  */
 import { cardScore, findTargets, turnHint } from "@jhd/shared";
-import { ROUND_RESULT_MAX_WAIT_MS, TURN_UI_LOCK_MS } from "@jhd/shared";
+import { ROUND_RESULT_MAX_WAIT_MS, ROUND_END_EVENT_GRACE_MS, TURN_UI_LOCK_MS } from "@jhd/shared";
 import { sfx } from "./audio";
 import { loadCardAtlas } from "./cardRender";
 import { bindRotScroll, onOrientationChange, shouldRotate } from "./layout";
@@ -198,9 +198,11 @@ function refreshTurnHint(): void {
 function flushRoundOverIfReady(): boolean {
   if (!pendingRoundOver) return false;
   const waited = performance.now() - roundOverWaitStarted;
+  if (waited < ROUND_END_EVENT_GRACE_MS) return false;
   if (view.animating && waited < ROUND_RESULT_MAX_WAIT_MS) return false;
   const r = pendingRoundOver;
   pendingRoundOver = null;
+  view.roundEnding = false;
   sfx.roundOver();
   renderResult(r);
   return true;
@@ -222,6 +224,7 @@ function onDealRoundStart(): void {
   discardArmed = -1;
   lastRound = null;
   view.showCaptured = false;
+  view.roundEnding = false;
   clearToast();
   hint(null);
 }
@@ -266,7 +269,8 @@ function queueRoundOver(r: RoundOver): void {
   lastRound = r;
   pendingRoundOver = r;
   roundOverWaitStarted = performance.now();
-  setTimeout(() => flushRoundOverIfReady(), 200);
+  view.roundEnding = true;
+  setTimeout(() => flushRoundOverIfReady(), ROUND_END_EVENT_GRACE_MS);
   const poll = () => {
     if (!pendingRoundOver) return;
     if (flushRoundOverIfReady()) return;

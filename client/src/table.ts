@@ -147,6 +147,8 @@ export class TableView {
   discardArmed = -1;
   /** 展开查看全部已吃牌 */
   showCaptured = false;
+  /** 轮末：state 已 ROUND_OVER 但吃牌/翻牌动画未播完 */
+  roundEnding = false;
   /** 外部置位：上家动画/状态抖动期间锁手牌与回合 UI */
   turnBlocked = false;
   /** 动画播放中仍高亮出手座位，避免回合指示提前跳走 */
@@ -154,16 +156,12 @@ export class TableView {
   /** 开局发牌动画进行中 */
   private openingDeal = false;
   private dealArmed = false;
-  private layoutCw = 0;
-  private layoutCh = 0;
-  private layoutDpr = 0;
-  private layoutRotated = false;
-  private resizeRaf = 0;
+  private layoutBufW = 0;
+  private layoutBufH = 0;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
-    this.resize();
-    onOrientationChange(() => this.resize());
+    onOrientationChange(() => this.updateLayout());
     canvas.addEventListener("pointerdown", (e) => this.onPointer(e));
   }
 
@@ -197,48 +195,29 @@ export class TableView {
     return { x: 236, y: 168, w: this.w - 472, h: 280 };
   }
 
-  private scheduleResize(): void {
-    if (this.resizeRaf) return;
-    this.resizeRaf = requestAnimationFrame(() => {
-      this.resizeRaf = 0;
-      this.resize();
-    });
+  private cssSize(): { cw: number; ch: number } {
+    const vv = window.visualViewport;
+    if (vv && vv.width >= 200 && vv.height >= 200)
+      return { cw: vv.width, ch: vv.height };
+    const cw = this.canvas.clientWidth || window.innerWidth;
+    const ch = this.canvas.clientHeight || window.innerHeight;
+    return { cw, ch };
   }
 
-  private layoutDirty(): boolean {
-    const cw = this.canvas.clientWidth;
-    const ch = this.canvas.clientHeight;
+  private updateLayout(): void {
     const dpr = window.devicePixelRatio || 1;
-    const rotated = shouldRotate();
-    return (
-      cw !== this.layoutCw ||
-      ch !== this.layoutCh ||
-      dpr !== this.layoutDpr ||
-      rotated !== this.layoutRotated
-    );
-  }
+    const { cw, ch } = this.cssSize();
+    if (cw < 80 || ch < 80) return;
 
-  private resize(): void {
-    const dpr = window.devicePixelRatio || 1;
-    const cw = this.canvas.clientWidth;
-    const ch = this.canvas.clientHeight;
-    if (cw < 80 || ch < 80) {
-      this.scheduleResize();
-      return;
+    const bufW = Math.round(cw * dpr);
+    const bufH = Math.round(ch * dpr);
+    if (bufW !== this.layoutBufW || bufH !== this.layoutBufH) {
+      this.canvas.width = bufW;
+      this.canvas.height = bufH;
+      this.layoutBufW = bufW;
+      this.layoutBufH = bufH;
+      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
-    if (this.layoutCw > 0 && this.layoutCh > 0) {
-      const area = cw * ch;
-      const prevArea = this.layoutCw * this.layoutCh;
-      const grew = cw > this.layoutCw * 1.08 || ch > this.layoutCh * 1.08;
-      if (prevArea > 0 && area < prevArea * 0.5 && !grew) {
-        this.scheduleResize();
-        return;
-      }
-    }
-
-    this.canvas.width = Math.round(cw * dpr);
-    this.canvas.height = Math.round(ch * dpr);
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     this.rotated = shouldRotate();
     const vw = this.rotated ? ch : cw;
@@ -257,10 +236,6 @@ export class TableView {
       x: (vw - w * this.scale) / 2,
       y: (vh - H * this.scale) / 2,
     };
-    this.layoutCw = cw;
-    this.layoutCh = ch;
-    this.layoutDpr = dpr;
-    this.layoutRotated = this.rotated;
   }
 
   private onPointer(e: PointerEvent): void {
@@ -815,10 +790,9 @@ export class TableView {
   }
 
   render(dt: number): void {
-    if (this.layoutDirty()) this.resize();
+    this.updateLayout();
+    const { cw, ch } = this.cssSize();
     const ctx = this.ctx;
-    const cw = this.canvas.clientWidth;
-    const ch = this.canvas.clientHeight;
     ctx.save();
     ctx.fillStyle = C.feltOuter;
     ctx.fillRect(0, 0, cw, ch);
@@ -832,7 +806,12 @@ export class TableView {
 
     this.stepAnim(dt);
     this.drawFelt(ctx);
-    if (this.state?.phase === "PLAYING") {
+    const showBoard =
+      this.state?.phase === "PLAYING" ||
+      this.animating ||
+      this.openingDeal ||
+      this.roundEnding;
+    if (showBoard) {
       this.layout();
       this.drawDeck(ctx);
       this.drawTable(ctx);

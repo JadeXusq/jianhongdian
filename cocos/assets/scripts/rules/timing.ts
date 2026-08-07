@@ -39,6 +39,8 @@ export const ROUND_RESULT_MAX_WAIT_MS =
   420 +
   FLY_PILE_HOLD_MS +
   1_500;
+/** 轮末结算前留给 events 消息到达的宽限（防 state 先于 events） */
+export const ROUND_END_EVENT_GRACE_MS = 280;
 
 /** 开局洗牌展示 */
 export const DEAL_SHUFFLE_MS = 900;

@@ -25,6 +25,7 @@ import {
   DEAL_ROUND_PAUSE_S,
   DEAL_TABLE_PAUSE_S,
   ROUND_RESULT_MAX_WAIT_MS,
+  ROUND_END_EVENT_GRACE_MS,
   turnHint,
   type GameEvent,
 } from "./rules";
@@ -480,6 +481,11 @@ export class GameEntry extends Component {
 
   private tryFlushRoundOver = (): void => {
     if (!this.pendingRoundOver) return;
+    const waited = Date.now() - this.roundOverWaitStarted;
+    if (waited < ROUND_END_EVENT_GRACE_MS) {
+      this.scheduleOnce(this.tryFlushRoundOver, 0.08);
+      return;
+    }
     const busy =
       this.matchBusy ||
       this.dealBusy ||
@@ -487,7 +493,6 @@ export class GameEntry extends Component {
       this.deferredReveal.size > 0 ||
       this.stockAnimCredit > 0 ||
       this.pendingDiscardHands.length > 0;
-    const waited = Date.now() - this.roundOverWaitStarted;
     if (busy && waited < ROUND_RESULT_MAX_WAIT_MS) {
       this.scheduleOnce(this.tryFlushRoundOver, 0.12);
       return;
@@ -1433,7 +1438,13 @@ export class GameEntry extends Component {
 
   private render(): void {
     const state = this.playState();
-    if (state?.phase === "PLAYING") {
+    const showBoard =
+      state?.phase === "PLAYING" ||
+      this.matchBusy ||
+      this.dealBusy ||
+      this.dealRoundPending ||
+      !!this.pendingRoundOver;
+    if (showBoard) {
       this.renderDeck();
       this.renderTable();
       this.renderHand();

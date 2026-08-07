@@ -27,6 +27,7 @@ export function onOrientationChange(fn: () => void): void {
     setTimeout(run, 320);
   });
   window.visualViewport?.addEventListener("resize", run);
+  window.visualViewport?.addEventListener("scroll", run);
 }
 
 /**
