@@ -13,6 +13,10 @@ import {
   HIT_HOLD_S,
   MATCH_HOLD_S,
   FLY_PILE_HOLD_S,
+  DEAL_SHUFFLE_S,
+  DEAL_FLY_S,
+  DEAL_ROUND_PAUSE_S,
+  DEAL_TABLE_PAUSE_S,
 } from "@jhd/shared";
 import { drawCard, roundRect } from "./cardRender";
 import { shouldRotate, onOrientationChange } from "./layout";
@@ -133,6 +137,8 @@ export class TableView {
   turnBlocked = false;
   /** 动画播放中仍高亮出手座位，避免回合指示提前跳走 */
   private visualTurnSeat: number | null = null;
+  /** 开局发牌动画进行中 */
+  private openingDeal = false;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -514,7 +520,111 @@ export class TableView {
   }
 
   get animating(): boolean {
-    return this.current !== null || this.steps.length > 0;
+    return this.current !== null || this.steps.length > 0 || this.openingDeal;
+  }
+
+  /** 新一轮：洗牌 + 逐轮发手牌 + 桌面开牌 */
+  startDealAnim(): void {
+    if (!this.state || this.state.phase !== "PLAYING") return;
+    this.openingDeal = true;
+    const count = this.state.players.size as number;
+    const handSize = this.hand.length;
+    const table: number[] = [...this.state.table];
+    const deckFrom = { x: DECK.x, y: DECK.y };
+    const allIds = [...this.hand, ...table];
+    for (const id of allIds) this.deferredReveal.add(id);
+
+    this.steps.push({
+      flies: [],
+      popups: [
+        {
+          text: "洗牌中…",
+          at: { x: this.w / 2, y: H * 0.42 },
+          t: 0,
+          hint: true,
+        },
+      ],
+      hide: allIds,
+      hold: DEAL_SHUFFLE_S,
+    });
+
+    for (let r = 0; r < handSize; r++) {
+      const flies: Fly[] = [];
+      const hide: number[] = [];
+      const reveal: number[] = [];
+      for (let seat = 0; seat < count; seat++) {
+        if (seat === this.mySeat) {
+          const id = this.hand[r];
+          const to = this.handSlotAt(r, handSize);
+          flies.push({
+            id,
+            from: deckFrom,
+            to,
+            w: HAND_W,
+            t: 0,
+            dur: DEAL_FLY_S,
+            faceUp: false,
+            flip: true,
+          });
+          hide.push(id);
+          reveal.push(id);
+        } else {
+          const to = this.panelPos(seat);
+          flies.push({
+            id: 0,
+            from: deckFrom,
+            to: {
+              x: to.x + ((r % 3) - 1) * 4,
+              y: to.y - Math.floor(r / 3) * 3,
+            },
+            w: 52,
+            t: 0,
+            dur: DEAL_FLY_S,
+            faceUp: false,
+          });
+        }
+      }
+      this.steps.push({
+        flies,
+        popups: [],
+        hide,
+        hold: DEAL_ROUND_PAUSE_S,
+        revealOnDone: reveal,
+      });
+    }
+
+    if (table.length) {
+      const slots = this.computeTableSlots(table);
+      const flies: Fly[] = table.map((id) => {
+        const s = slots.get(id)!;
+        return {
+          id,
+          from: deckFrom,
+          to: { x: s.x, y: s.y },
+          w: TABLE_CARD_W,
+          t: 0,
+          dur: DEAL_FLY_S,
+          faceUp: false,
+          flip: true,
+        };
+      });
+      this.steps.push({
+        flies,
+        popups: [
+          {
+            text: "开牌",
+            at: { x: this.w / 2, y: this.area.y - 22 },
+            t: 0,
+            hint: true,
+          },
+        ],
+        hide: table,
+        hold: DEAL_TABLE_PAUSE_S,
+        revealOnDone: table,
+      });
+    }
+
+    this.steps.push({ flies: [], popups: [], hide: [], hold: 0.05 });
   }
 
   /** 新一轮开始时清掉未提交的显示延迟 */
@@ -529,6 +639,7 @@ export class TableView {
     this.pendingCards.clear();
     this.pendingHand.clear();
     this.visualTurnSeat = null;
+    this.openingDeal = false;
   }
 
   private stepAnim(dt: number): void {
@@ -562,7 +673,10 @@ export class TableView {
       if (s.commitHand !== undefined) this.applyHandCommit(s.commitHand);
       this.current = null;
       this.hidden.clear();
-      if (!this.steps.length) this.visualTurnSeat = null;
+      if (!this.steps.length) {
+        this.visualTurnSeat = null;
+        if (this.openingDeal) this.openingDeal = false;
+      }
     }
   }
 
@@ -669,6 +783,16 @@ export class TableView {
     return { x: 18, y: H - cardH - 14 };
   }
 
+  private handSlotAt(i: number, n: number): Pt {
+    const maxW = this.w - 200;
+    const step = Math.min(HAND_W + 10, maxW / n);
+    const totalW = step * (n - 1) + HAND_W;
+    const startX = (this.w - totalW) / 2;
+    const baseY = H - HAND_W * CARD_RATIO - 30;
+    const k = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
+    return { x: startX + i * step, y: baseY + k * k * 10 };
+  }
+
   /** 座位在屏幕上的面板中心：自己在下，其余按人数排布 */
   private panelPos(seat: number): Pt {
     const count = this.state?.players.size ?? 4;
@@ -739,8 +863,15 @@ export class TableView {
 
   private drawDeck(ctx: CanvasRenderingContext2D): void {
     const n = (this.state.stockCount as number) + this.stockAnimCredit;
+    const shuffling =
+      this.openingDeal &&
+      this.current &&
+      !this.current.flies.length &&
+      this.current.popups.some((p) => p.hint);
+    const shake = shuffling ? Math.sin(this.animClock * 16) * 5 : 0;
+    const sway = shuffling ? Math.cos(this.animClock * 11) * 3 : 0;
     for (let i = Math.min(4, n) - 1; i >= 0; i--)
-      drawCard(ctx, 0, DECK.x + i * 2, DECK.y - i * 2, DECK.w, {
+      drawCard(ctx, 0, DECK.x + i * 2 + shake, DECK.y - i * 2 + sway, DECK.w, {
         faceUp: false,
       });
     ctx.fillStyle = C.cream;

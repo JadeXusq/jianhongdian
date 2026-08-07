@@ -857,6 +857,7 @@ function startOffline(): void {
     lastRound = null;
     view.showCaptured = false;
     view.resetAnimVisuals();
+    view.startDealAnim();
     if (localStorage.getItem("jhd.guided") !== "1") show("guide");
     else show("none");
   };
@@ -923,6 +924,7 @@ net.onRoundStart = () => {
   lastRound = null;
   view.showCaptured = false;
   view.resetAnimVisuals();
+  view.startDealAnim();
   if (localStorage.getItem("jhd.guided") !== "1") {
     show("guide");
   } else {

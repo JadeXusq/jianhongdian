@@ -20,6 +20,10 @@ import {
   HIT_HOLD_S,
   FLY_TARGET_HOLD_S,
   DISCARD_HOLD_S,
+  DEAL_SHUFFLE_S,
+  DEAL_FLY_S,
+  DEAL_ROUND_PAUSE_S,
+  DEAL_TABLE_PAUSE_S,
   ROUND_RESULT_MAX_WAIT_MS,
   turnHint,
   type GameEvent,
@@ -77,6 +81,7 @@ export class GameEntry extends Component {
   private lingerCards = new Set<number>();
   private lastTablePos = new Map<number, { x: number; y: number }>();
   private hitTargetId = -1;
+  private dealBusy = false;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -428,8 +433,9 @@ export class GameEntry extends Component {
       this.lastTablePos.clear();
       this.hitTargetId = -1;
       this.matchBusy = false;
+      this.dealBusy = false;
+      this.deferredReveal.clear();
       this.hand = session.hand.slice();
-      this.hintText = "新一轮开始";
       this.setTableVisible(true);
       let guided = false;
       try {
@@ -448,7 +454,7 @@ export class GameEntry extends Component {
         this.ui.setHelpVisible(true);
         this.ui.setMenuVisible(true);
       }
-      this.render();
+      this.playDealAnim();
     };
 
     session.onEvents = (events: GameEvent[]) => {
@@ -489,6 +495,7 @@ export class GameEntry extends Component {
     if (!this.pendingRoundOver) return;
     const busy =
       this.matchBusy ||
+      this.dealBusy ||
       this.deferredReveal.size > 0 ||
       this.stockAnimCredit > 0 ||
       this.pendingDiscardHands.length > 0;
@@ -700,8 +707,9 @@ export class GameEntry extends Component {
       this.lastTablePos.clear();
       this.hitTargetId = -1;
       this.matchBusy = false;
+      this.dealBusy = false;
+      this.deferredReveal.clear();
       this.hand = this.net.hand.slice();
-      this.hintText = "新一轮开始";
       this.setTableVisible(true);
       let guided = false;
       try {
@@ -718,7 +726,7 @@ export class GameEntry extends Component {
         this.ui.setEmotesVisible(true);
         this.ui.setHelpVisible(true);
       }
-      this.render();
+      this.playDealAnim();
     };
 
     this.net.onEvents = (events: GameEvent[]) => {
@@ -826,6 +834,205 @@ export class GameEntry extends Component {
     this.scheduleOnce(this.revealDeferredFlips, DISCARD_HOLD_S);
     this.syncSelection();
     if (this.tableVisible && !this.matchBusy) this.render();
+  }
+
+  private playDealAnim(): void {
+    const state = this.playState();
+    if (!state || state.phase !== "PLAYING") return;
+    this.dealBusy = true;
+    const table: number[] = [...state.table];
+    for (const id of this.hand) this.deferredReveal.add(id);
+    for (const id of table) this.deferredReveal.add(id);
+    this.hintText = "洗牌中…";
+    if (this.tableVisible) this.render();
+    this.playDealShuffle(() => {
+      const count = state.players.size as number;
+      const handSize = this.hand.length;
+      this.dealHandRound(0, handSize, count, () => {
+        this.dealTableCards(table, () => {
+          this.dealBusy = false;
+          this.matchNode.removeAllChildren();
+          this.matchNode.active = false;
+          this.hintText = "新一轮开始";
+          this.refreshTurnHint();
+          if (this.tableVisible) this.render();
+        });
+      });
+    });
+  }
+
+  private playDealShuffle(onDone: () => void): void {
+    this.matchNode.active = true;
+    this.matchNode.removeAllChildren();
+    addLabel(this.matchNode, "洗牌中…", 0, 60, 26, C.gold, true);
+    const deck = createCard(0, 66, { faceUp: false });
+    deck.setPosition(new Vec3(-540, 220, 0));
+    this.matchNode.addChild(deck);
+    tween(deck)
+      .to(0.12, { position: new Vec3(-528, 228, 0) })
+      .to(0.12, { position: new Vec3(-552, 212, 0) })
+      .union()
+      .repeat(Math.ceil(DEAL_SHUFFLE_S / 0.24))
+      .call(() => {
+        this.matchNode.removeAllChildren();
+        onDone();
+      })
+      .start();
+  }
+
+  private dealHandRound(
+    round: number,
+    handSize: number,
+    count: number,
+    onDone: () => void
+  ): void {
+    if (round >= handSize) {
+      onDone();
+      return;
+    }
+    const mySeat = this.mySeatNum();
+    const from = new Vec3(-540, 220, 0);
+    let pending = count;
+    const done = () => {
+      pending--;
+      if (pending > 0) return;
+      this.scheduleOnce(() => {
+        this.dealHandRound(round + 1, handSize, count, onDone);
+      }, DEAL_ROUND_PAUSE_S);
+    };
+    for (let seat = 0; seat < count; seat++) {
+      if (seat === mySeat) {
+        const id = this.hand[round];
+        const to = this.handSlotVec(round, handSize);
+        this.flyDealCard(id, from, to, HAND_W, true, () => {
+          this.deferredReveal.delete(id);
+          if (this.tableVisible) this.render();
+          done();
+        });
+      } else {
+        const pos = this.panelPosForSeat(seat);
+        const to = new Vec3(
+          pos.x + ((round % 3) - 1) * 4,
+          pos.y - Math.floor(round / 3) * 3,
+          0
+        );
+        this.flyDealCard(0, from, to, 52, false, done);
+      }
+    }
+  }
+
+  private dealTableCards(table: number[], onDone: () => void): void {
+    if (!table.length) {
+      onDone();
+      return;
+    }
+    this.hintText = "开牌";
+    const cols = Math.min(9, Math.max(1, table.length));
+    const gap = 12;
+    const rows = Math.ceil(table.length / cols);
+    const rowH = TABLE_CARD_W * CARD_RATIO + gap;
+    const totalH = rows * rowH - gap;
+    const startY = totalH / 2 - 20;
+    const from = new Vec3(-540, 220, 0);
+    let pending = table.length;
+    table.forEach((id, i) => {
+      const row = Math.floor(i / cols);
+      const inRow = Math.min(cols, table.length - row * cols);
+      const rowW = inRow * TABLE_CARD_W + (inRow - 1) * gap;
+      const startX = -rowW / 2;
+      const x = startX + (i % cols) * (TABLE_CARD_W + gap);
+      const y = startY - row * rowH;
+      const to = new Vec3(x, y, 0);
+      this.flyDealCard(id, from, to, TABLE_CARD_W, true, () => {
+        this.deferredReveal.delete(id);
+        this.lastTablePos.set(id, { x, y });
+        pending--;
+        if (pending <= 0) {
+          this.scheduleOnce(() => onDone(), DEAL_TABLE_PAUSE_S);
+        }
+        if (this.tableVisible) this.render();
+      });
+    });
+  }
+
+  private flyDealCard(
+    cardId: number,
+    from: Vec3,
+    to: Vec3,
+    w: number,
+    flip: boolean,
+    onDone: () => void
+  ): void {
+    const layer = new Node("DealFly");
+    layer.layer = Layers.Enum.UI_2D;
+    this.matchNode.active = true;
+    this.matchNode.addChild(layer);
+    const card = createCard(flip ? 0 : cardId, w, { faceUp: !flip });
+    card.setPosition(from.clone());
+    layer.addChild(card);
+    if (flip) {
+      const mid = new Vec3((from.x + to.x) / 2, (from.y + to.y) / 2, 0);
+      tween(card)
+        .to(DEAL_FLY_S * 0.5, {
+          position: mid,
+          scale: new Vec3(0.02, 1, 1),
+        })
+        .call(() => {
+          layer.removeAllChildren();
+          const face = createCard(cardId, w, { faceUp: true });
+          face.setPosition(mid.clone());
+          face.setScale(new Vec3(0.02, 1, 1));
+          layer.addChild(face);
+          tween(face)
+            .to(DEAL_FLY_S * 0.5, {
+              position: to,
+              scale: new Vec3(1, 1, 1),
+            })
+            .call(() => {
+              layer.removeFromParent();
+              onDone();
+            })
+            .start();
+        })
+        .start();
+      return;
+    }
+    tween(card)
+      .to(DEAL_FLY_S, { position: to })
+      .call(() => {
+        layer.removeFromParent();
+        onDone();
+      })
+      .start();
+  }
+
+  private handSlotVec(i: number, n: number): Vec3 {
+    const maxW = DESIGN.width - 200;
+    const step = Math.min(HAND_W + 10, maxW / n);
+    const totalW = step * (n - 1) + HAND_W;
+    const startX = -totalW / 2;
+    const baseY = -DESIGN.height / 2 + HAND_W * CARD_RATIO + 30;
+    const k = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
+    return new Vec3(startX + i * step, baseY - k * k * 10, 0);
+  }
+
+  private panelPosForSeat(seat: number): { x: number; y: number } {
+    const state = this.playState();
+    const count = (state?.players.size as number) ?? 4;
+    const mySeat = this.mySeatNum();
+    const rel = (seat - mySeat + count) % count;
+    if (rel === 0) return { x: -DESIGN.width / 2 + 120, y: -80 };
+    if (count === 2) return { x: 0, y: DESIGN.height / 2 - 58 };
+    if (count === 3) {
+      if (rel === 1) return { x: DESIGN.width / 2 - 120, y: 40 };
+      return { x: -DESIGN.width / 2 + 120, y: 40 };
+    }
+    const slots = [
+      { x: DESIGN.width / 2 - 120, y: 40 },
+      { x: 0, y: DESIGN.height / 2 - 58 },
+      { x: -DESIGN.width / 2 + 120, y: 40 },
+    ];
+    return slots[rel - 1] ?? slots[0];
   }
 
   private playStockFlip(
@@ -1107,6 +1314,7 @@ export class GameEntry extends Component {
     const mine = this.myTurn();
     const busy =
       this.matchBusy ||
+      this.dealBusy ||
       this.deferredReveal.size > 0 ||
       this.stockAnimCredit > 0 ||
       this.pendingDiscardHands.length > 0;
@@ -1273,6 +1481,7 @@ export class GameEntry extends Component {
       this.myTurn() &&
       this.playState()?.turnPhase === "PLAY_HAND" &&
       !this.matchBusy &&
+      !this.dealBusy &&
       this.deferredReveal.size === 0 &&
       this.pendingDiscardHands.length === 0;
 
@@ -1314,6 +1523,7 @@ export class GameEntry extends Component {
     const count = players.length;
     const busy =
       this.matchBusy ||
+      this.dealBusy ||
       this.deferredReveal.size > 0 ||
       this.stockAnimCredit > 0 ||
       this.pendingDiscardHands.length > 0;
@@ -1517,6 +1727,7 @@ export class GameEntry extends Component {
     if (
       !this.myTurn() ||
       this.matchBusy ||
+      this.dealBusy ||
       this.deferredReveal.size > 0 ||
       this.pendingDiscardHands.length > 0 ||
       state?.turnPhase !== "PLAY_HAND"
@@ -1547,6 +1758,7 @@ export class GameEntry extends Component {
     if (
       !this.myTurn() ||
       this.matchBusy ||
+      this.dealBusy ||
       this.deferredReveal.size > 0 ||
       this.pendingDiscardHands.length > 0 ||
       !state

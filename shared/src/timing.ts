@@ -4,6 +4,8 @@
  *
  * 单位约定：带 `_MS` 为毫秒，带 `_S` 为秒（动画 hold 用）。
  */
+import { INITIAL_TABLE_CARDS, TOTAL_HAND_CARDS } from "./cards";
+
 /** 人类回合超时（超时后 AI 代打） */
 export const TURN_MS = 180_000;
 /** AI / 托管出牌「思考」间隔（动画垫时另加，见 captureAnimMs） */
@@ -36,6 +38,32 @@ export const ROUND_RESULT_MAX_WAIT_MS =
   420 +
   FLY_PILE_HOLD_MS +
   1_500;
+
+/** 开局洗牌展示 */
+export const DEAL_SHUFFLE_MS = 900;
+/** 单张发牌飞行 */
+export const DEAL_FLY_MS = 280;
+/** 每轮发牌间隔 */
+export const DEAL_ROUND_PAUSE_MS = 90;
+/** 桌面开牌后停顿 */
+export const DEAL_TABLE_PAUSE_MS = 160;
+
+export const DEAL_SHUFFLE_S = DEAL_SHUFFLE_MS / 1000;
+export const DEAL_FLY_S = DEAL_FLY_MS / 1000;
+export const DEAL_ROUND_PAUSE_S = DEAL_ROUND_PAUSE_MS / 1000;
+export const DEAL_TABLE_PAUSE_S = DEAL_TABLE_PAUSE_MS / 1000;
+
+/** 开局发牌动画总时长估算（用于 UI 锁定） */
+export function dealAnimMs(playerCount: number): number {
+  const n = Math.max(2, Math.min(4, playerCount));
+  const handSize = TOTAL_HAND_CARDS / n;
+  return (
+    DEAL_SHUFFLE_MS +
+    handSize * n * (DEAL_FLY_MS + DEAL_ROUND_PAUSE_MS) +
+    INITIAL_TABLE_CARDS * DEAL_FLY_MS +
+    DEAL_TABLE_PAUSE_MS
+  );
+}
 
 export const MATCH_HOLD_S = MATCH_HOLD_MS / 1000;
 export const FLY_TARGET_HOLD_S = FLY_TARGET_HOLD_MS / 1000;
