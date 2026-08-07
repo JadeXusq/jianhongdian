@@ -295,7 +295,7 @@ export class LocalPlay {
     for (let seat = 1; seat < this.playerCount; seat++) {
       const id = this.aiId(seat);
       const label =
-        this.playerCount > 2 ? `${this.aiName}${seat}` : this.aiName;
+        this.playerCount === 2 ? this.aiName : `${this.aiName} ${seat}`;
       players.set(id, {
         sessionId: id,
         name: label,

@@ -346,6 +346,8 @@ input:focus {
 .result-panel > .row,
 .guide-panel > .title,
 .guide-panel > .btn,
+.rules-panel > .btn,
+#rank > .btn,
 #rank .title {
   flex: none;
 }

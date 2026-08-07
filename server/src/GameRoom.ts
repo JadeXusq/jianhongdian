@@ -166,7 +166,8 @@ export class GameRoom extends Room<RoomState> {
     const p = new PlayerSchema();
     p.sessionId = `ai:${++this.aiCounter}`;
     p.seat = seat;
-    p.name = `机器人${seat + 1}`;
+    p.name =
+      this.state.maxPlayers === 2 ? "机器人" : `机器人 ${seat}`;
     p.isAi = true;
     p.ready = true;
     this.state.players.set(p.sessionId, p);

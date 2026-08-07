@@ -377,6 +377,10 @@ function openRules(from: typeof rulesBack = "lobby"): void {
   show("rules");
   setChatPanelOpen(false);
   $("btn-help").classList.add("hidden");
+  $("btn-rules-ok").classList.toggle(
+    "hidden",
+    from !== "lobby" && from !== "room"
+  );
 }
 
 function closeRules(): void {
@@ -409,6 +413,7 @@ function restoreTableChrome(): void {
 
 $("btn-rules").onclick = () => openRules(net.room ? "room" : "lobby");
 $("btn-rules-close").onclick = () => closeRules();
+$("btn-rules-ok").onclick = () => closeRules();
 $("btn-guide-ok").onclick = () => {
   localStorage.setItem("jhd.guided", "1");
   show("none");
@@ -470,7 +475,6 @@ $("btn-menu-close").onclick = () => {
   show("none");
   restoreTableChrome();
 };
-$("btn-menu-rules").onclick = () => openRules("game-menu");
 $("btn-menu-scores").onclick = () => renderScores();
 $("btn-scores-close").onclick = () => {
   show("none");
@@ -523,6 +527,7 @@ $("btn-rank").onclick = () =>
     show("rank");
   });
 $("btn-rank-close").onclick = () => show("lobby");
+$("btn-rank-back").onclick = () => show("lobby");
 
 $("btn-account").onclick = () => {
   const acc = savedAccountId();

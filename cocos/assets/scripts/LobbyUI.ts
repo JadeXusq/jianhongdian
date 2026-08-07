@@ -82,6 +82,7 @@ export class LobbyUI {
   private chatUnread = 0;
   private helpBtn!: Node;
   private menuBtn!: Node;
+  private rulesOkBtn!: Node;
   private settleBtn!: Node;
   private resultSettleBtn!: Node;
   private againBtn!: Node;
@@ -314,6 +315,7 @@ export class LobbyUI {
     this.setChatPanelOpen(false);
     this.show("rules");
     this.setHelpVisible(false);
+    this.rulesOkBtn.active = from === "lobby" || from === "room";
     this.cb.onOpenRules(from);
   }
 
@@ -897,24 +899,32 @@ export class LobbyUI {
     lines.forEach((t, i) =>
       this.makeLabel(content, t, 0, 140 - i * 58, 13, C.cream)
     );
+    this.rulesOkBtn = this.makeBtn(
+      panel,
+      "明白了",
+      0,
+      -195,
+      200,
+      40,
+      () => this.closeRules(),
+      true
+    );
+    this.rulesOkBtn.active = false;
     return panel;
   }
 
   private buildMenu(): Node {
-    const panel = this.panel("Menu", 280, 260);
+    const panel = this.panel("Menu", 280, 200);
     this.makeCloseX(panel, () => this.show("none"));
-    this.makeLabel(panel, "菜单", 0, 90, 26, C.gold);
-    this.makeBtn(panel, "查看当前积分", 0, 30, 200, 40, () =>
+    this.makeLabel(panel, "菜单", 0, 70, 26, C.gold);
+    this.makeBtn(panel, "查看当前积分", 0, 15, 200, 40, () =>
       this.cb.onMenuScores()
-    );
-    this.makeBtn(panel, "查看规则", 0, -20, 200, 40, () =>
-      this.openRules("menu")
     );
     this.settleBtn = this.makeBtn(
       panel,
       "结算对局",
       0,
-      -75,
+      -40,
       200,
       40,
       () => {
