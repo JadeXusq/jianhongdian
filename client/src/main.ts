@@ -222,18 +222,39 @@ function onDealRoundStart(): void {
 }
 
 function applyPlayState(state: any, hand: number[], mySeat: number): void {
-  view.deferStateArrivals(view.state, state);
+  const prev = view.state;
+  view.deferStateArrivals(prev, state);
   view.state = state;
   view.hand = hand;
   view.mySeat = mySeat;
-  if (state.phase === "PLAYING" && state.round !== lastDealRound) {
+  const newRound =
+    state.phase === "PLAYING" &&
+    (state.round !== lastDealRound || prev?.phase === "ROUND_OVER");
+  if (newRound) {
     lastDealRound = state.round;
+    pendingRoundOver = null;
     view.resetAnimVisuals();
     armDealRound();
   } else if (dealRoundPending) {
     view.syncDealHidden();
   }
   tryStartDealAnim();
+}
+
+function ensureDealAnimForRound(): void {
+  const state = playState();
+  if (!state || state.phase !== "PLAYING") return;
+  if (view.animating) return;
+  if (dealRoundPending) {
+    view.syncDealHidden();
+    tryStartDealAnim();
+    return;
+  }
+  if (state.round === lastDealRound) return;
+  pendingRoundOver = null;
+  lastDealRound = state.round;
+  view.resetAnimVisuals();
+  armDealRound();
 }
 
 function queueRoundOver(r: RoundOver): void {
@@ -641,6 +662,7 @@ function renderRoom(state: any): void {
 // ---------- 结算 ----------
 
 $("btn-again").onclick = () => {
+  pendingRoundOver = null;
   if (offline) {
     if (lastRound?.allDone) offline.start();
     else offline.continueRound();
@@ -895,6 +917,7 @@ function startOffline(): void {
   };
   session.onRoundStart = () => {
     onDealRoundStart();
+    view.hand = session.hand;
     if (localStorage.getItem("jhd.guided") !== "1") show("guide");
     else show("none");
   };
@@ -954,6 +977,8 @@ net.onState = (state) => {
 
 net.onRoundStart = () => {
   onDealRoundStart();
+  view.hand = net.hand;
+  ensureDealAnimForRound();
   if (localStorage.getItem("jhd.guided") !== "1") {
     show("guide");
   } else {

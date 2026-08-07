@@ -151,7 +151,7 @@ export class LobbyUI {
     this.helpBtn = this.makeBtn(
       this.root,
       "?",
-      DESIGN.width / 2 - 70,
+      DESIGN.width / 2 - 106,
       DESIGN.height / 2 - 36,
       36,
       36,
@@ -691,8 +691,8 @@ export class LobbyUI {
     const btn = this.makeBtn(
       this.root,
       "💬",
-      DESIGN.width / 2 - 50,
-      DESIGN.height / 2 - 90,
+      DESIGN.width / 2 - 62,
+      DESIGN.height / 2 - 36,
       36,
       36,
       () => this.setChatPanelOpen(!this.isChatOpen())

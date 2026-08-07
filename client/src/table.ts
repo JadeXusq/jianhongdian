@@ -586,8 +586,7 @@ export class TableView {
     if (!this.dealArmed) return false;
     if (!this.state || this.state.phase !== "PLAYING") return false;
     if (!this.hand.length) return false;
-    this.startDealAnim();
-    return true;
+    return this.startDealAnim();
   }
 
   /** 状态与手牌更新后重新藏牌（发牌动画启动前） */
@@ -603,10 +602,10 @@ export class TableView {
   }
 
   /** 新一轮：洗牌 + 逐轮发手牌 + 桌面开牌 */
-  startDealAnim(): void {
-    if (!this.dealArmed) return;
-    if (!this.state || this.state.phase !== "PLAYING") return;
-    if (!this.hand.length) return;
+  startDealAnim(): boolean {
+    if (!this.dealArmed) return false;
+    if (!this.state || this.state.phase !== "PLAYING") return false;
+    if (!this.hand.length) return false;
     this.dealArmed = false;
     this.openingDeal = true;
     const count = this.state.players.size as number;
@@ -707,6 +706,7 @@ export class TableView {
     }
 
     this.steps.push({ flies: [], popups: [], hide: [], hold: 0.05 });
+    return true;
   }
 
   private stepAnim(dt: number): void {
@@ -764,7 +764,7 @@ export class TableView {
 
     this.stepAnim(dt);
     this.drawFelt(ctx);
-    if (this.state) {
+    if (this.state?.phase === "PLAYING") {
       this.layout();
       this.drawDeck(ctx);
       this.drawTable(ctx);

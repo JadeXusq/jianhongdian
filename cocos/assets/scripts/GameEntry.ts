@@ -136,6 +136,7 @@ export class GameEntry extends Component {
       },
       onQuit: () => this.guard(() => this.doQuit()),
       onAgain: () => {
+        this.pendingRoundOver = null;
         if (this.offline) {
           if (this.lastRound?.allDone) this.offline.start();
           else this.offline.continueRound();
@@ -378,7 +379,8 @@ export class GameEntry extends Component {
     this.offline = session;
 
     session.onState = (state) => {
-      this.applyPlayState(state, session.hand);
+      const prev = this.lastPhase;
+      this.applyPlayState(state, session.hand, prev);
       if (state.phase === "PLAYING") {
         const table: number[] = [...state.table];
         if (!this.dealRoundPending && this.lastTableIds.length > 0) {
@@ -421,6 +423,8 @@ export class GameEntry extends Component {
 
     session.onRoundStart = () => {
       this.onDealRoundStart();
+      this.hand = session.hand.slice();
+      this.ensureDealAnimForRound();
       let guided = false;
       try {
         guided = localStorage.getItem("jhd.guided") === "1";
@@ -635,7 +639,8 @@ export class GameEntry extends Component {
         this.ui.renderRoom(state, this.net.room!.sessionId);
         if (!this.lastRound) this.ui.show("room");
       } else if (state.phase === "PLAYING") {
-        this.applyPlayState(state, this.net.hand);
+        const prev = this.lastPhase;
+        this.applyPlayState(state, this.net.hand, prev);
         const table: number[] = state.table ? [...state.table] : [];
         if (!this.dealRoundPending && this.lastTableIds.length > 0) {
           const old = new Set(this.lastTableIds);
@@ -678,6 +683,8 @@ export class GameEntry extends Component {
     this.net.onRoundStart = () => {
       if (this.offline) return;
       this.onDealRoundStart();
+      this.hand = this.net.hand.slice();
+      this.ensureDealAnimForRound();
       let guided = false;
       try {
         guided = localStorage.getItem("jhd.guided") === "1";
@@ -854,15 +861,38 @@ export class GameEntry extends Component {
     }
   }
 
-  private applyPlayState(state: any, hand: number[]): void {
+  private lastPhase = "";
+
+  private ensureDealAnimForRound(): void {
+    const state = this.playState();
+    if (!state || state.phase !== "PLAYING") return;
+    if (this.dealBusy || this.matchBusy) return;
+    if (this.dealRoundPending) {
+      this.prepDealHidden();
+      this.tryStartDealAnim();
+      return;
+    }
+    if (state.round === this.lastDealRound) return;
+    this.lastDealRound = state.round;
+    this.pendingRoundOver = null;
+    this.resetRoundDealPrep();
+    this.armDealRound();
+  }
+
+  private applyPlayState(state: any, hand: number[], prevPhase: string): void {
     this.hand = hand.slice();
-    if (state.phase === "PLAYING" && state.round !== this.lastDealRound) {
+    const newRound =
+      state.phase === "PLAYING" &&
+      (state.round !== this.lastDealRound || prevPhase === "ROUND_OVER");
+    if (newRound) {
       this.lastDealRound = state.round;
+      this.pendingRoundOver = null;
       this.resetRoundDealPrep();
       this.armDealRound();
     } else if (this.dealRoundPending) {
       this.prepDealHidden();
     }
+    this.lastPhase = state.phase;
   }
 
   private tryStartDealAnim(): void {
@@ -870,13 +900,14 @@ export class GameEntry extends Component {
     const state = this.playState();
     if (!state || state.phase !== "PLAYING") return;
     if (!this.hand.length) return;
+    if (!this.playDealAnim()) return;
     this.dealRoundPending = false;
-    this.playDealAnim();
   }
 
-  private playDealAnim(): void {
+  private playDealAnim(): boolean {
     const state = this.playState();
-    if (!state || state.phase !== "PLAYING") return;
+    if (!state || state.phase !== "PLAYING") return false;
+    if (!this.hand.length) return false;
     this.dealBusy = true;
     const table: number[] = [...state.table];
     for (const id of this.hand) this.deferredReveal.add(id);
@@ -897,9 +928,8 @@ export class GameEntry extends Component {
         });
       });
     });
+    return true;
   }
-
-  private playDealShuffle(onDone: () => void): void {
     this.matchNode.active = true;
     this.matchNode.removeAllChildren();
     addLabel(this.matchNode, "洗牌中…", 0, 60, 26, C.gold, true);
@@ -1400,9 +1430,12 @@ export class GameEntry extends Component {
   }
 
   private render(): void {
-    this.renderDeck();
-    this.renderTable();
-    this.renderHand();
+    const state = this.playState();
+    if (state?.phase === "PLAYING") {
+      this.renderDeck();
+      this.renderTable();
+      this.renderHand();
+    }
     this.renderInfo();
   }
 
