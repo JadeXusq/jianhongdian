@@ -384,21 +384,7 @@ export class GameEntry extends Component {
       this.applyPlayState(state, session.hand, prev);
       if (state.phase === "PLAYING") {
         const table: number[] = [...state.table];
-        if (!this.dealRoundPending && this.lastTableIds.length > 0) {
-          const old = new Set(this.lastTableIds);
-          for (const id of table) {
-            if (!old.has(id)) this.deferredReveal.add(id);
-          }
-        }
-        if (
-          typeof state.pendingStockCard === "number" &&
-          state.pendingStockCard >= 0 &&
-          state.pendingStockCard !== this.lastPending
-        ) {
-          this.deferredReveal.add(state.pendingStockCard);
-        }
-        this.lastTableIds = table;
-        this.lastPending = state.pendingStockCard ?? -1;
+        this.syncTableDiff(table, state.pendingStockCard ?? -1);
         this.setTableVisible(true);
         if (!this.ui.isOverlay()) {
           this.ui.show("none");
@@ -647,21 +633,7 @@ export class GameEntry extends Component {
         const prev = this.lastPhase;
         this.applyPlayState(state, this.net.hand, prev);
         const table: number[] = state.table ? [...state.table] : [];
-        if (!this.dealRoundPending && this.lastTableIds.length > 0) {
-          const old = new Set(this.lastTableIds);
-          for (const id of table) {
-            if (!old.has(id)) this.deferredReveal.add(id);
-          }
-        }
-        if (
-          typeof state.pendingStockCard === "number" &&
-          state.pendingStockCard >= 0 &&
-          state.pendingStockCard !== this.lastPending
-        ) {
-          this.deferredReveal.add(state.pendingStockCard);
-        }
-        this.lastTableIds = table;
-        this.lastPending = state.pendingStockCard ?? -1;
+        this.syncTableDiff(table, state.pendingStockCard ?? -1);
         this.setTableVisible(true);
         if (!this.ui.isOverlay()) {
           this.ui.show("none");
@@ -867,6 +839,41 @@ export class GameEntry extends Component {
   }
 
   private lastPhase = "";
+
+  private syncTableDiff(table: number[], pending: number): void {
+    if (this.dealRoundPending) {
+      this.lastTableIds = table;
+      this.lastPending = pending;
+      return;
+    }
+    if (this.lastTableIds.length > 0) {
+      const neu = new Set(table);
+      const old = new Set(this.lastTableIds);
+      for (const id of table) {
+        if (!old.has(id)) this.deferredReveal.add(id);
+      }
+      for (const id of this.lastTableIds) {
+        if (!neu.has(id)) this.lingerCards.add(id);
+      }
+    }
+    if (
+      this.lastPending >= 0 &&
+      this.lastPending !== pending &&
+      !table.includes(this.lastPending)
+    ) {
+      this.lingerCards.add(this.lastPending);
+      if (!this.lastTablePos.has(this.lastPending)) {
+        this.lastTablePos.set(this.lastPending, {
+          x: -TABLE_CARD_W / 2,
+          y: DESIGN.height / 2 - 140,
+        });
+      }
+    }
+    if (pending >= 0 && pending !== this.lastPending)
+      this.deferredReveal.add(pending);
+    this.lastTableIds = table;
+    this.lastPending = pending;
+  }
 
   private ensureDealAnimForRound(): void {
     const state = this.playState();

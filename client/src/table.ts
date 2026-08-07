@@ -115,6 +115,8 @@ export class TableView {
   private deferredReveal = new Set<number>();
   /** 状态已移走但仍需画在桌面的牌（等命中/MATCH） */
   private lingerTable = new Map<number, Slot>();
+  /** 状态已删、events 未到：暂留桌面牌位，防闪没 */
+  private lingerHold = new Set<number>();
   private animClock = 0;
   /** 已同步但翻牌动画未开始的牌堆张数，用于延后扣减显示 */
   private stockAnimCredit = 0;
@@ -170,23 +172,53 @@ export class TableView {
     if (id >= 0) this.deferredReveal.add(id);
   }
 
-  /** 对比新旧状态，把新上台面的牌/新待选牌先藏起 */
+  /** 对比新旧状态，把新上台面的牌/新待选牌先藏起；离桌的牌先 linger */
   deferStateArrivals(prev: any, next: any): void {
     if (!next || next.phase !== "PLAYING") return;
-    // 仅对局中增量同步时延后，开局发牌不藏
     if (prev?.phase !== "PLAYING") return;
-    if (prev.table) {
+    if (prev.table && next.table) {
       const old = new Set(prev.table as number[]);
+      const neu = new Set(next.table as number[]);
+      const prevSlots = this.computeTableSlots([...(prev.table as number[])]);
       for (const id of next.table as number[]) {
         if (!old.has(id)) this.deferredReveal.add(id);
       }
+      for (const id of old) {
+        if (neu.has(id)) continue;
+        const slot =
+          this.tableSlots.get(id) ??
+          this.lingerTable.get(id) ??
+          prevSlots.get(id);
+        if (!slot) continue;
+        this.lingerTable.set(id, { ...slot });
+        this.lingerHold.add(id);
+      }
+    }
+    const prevPending = prev.pendingStockCard;
+    const nextPending = next.pendingStockCard;
+    if (
+      typeof prevPending === "number" &&
+      prevPending >= 0 &&
+      prevPending !== nextPending
+    ) {
+      const onTable = new Set(next.table as number[]);
+      if (!onTable.has(prevPending)) {
+        const slot = this.tableSlots.get(prevPending) ??
+          this.lingerTable.get(prevPending) ?? {
+            x: this.w / 2 - TABLE_CARD_W / 2,
+            y: 118,
+            w: TABLE_CARD_W,
+          };
+        this.lingerTable.set(prevPending, { ...slot });
+        this.lingerHold.add(prevPending);
+      }
     }
     if (
-      typeof next.pendingStockCard === "number" &&
-      next.pendingStockCard >= 0 &&
-      next.pendingStockCard !== prev.pendingStockCard
+      typeof nextPending === "number" &&
+      nextPending >= 0 &&
+      nextPending !== prevPending
     ) {
-      this.deferredReveal.add(next.pendingStockCard);
+      this.deferredReveal.add(nextPending);
     }
   }
 
@@ -364,6 +396,8 @@ export class TableView {
         };
       if (this.tableSlots.has(ev.target))
         this.lingerTable.set(ev.target, { ...this.tableSlots.get(ev.target)! });
+      this.lingerHold.delete(ev.target);
+      this.lingerHold.delete(ev.card);
       const hitSlot = {
         x: targetSlot.x + 6,
         y: targetSlot.y + TABLE_CARD_W * CARD_RATIO * 0.28,
@@ -535,7 +569,8 @@ export class TableView {
       for (const id of step.hide ?? []) mark(id);
     }
     for (const id of [...this.lingerTable.keys()]) {
-      if (!onTable.has(id) && !busy.has(id)) this.lingerTable.delete(id);
+      if (!onTable.has(id) && !busy.has(id) && !this.lingerHold.has(id))
+        this.lingerTable.delete(id);
     }
   }
 
@@ -603,6 +638,7 @@ export class TableView {
     this.hidden.clear();
     this.deferredReveal.clear();
     this.lingerTable.clear();
+    this.lingerHold.clear();
     this.stockAnimCredit = 0;
     this.pendingGain.clear();
     this.pendingCards.clear();
@@ -758,7 +794,10 @@ export class TableView {
       if (this.current.visualSeat !== undefined)
         this.visualTurnSeat = this.current.visualSeat;
       if (this.current.clearLinger) {
-        for (const id of this.current.clearLinger) this.lingerTable.delete(id);
+        for (const id of this.current.clearLinger) {
+          this.lingerTable.delete(id);
+          this.lingerHold.delete(id);
+        }
       }
       if (this.current.decStock)
         this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
