@@ -159,13 +159,18 @@ export class TableView {
   private layoutBufW = 0;
   private layoutBufH = 0;
   private layoutDpr = 0;
-  private layoutStable = { cw: 0, ch: 0, rot: false };
+  /** 本帧绘制/命中共用的 CSS 视口，避免读到不一致尺寸 */
+  private viewCw = 0;
+  private viewCh = 0;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
     this.updateLayout();
     onOrientationChange(() => this.updateLayout());
-    new ResizeObserver(() => this.updateLayout()).observe(canvas);
+    window.addEventListener("pageshow", () => this.updateLayout());
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") this.updateLayout();
+    });
     canvas.addEventListener("pointerdown", (e) => this.onPointer(e));
   }
 
@@ -230,44 +235,24 @@ export class TableView {
   }
 
   /**
-   * 全屏 canvas 尺寸。安卓偶发把尺寸报成约一半，用窗口尺寸兜底并拦截骤降。
+   * 全屏视口：只用 window，不读 canvas.clientWidth。
+   * 安卓设置 canvas.width 后 clientWidth 会变成缓冲像素宽，再参与布局会错乱。
    */
-  private canvasCssSize(): { cw: number; ch: number } {
-    const rect = this.canvas.getBoundingClientRect();
-    const winW = window.innerWidth;
-    const winH = window.innerHeight;
-    let cw = Math.max(rect.width, this.canvas.clientWidth, 1);
-    let ch = Math.max(rect.height, this.canvas.clientHeight, 1);
-    if (cw < winW * 0.92) cw = winW;
-    if (ch < winH * 0.92) ch = winH;
-
-    const rot = shouldRotate();
-    const s = this.layoutStable;
-    if (s.cw > 0 && s.ch > 0) {
-      const nextA = cw * ch;
-      const prevA = s.cw * s.ch;
-      if (rot !== s.rot || nextA > prevA * 1.03) {
-        this.layoutStable = { cw, ch, rot };
-      } else if (nextA < prevA * 0.64) {
-        return { cw: s.cw, ch: s.ch };
-      } else {
-        this.layoutStable = { cw, ch, rot };
-      }
-    } else {
-      this.layoutStable = { cw, ch, rot };
-    }
-    return { cw: this.layoutStable.cw, ch: this.layoutStable.ch };
+  private viewportCssSize(): { cw: number; ch: number } {
+    const cw = Math.max(1, window.innerWidth || document.documentElement.clientWidth);
+    const ch = Math.max(1, window.innerHeight || document.documentElement.clientHeight);
+    return { cw, ch };
   }
 
   private updateLayout(): void {
-    this.canvas.style.width = "100%";
-    this.canvas.style.height = "100%";
     const dpr = window.devicePixelRatio || 1;
-    const { cw, ch } = this.canvasCssSize();
+    const { cw, ch } = this.viewportCssSize();
     if (cw < 80 || ch < 80) return;
+    this.viewCw = cw;
+    this.viewCh = ch;
 
-    const bufW = Math.round(cw * dpr);
-    const bufH = Math.round(ch * dpr);
+    const bufW = Math.max(1, Math.round(cw * dpr));
+    const bufH = Math.max(1, Math.round(ch * dpr));
     if (
       bufW !== this.layoutBufW ||
       bufH !== this.layoutBufH ||
@@ -278,8 +263,11 @@ export class TableView {
       this.layoutBufW = bufW;
       this.layoutBufH = bufH;
       this.layoutDpr = dpr;
-      this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    // 安卓改 buffer 后常丢掉 CSS 尺寸与 transform；每帧强制钉回
+    this.canvas.style.width = `${cw}px`;
+    this.canvas.style.height = `${ch}px`;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     this.rotated = shouldRotate();
     const vw = this.rotated ? ch : cw;
@@ -301,12 +289,11 @@ export class TableView {
   }
 
   private pointerPos(e: PointerEvent): { x: number; y: number } {
-    const { cw, ch } = this.canvasCssSize();
-    const rect = this.canvas.getBoundingClientRect();
-    const rw = rect.width > 0 ? rect.width : cw;
-    const rh = rect.height > 0 ? rect.height : ch;
-    let sx = ((e.clientX - rect.left) / rw) * cw;
-    let sy = ((e.clientY - rect.top) / rh) * ch;
+    const cw = this.viewCw || window.innerWidth;
+    const ch = this.viewCh || window.innerHeight;
+    // 全屏 canvas：用窗口坐标，避免 getBoundingClientRect 被安卓缩成缓冲尺寸
+    let sx = e.clientX;
+    let sy = e.clientY;
     if (this.rotated) [sx, sy] = [sy, cw - sx];
     return {
       x: (sx - this.pad.x) / this.scale,
@@ -866,7 +853,8 @@ export class TableView {
 
   render(dt: number): void {
     this.updateLayout();
-    const { cw, ch } = this.canvasCssSize();
+    const cw = this.viewCw;
+    const ch = this.viewCh;
     const ctx = this.ctx;
     ctx.save();
     ctx.fillStyle = C.feltOuter;
