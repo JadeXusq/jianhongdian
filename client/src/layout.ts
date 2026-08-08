@@ -1,15 +1,17 @@
-/** 仅横屏：竖屏时提示旋转，支持的浏览器尝试锁定 landscape */
+/**
+ * 横屏玩法；竖屏触屏时软件旋转 90°，与 #ui.rot 对齐。
+ * screen.orientation.lock 仅部分安卓可用，不作为唯一手段。
+ */
 
-export function isPortrait(): boolean {
-  return window.innerHeight > window.innerWidth;
-}
-
-/** @deprecated 已取消软件旋转，恒为 false */
 export function shouldRotate(): boolean {
-  return false;
+  return (
+    window.innerHeight > window.innerWidth &&
+    window.matchMedia("(pointer: coarse)").matches
+  );
 }
 
 export function lockLandscape(): void {
+  if (shouldRotate()) return;
   const o = screen.orientation as ScreenOrientation & {
     lock?: (mode: string) => Promise<void>;
   };
@@ -33,4 +35,42 @@ export function onOrientationChange(fn: () => void): void {
   window.visualViewport?.addEventListener("scroll", run);
 }
 
-export function bindRotScroll(_el: HTMLElement): void {}
+export function bindRotScroll(el: HTMLElement): void {
+  if ((el as any)._rotScrollBound) return;
+  (el as any)._rotScrollBound = true;
+
+  let dragging = false;
+  let last = 0;
+  const axis = (t: Touch) => (shouldRotate() ? -t.clientX : t.clientY);
+
+  el.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.touches.length !== 1) return;
+      dragging = true;
+      last = axis(e.touches[0]);
+    },
+    { passive: true }
+  );
+
+  el.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!dragging || e.touches.length !== 1) return;
+      if (!shouldRotate()) return;
+      const max = el.scrollHeight - el.clientHeight;
+      if (max <= 0) return;
+      const now = axis(e.touches[0]);
+      el.scrollTop = Math.max(0, Math.min(max, el.scrollTop + (last - now)));
+      last = now;
+      e.preventDefault();
+    },
+    { passive: false }
+  );
+
+  const end = () => {
+    dragging = false;
+  };
+  el.addEventListener("touchend", end, { passive: true });
+  el.addEventListener("touchcancel", end, { passive: true });
+}

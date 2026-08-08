@@ -6,7 +6,7 @@ import { cardScore, findTargets, turnHint } from "@jhd/shared";
 import { ROUND_RESULT_MAX_WAIT_MS, ROUND_END_EVENT_GRACE_MS, TURN_UI_LOCK_MS } from "@jhd/shared";
 import { sfx } from "./audio";
 import { loadCardAtlas } from "./cardRender";
-import { bindRotScroll, isPortrait, lockLandscape, onOrientationChange } from "./layout";
+import { bindRotScroll, lockLandscape, onOrientationChange, shouldRotate } from "./layout";
 import { LocalPlay } from "./localPlay";
 import { Net, RoundOver, deviceId, savedAccountId } from "./net";
 import { TableView } from "./table";
@@ -85,12 +85,11 @@ function show(
 
 const shown = (id: string) => !$(id).classList.contains("hidden");
 
-function updatePortraitLock(): void {
-  const coarse = window.matchMedia("(pointer: coarse)").matches;
-  $("portrait-lock").classList.toggle("hidden", !coarse || !isPortrait());
+function applyOrientation(): void {
+  $("ui").classList.toggle("rot", shouldRotate());
 }
-updatePortraitLock();
-onOrientationChange(updatePortraitLock);
+applyOrientation();
+onOrientationChange(applyOrientation);
 
 function bindOverlayScrolls(): void {
   [
@@ -114,7 +113,6 @@ window.addEventListener(
     sfx.unlock();
     sfx.startBgm();
     lockLandscape();
-    updatePortraitLock();
   },
   { once: true }
 );
@@ -1264,7 +1262,7 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  updatePortraitLock();
+  if ($("ui").classList.contains("rot") !== shouldRotate()) applyOrientation();
   try {
     view.hand = offline ? offline.hand : net.hand;
     if (dealRoundPending) view.syncDealHidden();

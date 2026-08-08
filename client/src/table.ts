@@ -2,7 +2,7 @@
  * 牌桌视图：布局 / 绘制 / 命中测试 / 动画
  *
  * 坐标系：逻辑高度固定 720，逻辑宽度随屏幕比例伸缩（限制在 W_MIN~W_MAX）。
- * 仅横屏游玩；竖屏触屏设备显示旋转提示。
+ * 竖屏触屏时软件旋转 90°，保证横屏玩法体验。
  */
 import { cardScore, DECK_SIZE } from "@jhd/shared";
 import type { GameEvent } from "@jhd/shared";
@@ -18,7 +18,7 @@ import {
   DEAL_TABLE_PAUSE_S,
 } from "@jhd/shared";
 import { drawCard, roundRect } from "./cardRender";
-import { onOrientationChange } from "./layout";
+import { shouldRotate, onOrientationChange } from "./layout";
 import { C, CARD_RATIO } from "./theme";
 
 const H = 720;
@@ -100,6 +100,7 @@ export class TableView {
   private pad: Pt = { x: 0, y: 0 };
   /** 当前逻辑宽度，随屏幕比例变化 */
   private w = 1280;
+  private rotated = false;
 
   private handSlots = new Map<number, Slot>();
   private tableSlots = new Map<number, Slot>();
@@ -158,7 +159,7 @@ export class TableView {
   private layoutBufW = 0;
   private layoutBufH = 0;
   private layoutDpr = 0;
-  private layoutStable = { cw: 0, ch: 0 };
+  private layoutStable = { cw: 0, ch: 0, rot: false };
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -240,19 +241,20 @@ export class TableView {
     if (cw < winW * 0.92) cw = winW;
     if (ch < winH * 0.92) ch = winH;
 
+    const rot = shouldRotate();
     const s = this.layoutStable;
     if (s.cw > 0 && s.ch > 0) {
       const nextA = cw * ch;
       const prevA = s.cw * s.ch;
-      if (nextA > prevA * 1.03) {
-        this.layoutStable = { cw, ch };
+      if (rot !== s.rot || nextA > prevA * 1.03) {
+        this.layoutStable = { cw, ch, rot };
       } else if (nextA < prevA * 0.64) {
         return { cw: s.cw, ch: s.ch };
       } else {
-        this.layoutStable = { cw, ch };
+        this.layoutStable = { cw, ch, rot };
       }
     } else {
-      this.layoutStable = { cw, ch };
+      this.layoutStable = { cw, ch, rot };
     }
     return { cw: this.layoutStable.cw, ch: this.layoutStable.ch };
   }
@@ -279,8 +281,9 @@ export class TableView {
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    const vw = cw;
-    const vh = ch;
+    this.rotated = shouldRotate();
+    const vw = this.rotated ? ch : cw;
+    const vh = this.rotated ? cw : ch;
 
     let w = (vw / vh) * H;
     if (w < W_MIN) {
@@ -304,6 +307,7 @@ export class TableView {
     const rh = rect.height > 0 ? rect.height : ch;
     let sx = ((e.clientX - rect.left) / rw) * cw;
     let sy = ((e.clientY - rect.top) / rh) * ch;
+    if (this.rotated) [sx, sy] = [sy, cw - sx];
     return {
       x: (sx - this.pad.x) / this.scale,
       y: (sy - this.pad.y) / this.scale,
@@ -337,7 +341,7 @@ export class TableView {
     // 手牌在上层，优先命中；同层从右往左（后绘制的在上）
     // 触屏加大命中外扩；竖屏软件旋转后再放大（物理牌面更窄）
     const coarse = window.matchMedia("(pointer: coarse)").matches;
-    const pad = coarse ? 12 : 0;
+    const pad = coarse ? (this.rotated ? 22 : 12) : 0;
     const hit = (slots: Map<number, Slot>) => {
       const entries = [...slots.entries()].reverse();
       for (const [id, s] of entries)
@@ -525,7 +529,7 @@ export class TableView {
           },
           {
             text: "点击任意处跳过",
-            at: { x: centerX, y: H - 48 },
+            at: { x: centerX, y: this.rotated ? H - 64 : H - 48 },
             t: 0,
             hint: true,
           },
@@ -867,6 +871,10 @@ export class TableView {
     ctx.save();
     ctx.fillStyle = C.feltOuter;
     ctx.fillRect(0, 0, cw, ch);
+    if (this.rotated) {
+      ctx.translate(cw, 0);
+      ctx.rotate(Math.PI / 2);
+    }
     ctx.translate(this.pad.x, this.pad.y);
     ctx.scale(this.scale, this.scale);
 
@@ -1341,9 +1349,9 @@ export class TableView {
         const flying = s.flies.some((f) => f.t < f.dur);
         if (flying || s.hold <= 0) continue;
         const pulse = 0.65 + 0.35 * Math.sin(this.animClock * 4);
-        const capW = 220;
-        const capH = 36;
-        const fontPx = 16;
+        const capW = this.rotated ? 248 : 220;
+        const capH = this.rotated ? 42 : 36;
+        const fontPx = this.rotated ? 18 : 16;
         ctx.save();
         ctx.globalAlpha = pulse;
         roundRect(ctx, p.at.x - capW / 2, p.at.y - capH / 2, capW, capH, 18);
