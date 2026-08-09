@@ -589,7 +589,7 @@ export class LobbyUI {
     lobbyTheme.layer = Layers.Enum.UI_2D;
     panel.addChild(lobbyTheme);
     lobbyTheme.setPosition(new Vec3(0, 48, 0));
-    this.makeLabel(lobbyTheme, "桌面主题（建房默认）", 0, 42, 14, C.goldDim);
+    this.makeLabel(lobbyTheme, "主题", 0, 42, 14, C.goldDim);
     this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
     this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
 
@@ -811,7 +811,7 @@ export class LobbyUI {
     this.roomThemeRow.layer = Layers.Enum.UI_2D;
     panel.addChild(this.roomThemeRow);
     this.roomThemeRow.setPosition(new Vec3(0, -88, 0));
-    this.makeLabel(this.roomThemeRow, "桌面主题", 0, 42, 14, C.goldDim);
+    this.makeLabel(this.roomThemeRow, "主题", 0, 42, 14, C.goldDim);
     this.roomThemeBtns = this.makeThemeSeg(this.roomThemeRow, 0);
     this.roomThemeRow.active = false;
 
@@ -960,7 +960,7 @@ export class LobbyUI {
     this.menuThemeRow.layer = Layers.Enum.UI_2D;
     panel.addChild(this.menuThemeRow);
     this.menuThemeRow.setPosition(new Vec3(0, 55, 0));
-    this.makeLabel(this.menuThemeRow, "桌面主题", 0, 42, 14, C.goldDim);
+    this.makeLabel(this.menuThemeRow, "主题", 0, 42, 14, C.goldDim);
     this.menuThemeBtns = this.makeThemeSeg(this.menuThemeRow, 0);
     this.menuThemeRow.active = false;
     this.makeBtn(panel, "查看当前积分", 0, -25, 200, 40, () =>
