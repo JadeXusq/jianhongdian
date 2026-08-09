@@ -1078,7 +1078,7 @@ input:focus {
 
 #ui.rot .lobby-panel .title,
 #ui.rot .lobby-panel .subtitle,
-#ui.rot .lobby-panel > .field:not(.theme-field) {
+#ui.rot .lobby-panel .theme-field {
   grid-column: 1;
   justify-self: stretch;
   text-align: left;
@@ -1096,20 +1096,31 @@ input:focus {
   letter-spacing: 1px;
 }
 
-#ui.rot .lobby-panel > .field:not(.theme-field) {
-  margin-bottom: 8px;
-  font-size: 14px;
+#ui.rot .lobby-panel .theme-field {
+  grid-row: 3 / span 2;
+  margin: 0;
+  align-self: start;
 }
 
-#ui.rot .lobby-panel .theme-field {
+#ui.rot .lobby-panel > label.field {
   grid-column: 2;
   grid-row: 1;
-  margin: 0 0 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  justify-self: stretch;
+}
+
+#ui.rot .lobby-panel > div.field:not(.theme-field) {
+  grid-column: 2;
+  grid-row: 2;
+  margin-bottom: 8px;
+  font-size: 14px;
+  justify-self: stretch;
 }
 
 #ui.rot .lobby-actions {
   grid-column: 2;
-  grid-row: 2 / span 3;
+  grid-row: 3 / span 2;
 }
 
 #ui.rot .lobby-panel .btn {
@@ -1292,7 +1303,7 @@ input:focus {
 
   .lobby-panel .title,
   .lobby-panel .subtitle,
-  .lobby-panel > .field:not(.theme-field) {
+  .lobby-panel .theme-field {
     grid-column: 1;
     justify-self: stretch;
     text-align: left;
@@ -1308,19 +1319,29 @@ input:focus {
     font-size: 12px;
   }
 
-  .lobby-panel > .field:not(.theme-field) {
-    margin-bottom: 8px;
+  .lobby-panel .theme-field {
+    grid-row: 3 / span 2;
+    margin: 0;
+    align-self: start;
   }
 
-  .lobby-panel .theme-field {
+  .lobby-panel > label.field {
     grid-column: 2;
     grid-row: 1;
-    margin: 0 0 8px;
+    margin-bottom: 8px;
+    justify-self: stretch;
+  }
+
+  .lobby-panel > div.field:not(.theme-field) {
+    grid-column: 2;
+    grid-row: 2;
+    margin-bottom: 8px;
+    justify-self: stretch;
   }
 
   .lobby-actions {
     grid-column: 2;
-    grid-row: 2 / span 3;
+    grid-row: 3 / span 2;
   }
 
   .lobby-panel .btn {

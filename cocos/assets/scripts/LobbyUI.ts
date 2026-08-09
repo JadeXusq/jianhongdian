@@ -566,18 +566,26 @@ export class LobbyUI {
     this.makeLabel(panel, "捡红点", lx, 180, 36, C.gold);
     this.makeLabel(panel, "出手牌凑十吃红分 · 大王最大", lx, 142, 14, C.cream);
 
-    this.makeLabel(panel, "昵称", lx - 120, 90, 17, C.goldDim);
-    this.nameBox = this.makeEdit(panel, lx + 20, 85, 220, 38, "请输入昵称");
+    const lobbyTheme = new Node("LobbyTheme");
+    lobbyTheme.layer = Layers.Enum.UI_2D;
+    panel.addChild(lobbyTheme);
+    lobbyTheme.setPosition(new Vec3(lx, 40, 0));
+    this.makeLabel(lobbyTheme, "主题", 0, 42, 14, C.goldDim);
+    this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
+    this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
+
+    this.makeLabel(panel, "昵称", rx - 120, 180, 17, C.goldDim);
+    this.nameBox = this.makeEdit(panel, rx + 20, 175, 220, 38, "请输入昵称");
     try {
       this.nameBox.string = localStorage.getItem("jhd.name") || "";
     } catch {
       /* ignore */
     }
 
-    this.makeLabel(panel, "人数", lx - 120, 30, 17, C.goldDim);
+    this.makeLabel(panel, "人数", rx - 120, 120, 17, C.goldDim);
     [2, 3, 4].forEach((n, i) => {
-      const x = lx - 70 + i * 80;
-      const btn = this.makeBtn(panel, `${n} 人`, x, 26, 72, 34, () => {
+      const x = rx - 70 + i * 80;
+      const btn = this.makeBtn(panel, `${n} 人`, x, 116, 72, 34, () => {
         this.count = n;
         this.countLabels.forEach((l, j) => {
           l.color = j === i ? C.seal : C.cream;
@@ -587,14 +595,6 @@ export class LobbyUI {
       this.countLabels.push(lbl);
       if (n === 4) lbl.color = C.seal;
     });
-
-    const lobbyTheme = new Node("LobbyTheme");
-    lobbyTheme.layer = Layers.Enum.UI_2D;
-    panel.addChild(lobbyTheme);
-    lobbyTheme.setPosition(new Vec3(rx, 155, 0));
-    this.makeLabel(lobbyTheme, "主题", 0, 42, 14, C.goldDim);
-    this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
-    this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
 
     this.makeBtn(panel, "人机练习（离线）", rx, 40, 270, 42, () =>
       this.cb.onPractice(this.playerName(), this.count)
