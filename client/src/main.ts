@@ -541,8 +541,8 @@ function renderScores(): void {
   $("scores-round").textContent = !state.round
     ? "尚未完成轮次"
     : state.phase === "PLAYING"
-      ? `第 ${state.round} 轮进行中 · 累计净分`
-      : `已完成 ${state.round} 轮 · 累计净分`;
+      ? `第 ${state.round} 轮 · 累计`
+      : `已打 ${state.round} 轮 · 累计`;
   $("scores-list").innerHTML = rows
     .map(
       (p, i) => `
@@ -827,11 +827,11 @@ function renderResult(r: RoundOver): void {
           ? '<span class="ai-tag">机</span>'
           : ""
       }</span>
-        <span class="calc">${row.points} − ${r.base}${
-        r.allDone || row.p.totalNet !== undefined
-          ? " | 总 " + row.p.totalNet
-          : ""
-      }</span>
+        <span class="calc">${
+          r.allDone
+            ? `累计 ${row.p.totalNet > 0 ? "+" : ""}${row.p.totalNet}`
+            : `${row.points}−${r.base}`
+        }</span>
         <span class="net ${row.net > 0 ? "win" : row.net < 0 ? "lose" : ""}">${
         row.net > 0 ? "+" : ""
       }${row.net}</span>

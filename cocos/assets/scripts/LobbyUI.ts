@@ -344,21 +344,22 @@ export class LobbyUI {
     this.scoresRound.string = !state.round
       ? "尚未完成轮次"
       : state.phase === "PLAYING"
-        ? `第 ${state.round} 轮进行中 · 累计净分`
-        : `已完成 ${state.round} 轮 · 累计净分`;
+        ? `第 ${state.round} 轮 · 累计`
+        : `已打 ${state.round} 轮 · 累计`;
     this.scoresList.removeAllChildren();
+    const startY = 36;
+    const rowH = 28;
     rows.forEach((p, i) => {
-      const mark = p.seat === mySeat ? " ▶" : "";
-      const net =
-        (p.totalNet > 0 ? "+" : "") + p.totalNet;
+      const mark = p.seat === mySeat ? "▶" : "";
+      const net = (p.totalNet > 0 ? "+" : "") + p.totalNet;
       this.makeLabel(
         this.scoresList,
-        `${i + 1}. ${p.name}${
-          p.isAi && !String(p.name).startsWith("机器人") ? "〔机〕" : ""
-        }${mark}  本轮${p.points}  总${net}`,
+        `${i + 1} ${p.name}${
+          p.isAi && !String(p.name).startsWith("机器人") ? "机" : ""
+        }${mark}  本轮${p.points}  ${net}`,
         0,
-        50 - i * 36,
-        18,
+        startY - i * rowH,
+        16,
         p.seat === mySeat ? C.gold : C.cream
       );
     });
@@ -507,53 +508,49 @@ export class LobbyUI {
       : `第 ${r.round} 轮`;
 
     this.resultDots.removeAllChildren();
-    const dotN = r.allDone ? Math.max(1, r.round) : 1;
+    const dotN = Math.min(r.allDone ? Math.max(1, r.round) : 1, 8);
     for (let i = 0; i < dotN; i++) {
       const d = new Node("Dot");
       d.layer = Layers.Enum.UI_2D;
       this.resultDots.addChild(d);
-      d.setPosition(new Vec3((i - (dotN - 1) / 2) * 18, 0, 0));
+      d.setPosition(new Vec3((i - (dotN - 1) / 2) * 12, 0, 0));
       const g = d.addComponent(Graphics);
       g.fillColor = C.gold;
-      g.circle(0, 0, 5);
+      g.circle(0, 0, 3.5);
       g.fill();
-      g.strokeColor = C.goldDim;
-      g.lineWidth = 1;
-      g.circle(0, 0, 5);
-      g.stroke();
     }
 
     this.resultList.removeAllChildren();
+    const startY = 48;
+    const rowH = 28;
     rows.forEach((row, i) => {
-      const mark = row.p.seat === mySeat ? " ▶" : "";
+      const mark = row.p.seat === mySeat ? "▶" : "";
       const rank = i === 0 ? "胜" : `${i + 1}`;
-      const net =
-        (row.net > 0 ? "+" : "") +
-        row.net +
-        (r.allDone ? ` | 总 ${row.p.totalNet}` : ` | 总 ${row.p.totalNet}`);
+      const mid = r.allDone
+        ? `累计${row.p.totalNet > 0 ? "+" : ""}${row.p.totalNet}`
+        : `${row.points}−${r.base}`;
+      const net = (row.net > 0 ? "+" : "") + row.net;
       this.makeLabel(
         this.resultList,
-        `${rank}. ${row.p.name}${
-          row.p.isAi && !String(row.p.name).startsWith("机器人") ? "〔机〕" : ""
-        }${mark}  ${row.points}分  ${net}`,
+        `${rank} ${row.p.name}${
+          row.p.isAi && !String(row.p.name).startsWith("机器人") ? "机" : ""
+        }${mark}  ${mid}  ${net}`,
         0,
-        50 - i * 36,
-        20,
+        startY - i * rowH,
+        16,
         row.p.seat === mySeat ? C.gold : C.cream
       );
     });
-    this.againLbl.string = r.allDone
-      ? againAllDone
-      : "继续下一轮";
+    this.againLbl.string = r.allDone ? againAllDone : "继续下一轮";
     this.exitBtn.active = !!r.allDone;
     this.resultSettleBtn.active = !r.allDone && this.cb.canSettleMatch();
     if (r.allDone) {
-      this.againBtn.setPosition(new Vec3(0, -195, 0));
-      this.exitBtn.setPosition(new Vec3(0, -140, 0));
+      this.againBtn.setPosition(new Vec3(-95, -130, 0));
+      this.exitBtn.setPosition(new Vec3(95, -130, 0));
       this.paintBtn(this.againBtn, true);
     } else {
-      this.againBtn.setPosition(new Vec3(0, -140, 0));
-      this.resultSettleBtn.setPosition(new Vec3(0, -195, 0));
+      this.againBtn.setPosition(new Vec3(0, -100, 0));
+      this.resultSettleBtn.setPosition(new Vec3(0, -148, 0));
       this.paintBtn(this.againBtn, false);
     }
   }
@@ -837,29 +834,30 @@ export class LobbyUI {
   }
 
   private buildResult(): Node {
-    const panel = this.panel("Result", 440, 460);
-    this.resultTitle = this.makeLabel(panel, "本局结算", 0, 170, 28, C.gold);
+    const panel = this.panel("Result", 420, 340);
+    this.resultTitle = this.makeLabel(panel, "本局结算", 0, 132, 22, C.gold);
     this.resultDots = new Node("Dots");
     this.resultDots.layer = Layers.Enum.UI_2D;
     panel.addChild(this.resultDots);
-    this.resultDots.setPosition(new Vec3(0, 130, 0));
+    this.resultDots.setPosition(new Vec3(0, 104, 0));
     this.resultList = new Node("ResultList");
     this.resultList.layer = Layers.Enum.UI_2D;
     panel.addChild(this.resultList);
-    this.againBtn = this.makeBtn(panel, "再来一局", 0, -140, 180, 40, () =>
+    this.resultList.setPosition(new Vec3(0, 20, 0));
+    this.againBtn = this.makeBtn(panel, "再来一局", -95, -130, 160, 36, () =>
       this.cb.onAgain()
     );
     this.againLbl = this.againBtn.getComponentInChildren(Label)!;
-    this.exitBtn = this.makeBtn(panel, "返回大厅", 0, -140, 180, 40, () =>
+    this.exitBtn = this.makeBtn(panel, "返回大厅", 95, -130, 160, 36, () =>
       this.cb.onExit()
     );
     this.resultSettleBtn = this.makeBtn(
       panel,
       "结算本场",
       0,
-      -195,
+      -148,
       180,
-      40,
+      36,
       () => {
         this.settleBack = "result";
         this.show("settle-confirm");
@@ -1097,13 +1095,14 @@ export class LobbyUI {
   }
 
   private buildScores(): Node {
-    const panel = this.panel("Scores", 320, 320);
+    const panel = this.panel("Scores", 360, 260);
     this.makeCloseX(panel, () => this.show("none"));
-    this.makeLabel(panel, "当前积分", 0, 120, 26, C.gold);
-    this.scoresRound = this.makeLabel(panel, "", 0, 85, 15, C.goldDim);
+    this.makeLabel(panel, "当前积分", 0, 95, 22, C.gold);
+    this.scoresRound = this.makeLabel(panel, "", 0, 68, 13, C.goldDim);
     this.scoresList = new Node("ScoresList");
     this.scoresList.layer = Layers.Enum.UI_2D;
     panel.addChild(this.scoresList);
+    this.scoresList.setPosition(new Vec3(0, -10, 0));
     return panel;
   }
 
