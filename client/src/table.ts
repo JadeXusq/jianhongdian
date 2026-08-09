@@ -89,7 +89,6 @@ interface Step {
 export interface TableCallbacks {
   onPickHand(cardId: number): void;
   onPickTable(cardId: number): void;
-  onToggleCaptured?(): void;
   onCancelSelection?(): void;
   onDealSfx?(kind: "shuffle" | "round" | "table"): void;
 }
@@ -125,19 +124,6 @@ export class TableView {
   private pendingCards = new Map<number, Set<number>>();
   /** 状态已扣手牌但出牌动画未完：余牌数先加回 */
   private pendingHand = new Map<number, number>();
-  private capturedStackHit: {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-  } | null = null;
-  private capturedCloseHit: {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-  } | null = null;
-
   /** 由外部每帧提供的渲染数据 */
   state: any = null;
   hand: number[] = [];
@@ -146,8 +132,6 @@ export class TableView {
   targets: number[] = [];
   /** 弃牌二次确认中的牌 id，-1 表示无 */
   discardArmed = -1;
-  /** 展开查看全部已吃牌 */
-  showCaptured = false;
   /** 轮末：state 已 ROUND_OVER 但吃牌/翻牌动画未播完 */
   roundEnding = false;
   /** 外部置位：上家动画/状态抖动期间锁手牌与回合 UI */
@@ -311,21 +295,6 @@ export class TableView {
       return;
     }
 
-    if (this.capturedCloseHit) {
-      const h = this.capturedCloseHit;
-      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
-        this.showCaptured = false;
-        return;
-      }
-    }
-    if (this.capturedStackHit) {
-      const h = this.capturedStackHit;
-      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
-        this.cb.onToggleCaptured?.();
-        return;
-      }
-    }
-
     // 手牌在上层，优先命中；同层从右往左（后绘制的在上）
     // 触屏加大命中外扩；竖屏软件旋转后再放大（物理牌面更窄）
     const coarse = window.matchMedia("(pointer: coarse)").matches;
@@ -395,7 +364,7 @@ export class TableView {
               to,
               w: TABLE_CARD_W,
               t: 0,
-              dur: fromStock ? 0.48 : 0.34,
+              dur: fromStock ? 0.32 : 0.24,
               faceUp: !fromStock,
               flip: fromStock,
             },
@@ -439,7 +408,7 @@ export class TableView {
             to: hitSlot,
             w: TABLE_CARD_W,
             t: 0,
-            dur: fromStock ? 0.48 : 0.32,
+            dur: fromStock ? 0.32 : 0.22,
             faceUp: !fromStock,
             flip: fromStock,
           },
@@ -491,7 +460,7 @@ export class TableView {
             to: { x: centerX + 10, y: centerY },
             w: matchW,
             t: 0,
-            dur: 0.35,
+            dur: 0.22,
             faceUp: true,
           },
           {
@@ -500,7 +469,7 @@ export class TableView {
             to: { x: centerX - matchW - 10, y: centerY },
             w: matchW,
             t: 0,
-            dur: 0.35,
+            dur: 0.22,
             faceUp: true,
           },
         ],
@@ -536,7 +505,7 @@ export class TableView {
             to: pile,
             w: TABLE_CARD_W,
             t: 0,
-            dur: 0.42,
+            dur: 0.28,
             faceUp: true,
           },
           {
@@ -545,7 +514,7 @@ export class TableView {
             to: pile,
             w: TABLE_CARD_W,
             t: 0,
-            dur: 0.42,
+            dur: 0.28,
             faceUp: true,
           },
         ],
@@ -955,10 +924,10 @@ export class TableView {
     }
   }
 
-  /** 自己已吃牌堆原点（左下角，避开用户信息） */
+  /** 自己已吃牌堆原点（左下角） */
   private myCapturedPileOrigin(): Pt {
-    const cardH = 54 * CARD_RATIO;
-    return { x: 18, y: H - cardH - 14 };
+    const cardH = 150 * CARD_RATIO;
+    return { x: 12, y: H - cardH - 10 };
   }
 
   private handSlotAt(i: number, n: number): Pt {
@@ -977,10 +946,10 @@ export class TableView {
     const rel = (seat - this.mySeat + count) % count;
     const right = this.w - 108;
     const mid = this.w / 2;
-    // 2 人：标准对战，对手正上方，自己左下避开手牌
+    // 2 人：对手正上方，自己右下（左下留给已吃牌）
     if (count === 2)
-      return rel === 0 ? { x: 108, y: 474 } : { x: mid, y: 58 };
-    if (rel === 0) return { x: 108, y: 474 };
+      return rel === 0 ? { x: right, y: 474 } : { x: mid, y: 58 };
+    if (rel === 0) return { x: right, y: 474 };
     if (count === 3)
       return rel === 1 ? { x: right, y: 300 } : { x: 108, y: 300 };
     return rel === 1
@@ -1165,10 +1134,8 @@ export class TableView {
     this.drawCaptured(ctx);
   }
 
-  /** 自己的已吃牌堆：直接摊开，点击展开看全部 */
+  /** 自己的已吃牌堆：横向摊开随时可读 */
   private drawCaptured(ctx: CanvasRenderingContext2D): void {
-    this.capturedStackHit = null;
-    this.capturedCloseHit = null;
     const me = [...this.state.players.values()].find(
       (p: any) => p.seat === this.mySeat
     ) as any;
@@ -1176,78 +1143,15 @@ export class TableView {
     const cards = this.displayCaptured(me);
     if (!cards.length) return;
     const origin = this.myCapturedPileOrigin();
-    const cw = 54;
-    const ch = cw * CARD_RATIO;
-    const step = Math.min(3.2, 28 / Math.max(1, cards.length - 1 || 1));
-    const stackW = cw + (cards.length - 1) * step;
-    const stackH = ch + (cards.length - 1) * step;
-    const stackY = origin.y - (cards.length - 1) * step;
-    this.capturedStackHit = {
-      x: origin.x,
-      y: stackY,
-      w: stackW,
-      h: stackH,
-    };
+    const cw = 150;
+    const maxFanW = Math.min(this.w * 0.48, 620);
+    const step =
+      cards.length <= 1
+        ? 0
+        : Math.min(52, Math.max(26, (maxFanW - cw) / (cards.length - 1)));
     cards.forEach((id, i) => {
-      drawCard(ctx, id, origin.x + i * step, origin.y - i * step, cw);
+      drawCard(ctx, id, origin.x + i * step, origin.y, cw);
     });
-
-    if (!this.showCaptured) return;
-    const coarse = window.matchMedia("(pointer: coarse)").matches;
-    const tw = coarse ? 36 : 44;
-    const gap = 6;
-    const panelW = this.w * 0.5;
-    const innerPad = 12;
-    const cols = Math.max(
-      1,
-      Math.min(
-        cards.length,
-        Math.floor((panelW - innerPad * 2) / (tw + gap))
-      )
-    );
-    const rows = Math.ceil(cards.length / cols);
-    const panelH =
-      rows * (tw * CARD_RATIO + gap) + innerPad * 2 + 36;
-    const px = (this.w - panelW) / 2;
-    const py = (H - panelH) / 2;
-    const closeSize = 32;
-    this.capturedCloseHit = {
-      x: px + panelW - closeSize - 8,
-      y: py + 8,
-      w: closeSize,
-      h: closeSize,
-    };
-    ctx.save();
-    roundRect(ctx, px, py, panelW, panelH, 12);
-    ctx.fillStyle = "rgba(8,26,20,0.92)";
-    ctx.fill();
-    ctx.strokeStyle = C.gold;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.fillStyle = C.gold;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `600 14px "Songti SC", serif`;
-    ctx.fillText("已吃牌", px + panelW / 2, py + 22);
-    ctx.fillStyle = "rgba(243, 234, 214, 0.75)";
-    ctx.font = `600 22px "Helvetica Neue", Arial, sans-serif`;
-    ctx.fillText(
-      "×",
-      this.capturedCloseHit.x + closeSize / 2,
-      this.capturedCloseHit.y + closeSize / 2
-    );
-    cards.forEach((id, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      drawCard(
-        ctx,
-        id,
-        px + innerPad + col * (tw + gap),
-        py + 40 + row * (tw * CARD_RATIO + gap),
-        tw
-      );
-    });
-    ctx.restore();
   }
 
   private drawPanels(ctx: CanvasRenderingContext2D): void {

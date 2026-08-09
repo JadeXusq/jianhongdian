@@ -153,7 +153,7 @@ export class LobbyUI {
       this.root,
       "菜单",
       -DESIGN.width / 2 + 50,
-      DESIGN.height / 2 - 36,
+      DESIGN.height / 2 - 16,
       72,
       36,
       () => this.openMenu()
@@ -163,7 +163,7 @@ export class LobbyUI {
       this.root,
       "?",
       DESIGN.width / 2 - 106,
-      DESIGN.height / 2 - 36,
+      DESIGN.height / 2 - 16,
       36,
       36,
       () => this.openRules(this.result.active ? "result" : "none")
@@ -559,22 +559,25 @@ export class LobbyUI {
   }
 
   private buildLobby(): Node {
-    const panel = this.panel("Lobby", 400, 620);
-    this.makeLabel(panel, "捡红点", 0, 250, 38, C.gold);
-    this.makeLabel(panel, "出手牌凑十吃红分 · 大王最大", 0, 208, 15, C.cream);
+    const panel = this.panel("Lobby", 720, 480);
+    const lx = -170;
+    const rx = 170;
 
-    this.makeLabel(panel, "昵称", -130, 158, 17, C.goldDim);
-    this.nameBox = this.makeEdit(panel, 0, 153, 250, 38, "请输入昵称");
+    this.makeLabel(panel, "捡红点", lx, 180, 36, C.gold);
+    this.makeLabel(panel, "出手牌凑十吃红分 · 大王最大", lx, 142, 14, C.cream);
+
+    this.makeLabel(panel, "昵称", lx - 120, 90, 17, C.goldDim);
+    this.nameBox = this.makeEdit(panel, lx + 20, 85, 220, 38, "请输入昵称");
     try {
       this.nameBox.string = localStorage.getItem("jhd.name") || "";
     } catch {
       /* ignore */
     }
 
-    this.makeLabel(panel, "人数", -130, 102, 17, C.goldDim);
+    this.makeLabel(panel, "人数", lx - 120, 30, 17, C.goldDim);
     [2, 3, 4].forEach((n, i) => {
-      const x = -80 + i * 90;
-      const btn = this.makeBtn(panel, `${n} 人`, x, 98, 78, 34, () => {
+      const x = lx - 70 + i * 80;
+      const btn = this.makeBtn(panel, `${n} 人`, x, 26, 72, 34, () => {
         this.count = n;
         this.countLabels.forEach((l, j) => {
           l.color = j === i ? C.seal : C.cream;
@@ -588,30 +591,30 @@ export class LobbyUI {
     const lobbyTheme = new Node("LobbyTheme");
     lobbyTheme.layer = Layers.Enum.UI_2D;
     panel.addChild(lobbyTheme);
-    lobbyTheme.setPosition(new Vec3(0, 48, 0));
+    lobbyTheme.setPosition(new Vec3(rx, 155, 0));
     this.makeLabel(lobbyTheme, "主题", 0, 42, 14, C.goldDim);
     this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
     this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
 
-    this.makeBtn(panel, "人机练习（离线）", 0, -42, 270, 42, () =>
+    this.makeBtn(panel, "人机练习（离线）", rx, 40, 270, 42, () =>
       this.cb.onPractice(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "快速匹配", 0, -92, 270, 40, () =>
+    this.makeBtn(panel, "快速匹配", rx, -10, 270, 40, () =>
       this.cb.onMatch(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "创建房间", -75, -144, 125, 38, () =>
+    this.makeBtn(panel, "创建房间", rx - 70, -62, 125, 38, () =>
       this.cb.onCreate(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "输房号加入", 75, -144, 125, 38, () =>
+    this.makeBtn(panel, "输房号加入", rx + 70, -62, 125, 38, () =>
       this.openRoomCodeDialog("join")
     );
-    this.makeBtn(panel, "房号观战", -75, -192, 125, 36, () =>
+    this.makeBtn(panel, "房号观战", rx - 70, -112, 125, 36, () =>
       this.openRoomCodeDialog("spectate")
     );
-    this.makeBtn(panel, "账号绑定", 75, -192, 125, 36, () =>
+    this.makeBtn(panel, "账号绑定", rx + 70, -112, 125, 36, () =>
       this.cb.onAccount()
     );
-    this.makeBtn(panel, "查看规则", 0, -245, 120, 30, () =>
+    this.makeBtn(panel, "查看规则", rx, -160, 160, 34, () =>
       this.openRules("lobby")
     );
     return panel;
@@ -721,7 +724,7 @@ export class LobbyUI {
       this.root,
       "💬",
       DESIGN.width / 2 - 62,
-      DESIGN.height / 2 - 36,
+      DESIGN.height / 2 - 16,
       36,
       36,
       () => this.setChatPanelOpen(!this.isChatOpen())

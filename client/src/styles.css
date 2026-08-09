@@ -823,8 +823,8 @@ input:focus {
 /* 右上：规则 / 音效 / 聊天 */
 .top-bar {
   position: fixed;
-  top: calc(14px + env(safe-area-inset-top));
-  right: calc(14px + env(safe-area-inset-right));
+  top: calc(4px + env(safe-area-inset-top));
+  right: calc(10px + env(safe-area-inset-right));
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -880,8 +880,8 @@ input:focus {
 .chat-unread.hidden { display: none; }
 
 #ui.rot .top-bar {
-  top: calc(14px + env(safe-area-inset-top));
-  right: calc(14px + env(safe-area-inset-right));
+  top: calc(4px + env(safe-area-inset-left));
+  right: calc(8px + env(safe-area-inset-top));
 }
 
 .chat-panel {
@@ -972,7 +972,7 @@ input:focus {
   left: auto;
   right: 14px;
   bottom: auto;
-  top: calc(58px + env(safe-area-inset-top));
+  top: calc(46px + env(safe-area-inset-left));
   transform: none;
   width: min(280px, calc(100% - 130px));
   height: min(42vh, 260px);
@@ -984,7 +984,7 @@ input:focus {
     left: auto;
     right: 14px;
     bottom: auto;
-    top: calc(58px + env(safe-area-inset-top));
+    top: calc(46px + env(safe-area-inset-top));
     transform: none;
     width: min(280px, calc(100% - 130px));
     height: min(42vh, 260px);
@@ -995,8 +995,8 @@ input:focus {
 /* 对局内菜单 */
 .menu-btn {
   position: fixed;
-  top: calc(14px + env(safe-area-inset-top));
-  left: calc(14px + env(safe-area-inset-left));
+  top: calc(4px + env(safe-area-inset-top));
+  left: calc(10px + env(safe-area-inset-left));
   height: 36px;
   padding: 0 12px;
   border: 1px solid var(--gold-dim);
@@ -1007,6 +1007,11 @@ input:focus {
   font-family: var(--serif);
   z-index: 6;
   cursor: pointer;
+}
+
+#ui.rot .menu-btn {
+  top: calc(4px + env(safe-area-inset-left));
+  left: calc(8px + env(safe-area-inset-bottom));
 }
 
 .menu-panel .btn {
@@ -1073,8 +1078,10 @@ input:focus {
 
 #ui.rot .lobby-panel .title,
 #ui.rot .lobby-panel .subtitle,
-#ui.rot .lobby-panel > .field {
+#ui.rot .lobby-panel > .field:not(.theme-field) {
   grid-column: 1;
+  justify-self: stretch;
+  text-align: left;
 }
 
 #ui.rot .lobby-panel .title {
@@ -1089,14 +1096,20 @@ input:focus {
   letter-spacing: 1px;
 }
 
-#ui.rot .lobby-panel > .field {
+#ui.rot .lobby-panel > .field:not(.theme-field) {
   margin-bottom: 8px;
   font-size: 14px;
 }
 
+#ui.rot .lobby-panel .theme-field {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0 0 8px;
+}
+
 #ui.rot .lobby-actions {
   grid-column: 2;
-  grid-row: 1 / span 4;
+  grid-row: 2 / span 3;
 }
 
 #ui.rot .lobby-panel .btn {
@@ -1279,8 +1292,10 @@ input:focus {
 
   .lobby-panel .title,
   .lobby-panel .subtitle,
-  .lobby-panel > .field {
+  .lobby-panel > .field:not(.theme-field) {
     grid-column: 1;
+    justify-self: stretch;
+    text-align: left;
   }
 
   .lobby-panel .title {
@@ -1293,13 +1308,19 @@ input:focus {
     font-size: 12px;
   }
 
-  .lobby-panel > .field {
+  .lobby-panel > .field:not(.theme-field) {
     margin-bottom: 8px;
+  }
+
+  .lobby-panel .theme-field {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0 0 8px;
   }
 
   .lobby-actions {
     grid-column: 2;
-    grid-row: 1 / span 4;
+    grid-row: 2 / span 3;
   }
 
   .lobby-panel .btn {

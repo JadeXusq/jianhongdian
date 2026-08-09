@@ -62,9 +62,6 @@ sfx.setTheme(currentThemeId());
 const view = new TableView($<HTMLCanvasElement>("table"), {
   onPickHand: (id) => pickHand(id),
   onPickTable: (id) => pickTable(id),
-  onToggleCaptured: () => {
-    view.showCaptured = !view.showCaptured;
-  },
   onCancelSelection: () => clearSelection(),
   onDealSfx: (kind) => {
     if (kind === "shuffle") sfx.dealShuffle();
@@ -245,7 +242,6 @@ function onDealRoundStart(): void {
   selected = -1;
   discardArmed = -1;
   lastRound = null;
-  view.showCaptured = false;
   view.roundEnding = false;
   clearToast();
   hint(null);
