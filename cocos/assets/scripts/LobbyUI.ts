@@ -987,9 +987,8 @@ export class LobbyUI {
     y: number
   ): { id: string; node: Node; label: Label }[] {
     const items = [
-      { id: "jade", name: "青绿金", x: -110 },
-      { id: "anime", name: "动漫风", x: 0 },
-      { id: "night", name: "夜蓝", x: 110 },
+      { id: "jade", name: "青绿金", x: -60 },
+      { id: "anime", name: "动漫风", x: 60 },
     ];
     return items.map((it) => {
       const btn = this.makeThemePreviewBtn(parent, it.id as ThemeId, it.name, it.x, y, () => {
@@ -1044,8 +1043,6 @@ export class LobbyUI {
       const fill =
         id === "anime"
           ? new Color(61, 42, 109, 255)
-          : id === "night"
-          ? new Color(22, 58, 95, 255)
           : new Color(28, 76, 59, 255);
       tg.fillColor = fill;
       tg.roundRect(-44, -16, 88, 32, 4);
@@ -1126,7 +1123,7 @@ export class LobbyUI {
 
   private panelRadius(): number {
     const tid = currentThemeId();
-    return tid === "anime" ? 22 : tid === "night" ? 8 : 16;
+    return tid === "anime" ? 22 : 16;
   }
 
   private panel(name: string, w: number, h: number): Node {

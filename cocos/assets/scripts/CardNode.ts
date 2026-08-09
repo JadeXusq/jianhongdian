@@ -320,19 +320,6 @@ function drawFaceChrome(g: Graphics, w: number, h: number): void {
     g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 110);
     g.roundRect(m, -h + m, w - m * 2, h - m * 2, w * 0.12);
     g.stroke();
-  } else {
-    g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 130);
-    g.rect(m, -h + m, w - m * 2, h - m * 2);
-    g.stroke();
-    g.fillColor = new Color(C.gold.r, C.gold.g, C.gold.b, 170);
-    for (const [px, py] of [
-      [w * 0.85, -h * 0.14],
-      [w * 0.15, -h * 0.82],
-      [w * 0.78, -h * 0.72],
-    ]) {
-      g.circle(px, py, Math.max(1, w * 0.018));
-      g.fill();
-    }
   }
 }
 
@@ -342,8 +329,6 @@ function drawBack(node: Node, g: Graphics, w: number, h: number): void {
   g.strokeColor =
     tid === "anime"
       ? new Color(255, 141, 199, 100)
-      : tid === "night"
-      ? new Color(94, 200, 255, 90)
       : new Color(201, 169, 97, 90);
   const step = w * 0.2;
   for (let i = -h; i < w + h; i += step) {
@@ -358,8 +343,6 @@ function drawBack(node: Node, g: Graphics, w: number, h: number): void {
   g.fillColor =
     tid === "anime"
       ? new Color(255, 141, 199, 230)
-      : tid === "night"
-      ? new Color(94, 200, 255, 220)
       : new Color(201, 169, 97, 230);
   g.roundRect((w - s) / 2, -(h + s) / 2, s, s, s * 0.12);
   g.fill();

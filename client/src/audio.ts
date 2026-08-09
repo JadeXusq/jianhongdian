@@ -4,7 +4,7 @@
  */
 const MUTE_KEY = "jhd.mute";
 
-type ThemeTint = "jade" | "anime" | "night";
+type ThemeTint = "jade" | "anime";
 
 class Sfx {
   private ctx: AudioContext | null = null;
@@ -14,13 +14,11 @@ class Sfx {
   muted = localStorage.getItem(MUTE_KEY) === "1";
 
   setTheme(id: string): void {
-    if (id === "anime" || id === "night" || id === "jade") this.theme = id;
+    if (id === "anime" || id === "jade") this.theme = id;
   }
 
   private pitch(): number {
-    if (this.theme === "anime") return 1.12;
-    if (this.theme === "night") return 0.9;
-    return 1;
+    return this.theme === "anime" ? 1.12 : 1;
   }
 
   /** 在任意用户手势中调用以解锁音频 */
@@ -72,8 +70,7 @@ class Sfx {
     const g = this.ctx.createGain();
     src.buffer = buf;
     filter.type = "highpass";
-    filter.frequency.value =
-      this.theme === "anime" ? 2100 : this.theme === "night" ? 1200 : 1600;
+    filter.frequency.value = this.theme === "anime" ? 2100 : 1600;
     g.gain.value = gain;
     src.connect(filter).connect(g).connect(this.ctx.destination);
     src.start();
@@ -84,9 +81,6 @@ class Sfx {
     if (this.theme === "anime") {
       this.tone(784, 0.08, "triangle", 0.05);
       this.tone(988, 0.12, "sine", 0.045, 0.05);
-    } else if (this.theme === "night") {
-      this.tone(392, 0.12, "sine", 0.05);
-      this.tone(523, 0.16, "triangle", 0.04, 0.06);
     } else {
       this.tone(523, 0.1, "triangle", 0.05);
       this.tone(659, 0.12, "triangle", 0.04, 0.05);
@@ -203,14 +197,7 @@ class Sfx {
     const jadeB = [293.66, 329.63, 392.0, 440.0, 523.25];
     const animeA = [329.63, 392.0, 440.0, 523.25, 659.25];
     const animeB = [392.0, 493.88, 587.33, 659.25, 783.99];
-    const nightA = [220.0, 261.63, 293.66, 349.23, 392.0];
-    const nightB = [246.94, 293.66, 329.63, 392.0, 440.0];
-    const pair =
-      this.theme === "anime"
-        ? [animeA, animeB]
-        : this.theme === "night"
-        ? [nightA, nightB]
-        : [jadeA, jadeB];
+    const pair = this.theme === "anime" ? [animeA, animeB] : [jadeA, jadeB];
     const scale = this.bgmStep % 32 < 16 ? pair[0] : pair[1];
     const f = scale[Math.floor(Math.random() * scale.length)];
     this.pad(f, 2.8, 0.03);

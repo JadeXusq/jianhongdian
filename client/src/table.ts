@@ -1011,7 +1011,7 @@ export class TableView {
     const felt = themeFeltImg(tid);
     if (felt) {
       ctx.save();
-      ctx.globalAlpha = tid === "anime" ? 0.72 : tid === "night" ? 0.68 : 0.62;
+      ctx.globalAlpha = tid === "anime" ? 0.72 : 0.62;
       const pat = ctx.createPattern(felt, "repeat");
       if (pat) {
         ctx.fillStyle = pat;
@@ -1040,47 +1040,28 @@ export class TableView {
         ctx.fill();
       }
       ctx.restore();
-    } else if (tid === "night") {
-      ctx.save();
-      ctx.fillStyle = C.gold;
-      ctx.globalAlpha = 0.18;
-      for (let i = 0; i < 40; i++) {
-        const px = 60 + ((i * 89) % (W - 120));
-        const py = 70 + ((i * 67) % (H - 140));
-        ctx.beginPath();
-        ctx.arc(px, py, 1 + (i % 3), 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
     }
 
-    const radius = tid === "anime" ? 28 : tid === "night" ? 10 : 18;
+    const radius = tid === "anime" ? 28 : 18;
     ctx.strokeStyle = `${C.gold}55`;
-    ctx.lineWidth = tid === "night" ? 1.5 : 2;
+    ctx.lineWidth = 2;
     roundRect(ctx, 26, 26, W - 52, H - 52, radius);
     ctx.stroke();
-    if (tid !== "night") {
-      ctx.strokeStyle = `${C.gold}90`;
-      ctx.lineWidth = 3;
-      const c = 34;
-      [
-        [40, 40, 1, 1],
-        [W - 40, 40, -1, 1],
-        [40, H - 40, 1, -1],
-        [W - 40, H - 40, -1, -1],
-      ].forEach(([x, y, sx, sy]) => {
-        ctx.beginPath();
-        ctx.moveTo(x, y + sy * c);
-        ctx.lineTo(x, y);
-        ctx.lineTo(x + sx * c, y);
-        ctx.stroke();
-      });
-    } else {
-      ctx.strokeStyle = `${C.gold}40`;
-      ctx.lineWidth = 1;
-      roundRect(ctx, 38, 38, W - 76, H - 76, 6);
+    ctx.strokeStyle = `${C.gold}90`;
+    ctx.lineWidth = 3;
+    const c = 34;
+    [
+      [40, 40, 1, 1],
+      [W - 40, 40, -1, 1],
+      [40, H - 40, 1, -1],
+      [W - 40, H - 40, -1, -1],
+    ].forEach(([x, y, sx, sy]) => {
+      ctx.beginPath();
+      ctx.moveTo(x, y + sy * c);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x + sx * c, y);
       ctx.stroke();
-    }
+    });
 
     ctx.save();
     ctx.globalAlpha = tid === "anime" ? 0.08 : 0.06;
@@ -1091,7 +1072,7 @@ export class TableView {
       tid === "jade"
         ? `700 130px "Songti SC", "STSong", serif`
         : `700 110px "PingFang SC", "Helvetica Neue", sans-serif`;
-    ctx.fillText(tid === "night" ? "JHD" : "捡红点", W / 2, 500);
+    ctx.fillText("捡红点", W / 2, 500);
     ctx.restore();
   }
 

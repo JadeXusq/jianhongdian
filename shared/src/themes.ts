@@ -1,6 +1,6 @@
 /** 房间桌面主题（Web / Cocos / 服务端白名单同源） */
 
-export type ThemeId = "jade" | "anime" | "night";
+export type ThemeId = "jade" | "anime";
 
 export interface ThemeCanvas {
   feltInner: string;
@@ -33,7 +33,7 @@ export interface ThemeDef {
   css: ThemeCss;
 }
 
-export const THEME_IDS: ThemeId[] = ["jade", "anime", "night"];
+export const THEME_IDS: ThemeId[] = ["jade", "anime"];
 export const DEFAULT_THEME_ID: ThemeId = "jade";
 
 export const THEMES: Record<ThemeId, ThemeDef> = {
@@ -87,32 +87,6 @@ export const THEMES: Record<ThemeId, ThemeDef> = {
       cream: "#fff5fb",
       felt: "#2b1b52",
       ink: "#120a24",
-    },
-  },
-  night: {
-    id: "night",
-    name: "夜蓝",
-    canvas: {
-      feltInner: "#163a5f",
-      feltOuter: "#0a1a2e",
-      gold: "#5ec8ff",
-      goldDim: "#3a7ea8",
-      seal: "#ff6b4a",
-      cream: "#e8f4ff",
-      ink: "#0e1a28",
-      cardFace: "#f2f8ff",
-      cardBack: "#1e4d7b",
-      shadow: "rgba(0,20,40,0.5)",
-      dim: "rgba(6,18,32,0.55)",
-      panelBg: "rgba(8,24,42,0.78)",
-    },
-    css: {
-      gold: "#5ec8ff",
-      goldDim: "rgba(94, 200, 255, 0.4)",
-      seal: "#ff6b4a",
-      cream: "#e8f4ff",
-      felt: "#0f2740",
-      ink: "#061018",
     },
   },
 };

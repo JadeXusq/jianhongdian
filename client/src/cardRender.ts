@@ -272,22 +272,6 @@ function drawFaceChrome(
     ctx.lineWidth = Math.max(1, w * 0.018);
     roundRect(ctx, x + m, y + m, w - m * 2, h - m * 2, w * 0.12);
     ctx.stroke();
-  } else {
-    ctx.strokeStyle = C.gold;
-    ctx.globalAlpha = 0.5;
-    ctx.lineWidth = Math.max(1, w * 0.016);
-    ctx.strokeRect(x + m, y + m, w - m * 2, h - m * 2);
-    ctx.fillStyle = C.gold;
-    ctx.globalAlpha = 0.65;
-    for (const [px, py] of [
-      [x + w * 0.85, y + h * 0.14],
-      [x + w * 0.15, y + h * 0.82],
-      [x + w * 0.78, y + h * 0.72],
-    ]) {
-      ctx.beginPath();
-      ctx.arc(px, py, Math.max(1, w * 0.018), 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
   ctx.restore();
 }
@@ -319,13 +303,10 @@ function drawFace(
     ctx.fillStyle = color;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    const rankFont =
+    ctx.font =
       tid === "anime"
         ? `800 ${w * 0.28}px "PingFang SC", "Helvetica Neue", sans-serif`
-        : tid === "night"
-        ? `600 ${w * 0.26}px "Helvetica Neue", Arial, sans-serif`
         : `700 ${w * 0.26}px "Helvetica Neue", Arial, sans-serif`;
-    ctx.font = rankFont;
     ctx.fillText(label, x + w * 0.19, y + h * 0.14);
     ctx.font = `${w * 0.2}px serif`;
     ctx.fillText(sym, x + w * 0.19, y + h * 0.27);
@@ -344,14 +325,6 @@ function drawFace(
     if (tid === "anime") {
       roundRect(ctx, cx - rad, cy - rad, rad * 2, rad * 2, rad * 0.45);
       ctx.fill();
-    } else if (tid === "night") {
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - rad);
-      ctx.lineTo(cx + rad, cy);
-      ctx.lineTo(cx, cy + rad);
-      ctx.lineTo(cx - rad, cy);
-      ctx.closePath();
-      ctx.fill();
     } else {
       ctx.beginPath();
       ctx.arc(cx, cy, rad, 0, Math.PI * 2);
@@ -361,14 +334,6 @@ function drawFace(
     ctx.strokeStyle = C.gold;
     if (tid === "anime") {
       roundRect(ctx, cx - rad, cy - rad, rad * 2, rad * 2, rad * 0.45);
-      ctx.stroke();
-    } else if (tid === "night") {
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - rad);
-      ctx.lineTo(cx + rad, cy);
-      ctx.lineTo(cx, cy + rad);
-      ctx.lineTo(cx - rad, cy);
-      ctx.closePath();
       ctx.stroke();
     } else {
       ctx.beginPath();
@@ -392,11 +357,7 @@ function drawBack(
 ): void {
   const tid = currentThemeId();
   ctx.strokeStyle =
-    tid === "anime"
-      ? "rgba(255,141,199,0.4)"
-      : tid === "night"
-      ? "rgba(94,200,255,0.35)"
-      : "rgba(201,169,97,0.35)";
+    tid === "anime" ? "rgba(255,141,199,0.4)" : "rgba(201,169,97,0.35)";
   ctx.lineWidth = Math.max(0.5, w * 0.012);
   const step = w * 0.18;
   for (let i = -h; i < w + h; i += step) {
@@ -409,23 +370,9 @@ function drawBack(
     ctx.lineTo(x + i + h, y);
     ctx.stroke();
   }
-  if (tid === "night") {
-    ctx.fillStyle = "rgba(180,230,255,0.55)";
-    for (let i = 0; i < 8; i++) {
-      const px = x + w * (0.2 + ((i * 37) % 60) / 100);
-      const py = y + h * (0.15 + ((i * 53) % 70) / 100);
-      ctx.beginPath();
-      ctx.arc(px, py, Math.max(1, w * 0.015), 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
   const s = w * 0.42;
   ctx.fillStyle =
-    tid === "anime"
-      ? "rgba(255,141,199,0.9)"
-      : tid === "night"
-      ? "rgba(94,200,255,0.85)"
-      : "rgba(201,169,97,0.9)";
+    tid === "anime" ? "rgba(255,141,199,0.9)" : "rgba(201,169,97,0.9)";
   roundRect(ctx, x + (w - s) / 2, y + (h - s) / 2, s, s, s * 0.12);
   ctx.fill();
   ctx.fillStyle = C.cardBack;

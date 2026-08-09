@@ -291,17 +291,12 @@ function drawPreview(theme) {
   const W = 160;
   const H = 100;
   const rgba = Buffer.alloc(W * H * 4);
-  const felt = { jade: [22, 68, 52], anime: [72, 42, 128], night: [10, 28, 52] }[
-    theme
-  ];
+  const felt = { jade: [22, 68, 52], anime: [72, 42, 128] }[theme];
   const accent = {
     jade: [201, 169, 97],
     anime: [255, 141, 199],
-    night: [94, 200, 255],
   }[theme];
-  const back = { jade: [92, 28, 26], anime: [140, 70, 190], night: [18, 50, 90] }[
-    theme
-  ];
+  const back = { jade: [92, 28, 26], anime: [140, 70, 190] }[theme];
   fill(rgba, W, H, felt[0], felt[1], felt[2]);
   if (theme === "anime") {
     for (let i = 0; i < 12; i++)
@@ -346,7 +341,7 @@ function drawPreview(theme) {
 
 mkdirSync(OUT_WEB, { recursive: true });
 mkdirSync(OUT_COCOS, { recursive: true });
-for (const id of ["jade", "anime", "night"]) {
+for (const id of ["jade", "anime"]) {
   for (const [kind, fn] of [
     ["back", drawCardBack],
     ["felt", drawFelt],
