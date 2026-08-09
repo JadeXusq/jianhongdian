@@ -109,6 +109,7 @@ export class LobbyUI {
   private aiBtn!: Node;
   private roomThemeRow!: Node;
   private menuThemeRow!: Node;
+  private lobbyThemeBtns: { id: string; node: Node; label: Label }[] = [];
   private roomThemeBtns: { id: string; node: Node; label: Label }[] = [];
   private menuThemeBtns: { id: string; node: Node; label: Label }[] = [];
   private resultTitle!: Label;
@@ -555,22 +556,22 @@ export class LobbyUI {
   }
 
   private buildLobby(): Node {
-    const panel = this.panel("Lobby", 400, 560);
-    this.makeLabel(panel, "捡红点", 0, 210, 38, C.gold);
-    this.makeLabel(panel, "出手牌凑十吃红分 · 红鬼最大", 0, 168, 15, C.cream);
+    const panel = this.panel("Lobby", 400, 620);
+    this.makeLabel(panel, "捡红点", 0, 250, 38, C.gold);
+    this.makeLabel(panel, "出手牌凑十吃红分 · 红鬼最大", 0, 208, 15, C.cream);
 
-    this.makeLabel(panel, "昵称", -130, 118, 17, C.goldDim);
-    this.nameBox = this.makeEdit(panel, 0, 113, 250, 38, "请输入昵称");
+    this.makeLabel(panel, "昵称", -130, 158, 17, C.goldDim);
+    this.nameBox = this.makeEdit(panel, 0, 153, 250, 38, "请输入昵称");
     try {
       this.nameBox.string = localStorage.getItem("jhd.name") || "";
     } catch {
       /* ignore */
     }
 
-    this.makeLabel(panel, "人数", -130, 62, 17, C.goldDim);
+    this.makeLabel(panel, "人数", -130, 102, 17, C.goldDim);
     [2, 3, 4].forEach((n, i) => {
       const x = -80 + i * 90;
-      const btn = this.makeBtn(panel, `${n} 人`, x, 58, 78, 34, () => {
+      const btn = this.makeBtn(panel, `${n} 人`, x, 98, 78, 34, () => {
         this.count = n;
         this.countLabels.forEach((l, j) => {
           l.color = j === i ? C.seal : C.cream;
@@ -581,25 +582,33 @@ export class LobbyUI {
       if (n === 4) lbl.color = C.seal;
     });
 
-    this.makeBtn(panel, "人机练习（离线）", 0, -10, 270, 42, () =>
+    const lobbyTheme = new Node("LobbyTheme");
+    lobbyTheme.layer = Layers.Enum.UI_2D;
+    panel.addChild(lobbyTheme);
+    lobbyTheme.setPosition(new Vec3(0, 40, 0));
+    this.makeLabel(lobbyTheme, "桌面主题（建房默认）", 0, 28, 14, C.goldDim);
+    this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
+    this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
+
+    this.makeBtn(panel, "人机练习（离线）", 0, -30, 270, 42, () =>
       this.cb.onPractice(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "快速匹配", 0, -60, 270, 40, () =>
+    this.makeBtn(panel, "快速匹配", 0, -80, 270, 40, () =>
       this.cb.onMatch(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "创建房间", -75, -112, 125, 38, () =>
+    this.makeBtn(panel, "创建房间", -75, -132, 125, 38, () =>
       this.cb.onCreate(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "输房号加入", 75, -112, 125, 38, () =>
+    this.makeBtn(panel, "输房号加入", 75, -132, 125, 38, () =>
       this.openRoomCodeDialog("join")
     );
-    this.makeBtn(panel, "房号观战", -75, -160, 125, 36, () =>
+    this.makeBtn(panel, "房号观战", -75, -180, 125, 36, () =>
       this.openRoomCodeDialog("spectate")
     );
-    this.makeBtn(panel, "账号绑定", 75, -160, 125, 36, () =>
+    this.makeBtn(panel, "账号绑定", 75, -180, 125, 36, () =>
       this.cb.onAccount()
     );
-    this.makeBtn(panel, "查看规则", 0, -215, 120, 30, () =>
+    this.makeBtn(panel, "查看规则", 0, -235, 120, 30, () =>
       this.openRules("lobby")
     );
     return panel;
@@ -780,7 +789,7 @@ export class LobbyUI {
   }
 
   private buildRoom(): Node {
-    const panel = this.panel("Room", 420, 540);
+    const panel = this.panel("Room", 440, 540);
     this.makeLabel(panel, "房间等待", 0, 230, 28, C.gold);
     this.roomCodeLbl = this.makeLabel(panel, "------", 0, 185, 36, C.seal);
     this.roomStatusLbl = this.makeLabel(
@@ -941,7 +950,7 @@ export class LobbyUI {
   }
 
   private buildMenu(): Node {
-    const panel = this.panel("Menu", 280, 280);
+    const panel = this.panel("Menu", 360, 280);
     this.makeCloseX(panel, () => this.show("none"));
     this.makeLabel(panel, "菜单", 0, 105, 26, C.gold);
     this.menuThemeRow = new Node("MenuTheme");
@@ -975,14 +984,16 @@ export class LobbyUI {
     y: number
   ): { id: string; node: Node; label: Label }[] {
     const items = [
-      { id: "jade", name: "青绿金", x: -70 },
-      { id: "anime", name: "动漫风", x: 70 },
+      { id: "jade", name: "青绿金", x: -110 },
+      { id: "anime", name: "动漫风", x: 0 },
+      { id: "night", name: "夜蓝", x: 110 },
     ];
     return items.map((it) => {
-      const btn = this.makeBtn(parent, it.name, it.x, y, 120, 34, () => {
+      const btn = this.makeBtn(parent, it.name, it.x, y, 100, 34, () => {
         this.cb.onSetTheme(it.id);
         this.paintThemeBtns(this.roomThemeBtns, it.id);
         this.paintThemeBtns(this.menuThemeBtns, it.id);
+        this.paintThemeBtns(this.lobbyThemeBtns, it.id);
       });
       return {
         id: it.id,

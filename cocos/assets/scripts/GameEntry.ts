@@ -42,6 +42,7 @@ import {
   currentThemeId,
   loadSavedTheme,
 } from "./Theme";
+import { THEMES } from "./rules";
 
 const { ccclass } = _decorator;
 
@@ -215,9 +216,15 @@ export class GameEntry extends Component {
         this.ui.show("none");
       },
       onSetTheme: (themeId) => {
+        const prev = currentThemeId();
         if (this.offline) this.offline.setTheme(themeId);
-        else this.net.setTheme(themeId);
+        else if (this.net.room) this.net.setTheme(themeId);
         this.applyRoomTheme(themeId);
+        if (themeId !== prev) {
+          const name =
+            THEMES[themeId as keyof typeof THEMES]?.name ?? themeId;
+          this.ui.toast(`主题：${name}`);
+        }
       },
       currentThemeId: () => currentThemeId(),
       isHost: () => {
@@ -279,7 +286,7 @@ export class GameEntry extends Component {
   private async doMatch(name: string, maxPlayers: number): Promise<void> {
     this.stopOffline();
     this.ui.clearChatLog();
-    await this.net.quickMatch(name, maxPlayers);
+    await this.net.quickMatch(name, maxPlayers, currentThemeId());
     this.net.ready(true);
     this.ui.setChatToggleVisible(true);
     this.ui.show("room");
@@ -292,7 +299,7 @@ export class GameEntry extends Component {
   ): Promise<void> {
     this.stopOffline();
     this.ui.clearChatLog();
-    await this.net.create(name, maxPlayers);
+    await this.net.create(name, maxPlayers, currentThemeId());
     if (withAi) this.net.addAi();
     this.ui.setChatToggleVisible(true);
     this.ui.show("room");
@@ -558,7 +565,7 @@ export class GameEntry extends Component {
     this.ui.clearChatLog();
     await this.net.leave().catch(() => undefined);
     this.resetLocal();
-    await this.net.create(name, maxPlayers);
+    await this.net.create(name, maxPlayers, currentThemeId());
     if (withAi) this.net.addAi();
     const code = await this.waitCode();
     this.net.ready(true);

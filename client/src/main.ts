@@ -2,8 +2,15 @@
  * 入口：界面切换与出牌交互
  * 交互约定：点手牌 → 唯一目标直接吃；多目标高亮待选；无目标需再点一次确认弃牌。
  */
-import { cardScore, findTargets, turnHint } from "@jhd/shared";
-import { ROUND_RESULT_MAX_WAIT_MS, ROUND_END_EVENT_GRACE_MS, TURN_UI_LOCK_MS } from "@jhd/shared";
+import {
+  cardScore,
+  findTargets,
+  turnHint,
+  THEMES,
+  ROUND_RESULT_MAX_WAIT_MS,
+  ROUND_END_EVENT_GRACE_MS,
+  TURN_UI_LOCK_MS,
+} from "@jhd/shared";
 import { sfx } from "./audio";
 import { loadCardAtlas } from "./cardRender";
 import { bindRotScroll, lockLandscape, onOrientationChange, shouldRotate } from "./layout";
@@ -321,7 +328,7 @@ $("btn-match").onclick = () =>
   guard(async () => {
     stopOffline();
     clearChatLog();
-    await net.quickMatch(playerName(), maxPlayers);
+    await net.quickMatch(playerName(), maxPlayers, currentThemeId());
     net.ready(true);
     show("room");
   });
@@ -334,7 +341,7 @@ $("btn-create").onclick = () =>
   guard(async () => {
     stopOffline();
     clearChatLog();
-    await net.create(playerName(), maxPlayers);
+    await net.create(playerName(), maxPlayers, currentThemeId());
     show("room");
   });
 
@@ -443,31 +450,52 @@ function syncThemeFromState(state: { themeId?: string } | null | undefined): voi
   if (!state?.themeId) return;
   if (state.themeId === currentThemeId()) return;
   applyTheme(state.themeId);
+  paintAllThemeSegs(state.themeId);
 }
 
 function paintThemeSeg(rootId: string, active: string): void {
-  const root = $(rootId);
+  const root = document.getElementById(rootId);
+  if (!root) return;
   root.querySelectorAll("button[data-theme]").forEach((btn) => {
     const id = (btn as HTMLElement).dataset.theme ?? "";
     btn.classList.toggle("on", id === active);
   });
 }
 
-function bindThemeSeg(rootId: string): void {
-  $(rootId).addEventListener("click", (e) => {
+function paintAllThemeSegs(active: string): void {
+  paintThemeSeg("lobby-theme-seg", active);
+  paintThemeSeg("theme-seg", active);
+  paintThemeSeg("menu-theme-seg", active);
+}
+
+function setThemeLocalAndRemote(id: string, announce = true): void {
+  const prev = currentThemeId();
+  applyTheme(id);
+  paintAllThemeSegs(id);
+  if (offline) offline.setTheme(id);
+  else if (net.room && isHost()) net.setTheme(id);
+  if (announce && id !== prev) {
+    const name = THEMES[id as keyof typeof THEMES]?.name ?? id;
+    toast(`主题：${name}`);
+  }
+}
+
+function bindThemeSeg(rootId: string, requireHost: boolean): void {
+  const el = document.getElementById(rootId);
+  if (!el) return;
+  el.addEventListener("click", (e) => {
     const btn = (e.target as HTMLElement).closest("button[data-theme]");
     if (!btn) return;
     const id = (btn as HTMLElement).dataset.theme;
-    if (!id || !isHost()) return;
-    if (offline) offline.setTheme(id);
-    else net.setTheme(id);
-    applyTheme(id);
-    paintThemeSeg("theme-seg", id);
-    paintThemeSeg("menu-theme-seg", id);
+    if (!id) return;
+    if (requireHost && !isHost()) return;
+    setThemeLocalAndRemote(id, true);
   });
 }
-bindThemeSeg("theme-seg");
-bindThemeSeg("menu-theme-seg");
+bindThemeSeg("lobby-theme-seg", false);
+bindThemeSeg("theme-seg", true);
+bindThemeSeg("menu-theme-seg", true);
+paintAllThemeSegs(currentThemeId());
 
 function setMenuVisible(v: boolean): void {
   $("btn-menu").classList.toggle("hidden", !v);
@@ -482,7 +510,7 @@ function openGameMenu(): void {
   if (host) {
     const tid =
       offline?.state.themeId ?? net.state?.themeId ?? currentThemeId();
-    paintThemeSeg("menu-theme-seg", String(tid));
+    paintAllThemeSegs(String(tid));
   }
   setChatPanelOpen(false);
   show("game-menu");
@@ -712,7 +740,7 @@ function renderRoom(state: any): void {
   $<HTMLButtonElement>("btn-ai").disabled =
     players.length >= state.maxPlayers || !host;
   $("room-theme").classList.toggle("hidden", !host);
-  if (host) paintThemeSeg("theme-seg", String(state.themeId ?? currentThemeId()));
+  if (host) paintAllThemeSegs(String(state.themeId ?? currentThemeId()));
   syncThemeFromState(state);
 }
 

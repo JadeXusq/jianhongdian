@@ -37,6 +37,8 @@ export interface JoinOptions {
   deviceId?: string;
   /** 以观战身份进入（不占座位、无手牌、不可操作） */
   spectate?: boolean;
+  /** 建房时的默认主题（仅 onCreate / 首进房生效） */
+  themeId?: string;
 }
 
 export class GameRoom extends Room<RoomState> {
@@ -93,7 +95,7 @@ export class GameRoom extends Room<RoomState> {
     this.onMessage("setTheme", (client, msg: { themeId?: string }) =>
       this.onSetTheme(client, msg)
     );
-    this.state.themeId = "jade";
+    this.state.themeId = resolveThemeId(options.themeId);
   }
 
   private onSetTheme(client: Client, msg: { themeId?: string }): void {

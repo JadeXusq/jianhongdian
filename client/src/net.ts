@@ -156,22 +156,32 @@ export class Net {
 
   private joining = false;
 
-  async create(name: string, maxPlayers: number): Promise<void> {
+  async create(
+    name: string,
+    maxPlayers: number,
+    themeId?: string
+  ): Promise<void> {
     await this.enterRoom(() =>
       this.client.create("game", {
         name,
         maxPlayers,
         deviceId: deviceId(),
+        themeId,
       })
     );
   }
 
-  async quickMatch(name: string, maxPlayers: number): Promise<void> {
+  async quickMatch(
+    name: string,
+    maxPlayers: number,
+    themeId?: string
+  ): Promise<void> {
     await this.enterRoom(() =>
       this.client.joinOrCreate("game", {
         name,
         maxPlayers,
         deviceId: deviceId(),
+        themeId,
       })
     );
   }
