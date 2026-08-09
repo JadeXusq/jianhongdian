@@ -1292,14 +1292,6 @@ export class GameEntry extends Component {
     this.matchNode.removeAllChildren();
     this.matchNode.active = true;
 
-    const hit = new Node("MatchHit");
-    hit.layer = Layers.Enum.UI_2D;
-    this.matchNode.addChild(hit);
-    hit.addComponent(UITransform).setContentSize(
-      new Size(DESIGN.width, DESIGN.height)
-    );
-    hit.on(Node.EventType.TOUCH_END, () => this.clearMatch());
-
     const w = TABLE_CARD_W * 1.3;
     const h = w * CARD_RATIO;
 
@@ -1328,15 +1320,6 @@ export class GameEntry extends Component {
       0,
       h / 2 + 36,
       28,
-      C.gold,
-      true
-    );
-    addLabel(
-      this.matchNode,
-      "点击任意处跳过",
-      0,
-      -DESIGN.height / 2 + (sys.isMobile ? 64 : 48),
-      sys.isMobile ? 20 : 18,
       C.gold,
       true
     );

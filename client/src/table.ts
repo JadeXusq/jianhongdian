@@ -306,7 +306,7 @@ export class TableView {
     this.updateLayout();
     const { x, y } = this.pointerPos(e);
 
-    // 已吃详情随时可开合，优先于动画跳过与出牌点击
+    // 已吃详情随时可开合，优先于出牌点击
     if (this.capturedCloseHit) {
       const h = this.capturedCloseHit;
       if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
@@ -326,10 +326,7 @@ export class TableView {
       return;
     }
 
-    if (this.animating) {
-      this.skipHold();
-      return;
-    }
+    if (this.animating) return;
 
     // 手牌在上层，优先命中；同层从右往左（后绘制的在上）
     // 触屏加大命中外扩；竖屏软件旋转后再放大（物理牌面更窄）
@@ -352,14 +349,6 @@ export class TableView {
     const t = hit(this.tableSlots);
     if (t >= 0) return this.cb.onPickTable(t);
     this.cb.onCancelSelection?.();
-  }
-
-  /** 跳过当前步骤剩余停顿（MATCH 等） */
-  skipHold(): void {
-    if (!this.current) return;
-    const flying = this.current.flies.some((f) => f.t < f.dur);
-    if (flying) return;
-    this.current.hold = 0;
   }
 
   /** 把服务器事件转成动画步骤 */
@@ -519,12 +508,6 @@ export class TableView {
             t: 0,
             sparkle: true,
             gain,
-          },
-          {
-            text: "点击任意处跳过",
-            at: { x: centerX, y: this.rotated ? H - 64 : H - 48 },
-            t: 0,
-            hint: true,
           },
         ],
         hide: [ev.card, ev.target],
