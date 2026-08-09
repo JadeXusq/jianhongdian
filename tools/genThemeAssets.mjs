@@ -341,6 +341,7 @@ function drawPreview(theme) {
 
 mkdirSync(OUT_WEB, { recursive: true });
 mkdirSync(OUT_COCOS, { recursive: true });
+// mohong 使用设计稿缩放图，勿在此覆盖
 for (const id of ["jade", "anime"]) {
   for (const [kind, fn] of [
     ["back", drawCardBack],

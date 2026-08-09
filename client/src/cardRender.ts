@@ -234,7 +234,11 @@ function drawFaceChrome(
   ctx.strokeStyle = C.gold;
   ctx.lineWidth = Math.max(1, w * 0.02);
   ctx.globalAlpha = tid === "jade" ? 0.55 : 0.7;
-  if (tid === "jade") {
+  if (tid === "jade" || tid === "mohong") {
+    if (tid === "mohong") {
+      ctx.strokeStyle = C.seal;
+      ctx.globalAlpha = 0.45;
+    }
     for (const [ox, oy, sx, sy] of [
       [x + m, y + m, 1, 1],
       [x + w - m, y + m, -1, 1],
@@ -246,6 +250,12 @@ function drawFaceChrome(
       ctx.lineTo(ox, oy);
       ctx.lineTo(ox + sx * len, oy);
       ctx.stroke();
+    }
+    if (tid === "mohong") {
+      const s = w * 0.1;
+      ctx.fillStyle = C.seal;
+      ctx.globalAlpha = 0.28;
+      ctx.fillRect(x + w - m - s, y + m, s, s);
     }
   } else if (tid === "anime") {
     ctx.fillStyle = C.gold;
@@ -306,6 +316,8 @@ function drawFace(
     ctx.font =
       tid === "anime"
         ? `800 ${w * 0.28}px "PingFang SC", "Helvetica Neue", sans-serif`
+        : tid === "mohong"
+        ? `700 ${w * 0.26}px "Songti SC", "STSong", serif`
         : `700 ${w * 0.26}px "Helvetica Neue", Arial, sans-serif`;
     ctx.fillText(label, x + w * 0.19, y + h * 0.14);
     ctx.font = `${w * 0.2}px serif`;
@@ -325,6 +337,8 @@ function drawFace(
     if (tid === "anime") {
       roundRect(ctx, cx - rad, cy - rad, rad * 2, rad * 2, rad * 0.45);
       ctx.fill();
+    } else if (tid === "mohong") {
+      ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
     } else {
       ctx.beginPath();
       ctx.arc(cx, cy, rad, 0, Math.PI * 2);
@@ -335,6 +349,8 @@ function drawFace(
     if (tid === "anime") {
       roundRect(ctx, cx - rad, cy - rad, rad * 2, rad * 2, rad * 0.45);
       ctx.stroke();
+    } else if (tid === "mohong") {
+      ctx.strokeRect(cx - rad, cy - rad, rad * 2, rad * 2);
     } else {
       ctx.beginPath();
       ctx.arc(cx, cy, rad, 0, Math.PI * 2);
@@ -357,7 +373,11 @@ function drawBack(
 ): void {
   const tid = currentThemeId();
   ctx.strokeStyle =
-    tid === "anime" ? "rgba(255,141,199,0.4)" : "rgba(201,169,97,0.35)";
+    tid === "anime"
+      ? "rgba(255,141,199,0.4)"
+      : tid === "mohong"
+      ? "rgba(196,163,106,0.35)"
+      : "rgba(201,169,97,0.35)";
   ctx.lineWidth = Math.max(0.5, w * 0.012);
   const step = w * 0.18;
   for (let i = -h; i < w + h; i += step) {
@@ -372,10 +392,18 @@ function drawBack(
   }
   const s = w * 0.42;
   ctx.fillStyle =
-    tid === "anime" ? "rgba(255,141,199,0.9)" : "rgba(201,169,97,0.9)";
-  roundRect(ctx, x + (w - s) / 2, y + (h - s) / 2, s, s, s * 0.12);
-  ctx.fill();
-  ctx.fillStyle = C.cardBack;
+    tid === "anime"
+      ? "rgba(255,141,199,0.9)"
+      : tid === "mohong"
+      ? "rgba(184,53,43,0.92)"
+      : "rgba(201,169,97,0.9)";
+  if (tid === "mohong") {
+    ctx.fillRect(x + (w - s) / 2, y + (h - s) / 2, s, s);
+  } else {
+    roundRect(ctx, x + (w - s) / 2, y + (h - s) / 2, s, s, s * 0.12);
+    ctx.fill();
+  }
+  ctx.fillStyle = tid === "mohong" ? C.cream : C.cardBack;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = `700 ${s * 0.62}px "Songti SC", "STSong", serif`;

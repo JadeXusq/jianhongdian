@@ -1,6 +1,6 @@
 /** 房间桌面主题（Web / Cocos / 服务端白名单同源） */
 
-export type ThemeId = "jade" | "anime";
+export type ThemeId = "jade" | "anime" | "mohong";
 
 export interface ThemeCanvas {
   feltInner: string;
@@ -33,7 +33,7 @@ export interface ThemeDef {
   css: ThemeCss;
 }
 
-export const THEME_IDS: ThemeId[] = ["jade", "anime"];
+export const THEME_IDS: ThemeId[] = ["jade", "anime", "mohong"];
 export const DEFAULT_THEME_ID: ThemeId = "jade";
 
 export const THEMES: Record<ThemeId, ThemeDef> = {
@@ -87,6 +87,32 @@ export const THEMES: Record<ThemeId, ThemeDef> = {
       cream: "#fff5fb",
       felt: "#2b1b52",
       ink: "#120a24",
+    },
+  },
+  mohong: {
+    id: "mohong",
+    name: "墨红",
+    canvas: {
+      feltInner: "#1a1514",
+      feltOuter: "#0a0808",
+      gold: "#c4a36a",
+      goldDim: "#7a6238",
+      seal: "#b8352b",
+      cream: "#efe2c9",
+      ink: "#1c1412",
+      cardFace: "#f6efe3",
+      cardBack: "#1a1514",
+      shadow: "rgba(0,0,0,0.55)",
+      dim: "rgba(10,8,8,0.58)",
+      panelBg: "rgba(14,12,11,0.82)",
+    },
+    css: {
+      gold: "#c4a36a",
+      goldDim: "rgba(196, 163, 106, 0.38)",
+      seal: "#b8352b",
+      cream: "#efe2c9",
+      felt: "#12100f",
+      ink: "#080606",
     },
   },
 };

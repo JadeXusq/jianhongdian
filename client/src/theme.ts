@@ -37,9 +37,18 @@ export function applyTheme(id: unknown): ThemeId {
   root.style.setProperty("--ink", t.css.ink);
   root.style.setProperty("--panel-bg-top", t.canvas.feltInner);
   root.style.setProperty("--panel-bg-bot", t.canvas.feltOuter);
-  root.style.setProperty("--panel-radius", tid === "anime" ? "22px" : "14px");
-  root.style.setProperty("--ctrl-radius", tid === "anime" ? "16px" : "9px");
-  root.style.setProperty("--title-track", tid === "anime" ? "2px" : "8px");
+  root.style.setProperty(
+    "--panel-radius",
+    tid === "anime" ? "22px" : tid === "mohong" ? "10px" : "14px"
+  );
+  root.style.setProperty(
+    "--ctrl-radius",
+    tid === "anime" ? "16px" : tid === "mohong" ? "7px" : "9px"
+  );
+  root.style.setProperty(
+    "--title-track",
+    tid === "anime" ? "2px" : tid === "mohong" ? "6px" : "8px"
+  );
   try {
     localStorage.setItem("jhd.theme", tid);
   } catch {

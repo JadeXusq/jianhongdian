@@ -294,7 +294,10 @@ function drawFaceChrome(g: Graphics, w: number, h: number): void {
   const len = w * 0.16;
   g.lineWidth = Math.max(1, w * 0.02);
   g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, tid === "jade" ? 140 : 180);
-  if (tid === "jade") {
+  if (tid === "jade" || tid === "mohong") {
+    if (tid === "mohong") {
+      g.strokeColor = new Color(C.seal.r, C.seal.g, C.seal.b, 120);
+    }
     const corners: [number, number, number, number][] = [
       [m, -m, 1, -1],
       [w - m, -m, -1, -1],
@@ -306,6 +309,12 @@ function drawFaceChrome(g: Graphics, w: number, h: number): void {
       g.lineTo(ox, oy);
       g.lineTo(ox + sx * len, oy);
       g.stroke();
+    }
+    if (tid === "mohong") {
+      const s = w * 0.1;
+      g.fillColor = new Color(C.seal.r, C.seal.g, C.seal.b, 70);
+      g.rect(w - m - s, -m - s, s, s);
+      g.fill();
     }
   } else if (tid === "anime") {
     g.fillColor = new Color(C.gold.r, C.gold.g, C.gold.b, 140);
@@ -329,6 +338,8 @@ function drawBack(node: Node, g: Graphics, w: number, h: number): void {
   g.strokeColor =
     tid === "anime"
       ? new Color(255, 141, 199, 100)
+      : tid === "mohong"
+      ? new Color(196, 163, 106, 90)
       : new Color(201, 169, 97, 90);
   const step = w * 0.2;
   for (let i = -h; i < w + h; i += step) {
@@ -343,10 +354,18 @@ function drawBack(node: Node, g: Graphics, w: number, h: number): void {
   g.fillColor =
     tid === "anime"
       ? new Color(255, 141, 199, 230)
+      : tid === "mohong"
+      ? new Color(184, 53, 43, 235)
       : new Color(201, 169, 97, 230);
-  g.roundRect((w - s) / 2, -(h + s) / 2, s, s, s * 0.12);
-  g.fill();
-  addLabel(node, "红", w / 2, -h / 2, s * 0.62, C.cardBack, true);
+  if (tid === "mohong") {
+    g.rect((w - s) / 2, -(h + s) / 2, s, s);
+    g.fill();
+    addLabel(node, "红", w / 2, -h / 2, s * 0.62, C.cream, true);
+  } else {
+    g.roundRect((w - s) / 2, -(h + s) / 2, s, s, s * 0.12);
+    g.fill();
+    addLabel(node, "红", w / 2, -h / 2, s * 0.62, C.cardBack, true);
+  }
 }
 
 function addLabel(

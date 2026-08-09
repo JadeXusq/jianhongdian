@@ -1011,7 +1011,8 @@ export class TableView {
     const felt = themeFeltImg(tid);
     if (felt) {
       ctx.save();
-      ctx.globalAlpha = tid === "anime" ? 0.72 : 0.62;
+      ctx.globalAlpha =
+        tid === "anime" ? 0.72 : tid === "mohong" ? 0.7 : 0.62;
       const pat = ctx.createPattern(felt, "repeat");
       if (pat) {
         ctx.fillStyle = pat;
@@ -1040,9 +1041,20 @@ export class TableView {
         ctx.fill();
       }
       ctx.restore();
+    } else if (tid === "mohong") {
+      ctx.save();
+      ctx.globalAlpha = 0.08;
+      ctx.fillStyle = C.seal;
+      for (let i = 0; i < 6; i++) {
+        const px = 100 + ((i * 173) % (W - 200));
+        const py = 120 + ((i * 113) % (H - 220));
+        const s = 18 + (i % 3) * 4;
+        ctx.fillRect(px, py, s, s);
+      }
+      ctx.restore();
     }
 
-    const radius = tid === "anime" ? 28 : 18;
+    const radius = tid === "anime" ? 28 : tid === "mohong" ? 12 : 18;
     ctx.strokeStyle = `${C.gold}55`;
     ctx.lineWidth = 2;
     roundRect(ctx, 26, 26, W - 52, H - 52, radius);
@@ -1069,9 +1081,9 @@ export class TableView {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font =
-      tid === "jade"
-        ? `700 130px "Songti SC", "STSong", serif`
-        : `700 110px "PingFang SC", "Helvetica Neue", sans-serif`;
+      tid === "anime"
+        ? `700 110px "PingFang SC", "Helvetica Neue", sans-serif`
+        : `700 130px "Songti SC", "STSong", serif`;
     ctx.fillText("捡红点", W / 2, 500);
     ctx.restore();
   }
