@@ -720,15 +720,21 @@ input:focus {
   width: min(66.67vw, calc(100vw - 24px));
   height: calc(100dvh - 72px);
   max-height: calc(100dvh - 72px);
+  padding: 18px 20px 16px;
 }
 
 .rules-panel .title {
   flex: none;
+  margin: 0 0 8px;
 }
 
 .rules-panel .rules-body {
   flex: 1;
   min-height: 0;
+}
+
+.rules-panel > .btn {
+  margin-top: 12px;
 }
 
 /* 提示 */
@@ -1191,9 +1197,10 @@ input:focus {
 }
 
 #ui.rot .rules-panel {
-  width: 66.67%;
+  width: min(720px, 66.67%);
   height: calc(100% - 72px);
   max-height: calc(100% - 72px);
+  padding: 18px 20px 16px;
 }
 
 #ui.rot .room-panel,

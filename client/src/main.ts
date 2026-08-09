@@ -408,10 +408,7 @@ function openRules(from: typeof rulesBack = "lobby"): void {
   show("rules");
   setChatPanelOpen(false);
   $("btn-help").classList.add("hidden");
-  $("btn-rules-ok").classList.toggle(
-    "hidden",
-    from !== "lobby" && from !== "room"
-  );
+  $("btn-rules-ok").classList.remove("hidden");
 }
 
 function closeRules(): void {
@@ -478,7 +475,6 @@ function paintThemeSeg(rootId: string, active: string): void {
 
 function paintAllThemeSegs(active: string): void {
   paintThemeSeg("lobby-theme-seg", active);
-  paintThemeSeg("theme-seg", active);
   paintThemeSeg("menu-theme-seg", active);
 }
 
@@ -509,7 +505,6 @@ function bindThemeSeg(rootId: string, requireHost: boolean): void {
   });
 }
 bindThemeSeg("lobby-theme-seg", false);
-bindThemeSeg("theme-seg", true);
 bindThemeSeg("menu-theme-seg", true);
 paintAllThemeSegs(currentThemeId());
 
@@ -755,8 +750,6 @@ function renderRoom(state: any): void {
   const host = state.hostSessionId === net.room?.sessionId;
   $<HTMLButtonElement>("btn-ai").disabled =
     players.length >= state.maxPlayers || !host;
-  $("room-theme").classList.toggle("hidden", !host);
-  if (host) paintAllThemeSegs(String(state.themeId ?? currentThemeId()));
   syncThemeFromState(state);
 }
 

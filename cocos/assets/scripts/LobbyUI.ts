@@ -110,10 +110,8 @@ export class LobbyUI {
   private seatsNode!: Node;
   private readyLbl!: Label;
   private aiBtn!: Node;
-  private roomThemeRow!: Node;
   private menuThemeRow!: Node;
   private lobbyThemeBtns: { id: string; node: Node; label: Label }[] = [];
-  private roomThemeBtns: { id: string; node: Node; label: Label }[] = [];
   private menuThemeBtns: { id: string; node: Node; label: Label }[] = [];
   private resultTitle!: Label;
   private resultDots!: Node;
@@ -328,7 +326,7 @@ export class LobbyUI {
     this.setChatPanelOpen(false);
     this.show("rules");
     this.setHelpVisible(false);
-    this.rulesOkBtn.active = from === "lobby" || from === "room";
+    this.rulesOkBtn.active = true;
     this.cb.onOpenRules(from);
   }
 
@@ -481,12 +479,6 @@ export class LobbyUI {
     this.readyLbl.string = me?.ready ? "取消准备" : "准备";
     const host = state.hostSessionId === mySessionId;
     this.aiBtn.active = host && players.length < state.maxPlayers;
-    this.roomThemeRow.active = host;
-    if (host)
-      this.paintThemeBtns(
-        this.roomThemeBtns,
-        String(state.themeId || this.cb.currentThemeId())
-      );
   }
 
   renderResult(
@@ -807,14 +799,6 @@ export class LobbyUI {
     this.seatsNode.layer = Layers.Enum.UI_2D;
     panel.addChild(this.seatsNode);
 
-    this.roomThemeRow = new Node("RoomTheme");
-    this.roomThemeRow.layer = Layers.Enum.UI_2D;
-    panel.addChild(this.roomThemeRow);
-    this.roomThemeRow.setPosition(new Vec3(0, -88, 0));
-    this.makeLabel(this.roomThemeRow, "主题", 0, 42, 14, C.goldDim);
-    this.roomThemeBtns = this.makeThemeSeg(this.roomThemeRow, 0);
-    this.roomThemeRow.active = false;
-
     this.aiBtn = this.makeBtn(panel, "＋ 添加机器人", -90, -175, 150, 40, () =>
       this.cb.onAddAi()
     );
@@ -995,7 +979,6 @@ export class LobbyUI {
     return items.map((it) => {
       const btn = this.makeThemePreviewBtn(parent, it.id as ThemeId, it.name, it.x, y, () => {
         this.cb.onSetTheme(it.id);
-        this.paintThemeBtns(this.roomThemeBtns, it.id);
         this.paintThemeBtns(this.menuThemeBtns, it.id);
         this.paintThemeBtns(this.lobbyThemeBtns, it.id);
       });
@@ -1090,7 +1073,6 @@ export class LobbyUI {
   refreshThemeThumbs(): void {
     const tid = this.cb.currentThemeId();
     this.paintThemeBtns(this.lobbyThemeBtns, tid);
-    this.paintThemeBtns(this.roomThemeBtns, tid);
     this.paintThemeBtns(this.menuThemeBtns, tid);
   }
 
