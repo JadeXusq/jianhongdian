@@ -20,6 +20,8 @@ import {
   dealAnimMs,
   discardAnimMs,
   NAME_MAX_LEN,
+  resolveThemeId,
+  isThemeId,
 } from "@jhd/shared";
 import { registerCode, unregisterCode } from "./roomCodes";
 import { recordResult } from "./store";
@@ -88,6 +90,22 @@ export class GameRoom extends Room<RoomState> {
     this.onMessage("chat", (client, msg: { text?: string }) =>
       this.onChat(client, msg)
     );
+    this.onMessage("setTheme", (client, msg: { themeId?: string }) =>
+      this.onSetTheme(client, msg)
+    );
+    this.state.themeId = "jade";
+  }
+
+  private onSetTheme(client: Client, msg: { themeId?: string }): void {
+    if (!this.isHost(client)) {
+      client.send("error", { message: "仅房主可切换主题" });
+      return;
+    }
+    if (!isThemeId(msg.themeId)) {
+      client.send("error", { message: "未知主题" });
+      return;
+    }
+    this.state.themeId = resolveThemeId(msg.themeId);
   }
 
   onJoin(client: Client, options: JoinOptions): void {

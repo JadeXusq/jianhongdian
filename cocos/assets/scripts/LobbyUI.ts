@@ -48,6 +48,8 @@ export interface LobbyCallbacks {
   onOpenRules(from: UiScreen): void;
   onMenuScores(): void;
   onMenuSettle(): void;
+  onSetTheme(themeId: string): void;
+  currentThemeId(): string;
   isHost(): boolean;
   canSettleMatch(): boolean;
 }
@@ -105,6 +107,10 @@ export class LobbyUI {
   private seatsNode!: Node;
   private readyLbl!: Label;
   private aiBtn!: Node;
+  private roomThemeRow!: Node;
+  private menuThemeRow!: Node;
+  private roomThemeBtns: { id: string; node: Node; label: Label }[] = [];
+  private menuThemeBtns: { id: string; node: Node; label: Label }[] = [];
   private resultTitle!: Label;
   private resultDots!: Node;
   private resultList!: Node;
@@ -306,6 +312,9 @@ export class LobbyUI {
 
   private openMenu(): void {
     this.settleBtn.active = this.cb.canSettleMatch();
+    const host = this.cb.isHost();
+    this.menuThemeRow.active = host;
+    if (host) this.paintThemeBtns(this.menuThemeBtns, this.cb.currentThemeId());
     this.setChatPanelOpen(false);
     this.show("menu");
   }
@@ -465,8 +474,14 @@ export class LobbyUI {
 
     const me = players.find((x) => x.sessionId === mySessionId);
     this.readyLbl.string = me?.ready ? "取消准备" : "准备";
-    const isHost = state.hostSessionId === mySessionId;
-    this.aiBtn.active = isHost && players.length < state.maxPlayers;
+    const host = state.hostSessionId === mySessionId;
+    this.aiBtn.active = host && players.length < state.maxPlayers;
+    this.roomThemeRow.active = host;
+    if (host)
+      this.paintThemeBtns(
+        this.roomThemeBtns,
+        String(state.themeId || this.cb.currentThemeId())
+      );
   }
 
   renderResult(
@@ -765,14 +780,14 @@ export class LobbyUI {
   }
 
   private buildRoom(): Node {
-    const panel = this.panel("Room", 420, 500);
-    this.makeLabel(panel, "房间等待", 0, 210, 28, C.gold);
-    this.roomCodeLbl = this.makeLabel(panel, "------", 0, 165, 36, C.seal);
+    const panel = this.panel("Room", 420, 540);
+    this.makeLabel(panel, "房间等待", 0, 230, 28, C.gold);
+    this.roomCodeLbl = this.makeLabel(panel, "------", 0, 185, 36, C.seal);
     this.roomStatusLbl = this.makeLabel(
       panel,
       "等待玩家加入",
       0,
-      125,
+      145,
       16,
       C.goldDim
     );
@@ -780,21 +795,29 @@ export class LobbyUI {
     this.seatsNode.layer = Layers.Enum.UI_2D;
     panel.addChild(this.seatsNode);
 
-    this.aiBtn = this.makeBtn(panel, "＋ 添加机器人", -90, -150, 150, 40, () =>
+    this.roomThemeRow = new Node("RoomTheme");
+    this.roomThemeRow.layer = Layers.Enum.UI_2D;
+    panel.addChild(this.roomThemeRow);
+    this.roomThemeRow.setPosition(new Vec3(0, -95, 0));
+    this.makeLabel(this.roomThemeRow, "桌面主题", 0, 28, 14, C.goldDim);
+    this.roomThemeBtns = this.makeThemeSeg(this.roomThemeRow, 0);
+    this.roomThemeRow.active = false;
+
+    this.aiBtn = this.makeBtn(panel, "＋ 添加机器人", -90, -160, 150, 40, () =>
       this.cb.onAddAi()
     );
     const readyBtn = this.makeBtn(
       panel,
       "准备",
       90,
-      -150,
+      -160,
       120,
       40,
       () => this.cb.onReady(),
       true
     );
     this.readyLbl = readyBtn.getComponentInChildren(Label)!;
-    this.makeBtn(panel, "离开房间", 0, -205, 160, 36, () => this.cb.onQuit());
+    this.makeBtn(panel, "离开房间", 0, -220, 160, 36, () => this.cb.onQuit());
     return panel;
   }
 
@@ -918,17 +941,24 @@ export class LobbyUI {
   }
 
   private buildMenu(): Node {
-    const panel = this.panel("Menu", 280, 200);
+    const panel = this.panel("Menu", 280, 280);
     this.makeCloseX(panel, () => this.show("none"));
-    this.makeLabel(panel, "菜单", 0, 70, 26, C.gold);
-    this.makeBtn(panel, "查看当前积分", 0, 15, 200, 40, () =>
+    this.makeLabel(panel, "菜单", 0, 105, 26, C.gold);
+    this.menuThemeRow = new Node("MenuTheme");
+    this.menuThemeRow.layer = Layers.Enum.UI_2D;
+    panel.addChild(this.menuThemeRow);
+    this.menuThemeRow.setPosition(new Vec3(0, 55, 0));
+    this.makeLabel(this.menuThemeRow, "桌面主题", 0, 28, 14, C.goldDim);
+    this.menuThemeBtns = this.makeThemeSeg(this.menuThemeRow, 0);
+    this.menuThemeRow.active = false;
+    this.makeBtn(panel, "查看当前积分", 0, -5, 200, 40, () =>
       this.cb.onMenuScores()
     );
     this.settleBtn = this.makeBtn(
       panel,
       "结算对局",
       0,
-      -40,
+      -60,
       200,
       40,
       () => {
@@ -938,6 +968,38 @@ export class LobbyUI {
       true
     );
     return panel;
+  }
+
+  private makeThemeSeg(
+    parent: Node,
+    y: number
+  ): { id: string; node: Node; label: Label }[] {
+    const items = [
+      { id: "jade", name: "青绿金", x: -70 },
+      { id: "anime", name: "动漫风", x: 70 },
+    ];
+    return items.map((it) => {
+      const btn = this.makeBtn(parent, it.name, it.x, y, 120, 34, () => {
+        this.cb.onSetTheme(it.id);
+        this.paintThemeBtns(this.roomThemeBtns, it.id);
+        this.paintThemeBtns(this.menuThemeBtns, it.id);
+      });
+      return {
+        id: it.id,
+        node: btn,
+        label: btn.getComponentInChildren(Label)!,
+      };
+    });
+  }
+
+  private paintThemeBtns(
+    btns: { id: string; node: Node; label: Label }[],
+    active: string
+  ): void {
+    for (const b of btns) {
+      const on = b.id === active;
+      b.label.color = on ? C.seal : C.cream;
+    }
   }
 
   private buildScores(): Node {

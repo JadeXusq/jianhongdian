@@ -5,3 +5,4 @@ export * from "./game";
 export * from "./ai";
 export * from "./timing";
 export * from "./turnHint";
+export * from "./themes";

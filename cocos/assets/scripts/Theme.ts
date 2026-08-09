@@ -1,22 +1,102 @@
-/** 新中式配色（与网页版保持一致） */
+/**
+ * 运行时主题（与 Web / shared themes 对齐）
+ */
 import { Color } from "cc";
+import {
+  DEFAULT_THEME_ID,
+  THEMES,
+  resolveThemeId,
+  type ThemeId,
+} from "./rules";
+
+export type { ThemeId };
+
+function hexColor(hex: string, a = 255): Color {
+  const h = hex.replace("#", "");
+  if (h.length === 8) {
+    return new Color(
+      parseInt(h.slice(0, 2), 16),
+      parseInt(h.slice(2, 4), 16),
+      parseInt(h.slice(4, 6), 16),
+      parseInt(h.slice(6, 8), 16)
+    );
+  }
+  if (hex.startsWith("rgba")) {
+    const m = hex.match(/[\d.]+/g);
+    if (m && m.length >= 3) {
+      return new Color(
+        Number(m[0]),
+        Number(m[1]),
+        Number(m[2]),
+        Math.round(Number(m[3] ?? 1) * 255)
+      );
+    }
+  }
+  return new Color(
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+    a
+  );
+}
+
+function paint(c: Color, hex: string): void {
+  const n = hexColor(hex);
+  c.set(n.r, n.g, n.b, n.a);
+}
 
 export const C = {
-  feltInner: new Color(28, 76, 59),
-  feltOuter: new Color(13, 42, 32),
-  gold: new Color(201, 169, 97),
-  goldDim: new Color(125, 103, 57),
-  seal: new Color(184, 53, 43),
-  cream: new Color(243, 234, 214),
-  ink: new Color(38, 38, 42),
-  cardFace: new Color(247, 241, 226),
-  cardBack: new Color(109, 36, 32),
-  panelBg: new Color(8, 26, 20, 184),
-  dim: new Color(6, 20, 15, 140),
+  feltInner: hexColor(THEMES.jade.canvas.feltInner),
+  feltOuter: hexColor(THEMES.jade.canvas.feltOuter),
+  gold: hexColor(THEMES.jade.canvas.gold),
+  goldDim: hexColor(THEMES.jade.canvas.goldDim),
+  seal: hexColor(THEMES.jade.canvas.seal),
+  cream: hexColor(THEMES.jade.canvas.cream),
+  ink: hexColor(THEMES.jade.canvas.ink),
+  cardFace: hexColor(THEMES.jade.canvas.cardFace),
+  cardBack: hexColor(THEMES.jade.canvas.cardBack),
+  panelBg: hexColor(THEMES.jade.canvas.panelBg),
+  dim: hexColor(THEMES.jade.canvas.dim),
 };
 
-/** 逻辑尺寸：与设计分辨率一致，牌桌坐标沿用网页版的 720 高度体系 */
 export const DESIGN = { width: 1280, height: 720 };
 export const CARD_RATIO = 1.4;
 export const HAND_W = 96;
 export const TABLE_CARD_W = 74;
+
+let currentId: ThemeId = DEFAULT_THEME_ID;
+
+export function currentThemeId(): ThemeId {
+  return currentId;
+}
+
+export function applyTheme(id: unknown): ThemeId {
+  const tid = resolveThemeId(id);
+  currentId = tid;
+  const t = THEMES[tid].canvas;
+  paint(C.feltInner, t.feltInner);
+  paint(C.feltOuter, t.feltOuter);
+  paint(C.gold, t.gold);
+  paint(C.goldDim, t.goldDim);
+  paint(C.seal, t.seal);
+  paint(C.cream, t.cream);
+  paint(C.ink, t.ink);
+  paint(C.cardFace, t.cardFace);
+  paint(C.cardBack, t.cardBack);
+  paint(C.panelBg, t.panelBg);
+  paint(C.dim, t.dim);
+  try {
+    localStorage.setItem("jhd.theme", tid);
+  } catch {
+    /* ignore */
+  }
+  return tid;
+}
+
+export function loadSavedTheme(): ThemeId {
+  try {
+    return resolveThemeId(localStorage.getItem("jhd.theme"));
+  } catch {
+    return DEFAULT_THEME_ID;
+  }
+}

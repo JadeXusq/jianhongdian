@@ -10,9 +10,12 @@ import { bindRotScroll, lockLandscape, onOrientationChange, shouldRotate } from 
 import { LocalPlay } from "./localPlay";
 import { Net, RoundOver, deviceId, savedAccountId } from "./net";
 import { TableView } from "./table";
+import { applyTheme, currentThemeId, loadSavedTheme } from "./theme";
 
 const $ = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
+
+applyTheme(loadSavedTheme());
 
 const net = new Net();
 net.onProgress = (msg) => toast(msg, 5000);
@@ -436,6 +439,36 @@ function isHost(): boolean {
   return net.state.hostSessionId === net.room.sessionId;
 }
 
+function syncThemeFromState(state: { themeId?: string } | null | undefined): void {
+  if (!state?.themeId) return;
+  if (state.themeId === currentThemeId()) return;
+  applyTheme(state.themeId);
+}
+
+function paintThemeSeg(rootId: string, active: string): void {
+  const root = $(rootId);
+  root.querySelectorAll("button[data-theme]").forEach((btn) => {
+    const id = (btn as HTMLElement).dataset.theme ?? "";
+    btn.classList.toggle("on", id === active);
+  });
+}
+
+function bindThemeSeg(rootId: string): void {
+  $(rootId).addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest("button[data-theme]");
+    if (!btn) return;
+    const id = (btn as HTMLElement).dataset.theme;
+    if (!id || !isHost()) return;
+    if (offline) offline.setTheme(id);
+    else net.setTheme(id);
+    applyTheme(id);
+    paintThemeSeg("theme-seg", id);
+    paintThemeSeg("menu-theme-seg", id);
+  });
+}
+bindThemeSeg("theme-seg");
+bindThemeSeg("menu-theme-seg");
+
 function setMenuVisible(v: boolean): void {
   $("btn-menu").classList.toggle("hidden", !v);
   if (v) setChatPanelOpen(false);
@@ -444,6 +477,13 @@ function setMenuVisible(v: boolean): void {
 function openGameMenu(): void {
   const canSettle = isHost() && !lastRound?.allDone;
   $("btn-menu-settle").classList.toggle("hidden", !canSettle);
+  const host = isHost();
+  $("menu-theme").classList.toggle("hidden", !host);
+  if (host) {
+    const tid =
+      offline?.state.themeId ?? net.state?.themeId ?? currentThemeId();
+    paintThemeSeg("menu-theme-seg", String(tid));
+  }
   setChatPanelOpen(false);
   show("game-menu");
 }
@@ -668,9 +708,12 @@ function renderRoom(state: any): void {
   $<HTMLButtonElement>("btn-ready").textContent = me?.ready
     ? "取消准备"
     : "准备";
-  const isHost = state.hostSessionId === net.room?.sessionId;
+  const host = state.hostSessionId === net.room?.sessionId;
   $<HTMLButtonElement>("btn-ai").disabled =
-    players.length >= state.maxPlayers || !isHost;
+    players.length >= state.maxPlayers || !host;
+  $("room-theme").classList.toggle("hidden", !host);
+  if (host) paintThemeSeg("theme-seg", String(state.themeId ?? currentThemeId()));
+  syncThemeFromState(state);
 }
 
 // ---------- 结算 ----------
@@ -896,7 +939,9 @@ function startOffline(): void {
   const session = new LocalPlay(playerName(), maxPlayers);
   offline = session;
   session.animBusy = () => view.animating || view.turnBlocked;
+  session.setTheme(currentThemeId());
   session.onState = (state) => {
+    syncThemeFromState(state);
     applyPlayState(state, session.hand, session.mySeat);
     if (state.phase === "PLAYING") {
       const overlay =
@@ -950,6 +995,7 @@ function startOffline(): void {
 
 net.onState = (state) => {
   if (offline) return;
+  syncThemeFromState(state);
   applyPlayState(state, net.hand, net.mySeat);
 
   if (state.phase === "WAITING") {

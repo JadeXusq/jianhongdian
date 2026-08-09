@@ -340,6 +340,9 @@ export class Net {
   endMatch(): void {
     this.room?.send("endMatch");
   }
+  setTheme(themeId: string): void {
+    this.room?.send("setTheme", { themeId });
+  }
   async leave(): Promise<void> {
     sessionStorage.removeItem(TOKEN_KEY);
     await this.room?.leave(true);

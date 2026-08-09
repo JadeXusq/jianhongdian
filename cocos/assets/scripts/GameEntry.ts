@@ -32,7 +32,16 @@ import {
 import { Net, type RoundOver } from "./Net";
 import { LocalPlay } from "./LocalPlay";
 import { LobbyUI } from "./LobbyUI";
-import { C, DESIGN, HAND_W, TABLE_CARD_W, CARD_RATIO } from "./Theme";
+import {
+  C,
+  DESIGN,
+  HAND_W,
+  TABLE_CARD_W,
+  CARD_RATIO,
+  applyTheme,
+  currentThemeId,
+  loadSavedTheme,
+} from "./Theme";
 
 const { ccclass } = _decorator;
 
@@ -103,6 +112,7 @@ export class GameEntry extends Component {
     this.matchNode = this.makeContainer("Match");
     this.matchNode.active = false;
 
+    applyTheme(loadSavedTheme());
     this.drawFelt();
     this.setTableVisible(false);
     this.bindNet();
@@ -204,6 +214,12 @@ export class GameEntry extends Component {
         this.net.endMatch();
         this.ui.show("none");
       },
+      onSetTheme: (themeId) => {
+        if (this.offline) this.offline.setTheme(themeId);
+        else this.net.setTheme(themeId);
+        this.applyRoomTheme(themeId);
+      },
+      currentThemeId: () => currentThemeId(),
       isHost: () => {
         if (this.offline) return true;
         if (!this.net.room || !this.net.state) return false;
@@ -385,8 +401,10 @@ export class GameEntry extends Component {
       this.deferredReveal.size > 0 ||
       this.stockAnimCredit > 0 ||
       this.pendingDiscardHands.length > 0;
+    session.setTheme(currentThemeId());
 
     session.onState = (state) => {
+      this.syncThemeFromState(state);
       const prev = this.lastPhase;
       this.applyPlayState(state, session.hand, prev);
       if (state.phase === "PLAYING") {
@@ -621,9 +639,22 @@ export class GameEntry extends Component {
     this.matchBusy = false;
   }
 
+  private applyRoomTheme(themeId: unknown): void {
+    applyTheme(themeId);
+    this.drawFelt();
+    if (this.tableVisible) this.render();
+  }
+
+  private syncThemeFromState(state: { themeId?: string } | null): void {
+    if (!state?.themeId) return;
+    if (state.themeId === currentThemeId()) return;
+    this.applyRoomTheme(state.themeId);
+  }
+
   private bindNet(): void {
     this.net.onState = (state) => {
       if (this.offline) return;
+      this.syncThemeFromState(state);
       this.hand = this.net.hand.slice();
       if (state.phase === "WAITING") {
         this.deferredReveal.clear();
@@ -1973,23 +2004,27 @@ export class GameEntry extends Component {
   }
 
   private drawFelt(): void {
-    const g = this.feltNode.addComponent(Graphics);
+    let g = this.feltNode.getComponent(Graphics);
+    if (!g) g = this.feltNode.addComponent(Graphics);
+    else g.clear();
     const w = DESIGN.width;
     const h = DESIGN.height;
-    this.feltNode.addComponent(UITransform).setContentSize(new Size(w, h));
-    this.feltNode.on(Node.EventType.TOUCH_END, () => this.clearSelection());
+    if (!this.feltNode.getComponent(UITransform)) {
+      this.feltNode.addComponent(UITransform).setContentSize(new Size(w, h));
+      this.feltNode.on(Node.EventType.TOUCH_END, () => this.clearSelection());
+    }
 
     g.fillColor = C.feltInner;
     g.rect(-w / 2, -h / 2, w, h);
     g.fill();
 
     g.lineWidth = 2;
-    g.strokeColor = new Color(201, 169, 97, 72);
+    g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 72);
     g.roundRect(-w / 2 + 26, -h / 2 + 26, w - 52, h - 52, 18);
     g.stroke();
 
     g.lineWidth = 3;
-    g.strokeColor = new Color(201, 169, 97, 128);
+    g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 128);
     const c = 34;
     const corners: [number, number, number, number][] = [
       [-w / 2 + 40, h / 2 - 40, 1, -1],

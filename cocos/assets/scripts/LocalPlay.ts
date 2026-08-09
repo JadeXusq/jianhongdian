@@ -11,6 +11,9 @@ import {
   chooseHandPlay,
   dealAnimMs,
   discardAnimMs,
+  DEFAULT_THEME_ID,
+  resolveThemeId,
+  type ThemeId,
   Game,
   type GameEvent,
 } from "./rules";
@@ -42,6 +45,7 @@ export interface LocalState {
   turnPhase: "PLAY_HAND" | "CHOOSE_STOCK_TARGET" | "FINISHED";
   pendingStockCard: number;
   turnDeadline: number;
+  themeId: ThemeId;
   players: Map<string, LocalPlayer>;
 }
 
@@ -153,6 +157,11 @@ export class LocalPlay {
     this.nextRound();
   }
 
+  setTheme(themeId: string): void {
+    this.state.themeId = resolveThemeId(themeId);
+    this.emitState();
+  }
+
   private aiId(seat: number): string {
     return `local-ai-${seat}`;
   }
@@ -172,6 +181,7 @@ export class LocalPlay {
       turnPhase: "PLAY_HAND",
       pendingStockCard: -1,
       turnDeadline: 0,
+      themeId: DEFAULT_THEME_ID,
       players: new Map(),
     };
   }
