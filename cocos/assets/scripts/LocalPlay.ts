@@ -9,6 +9,7 @@ import {
   captureAnimMs,
   cardScore,
   chooseHandPlay,
+  dealAnimMs,
   discardAnimMs,
   Game,
   type GameEvent,
@@ -75,6 +76,7 @@ export class LocalPlay {
   onEvents?: (events: GameEvent[]) => void;
   onRoundStart?: () => void;
   onRoundOver?: (r: LocalRoundOver) => void;
+  animBusy?: () => boolean;
 
   constructor(humanName: string, playerCount = 2) {
     this.humanName = humanName;
@@ -191,7 +193,7 @@ export class LocalPlay {
     this.state.roundStarter = this.roundStarter;
     this.onRoundStart?.();
     this.emitState();
-    this.scheduleAi(0);
+    this.scheduleAi(dealAnimMs(this.playerCount));
   }
 
   private afterMove(events: GameEvent[]): void {
@@ -266,6 +268,10 @@ export class LocalPlay {
     const g = this.game;
     if (!g || g.phase === "FINISHED") return;
     if (g.currentPlayer === this.mySeat) return;
+    if (this.animBusy?.()) {
+      this.aiTimer = setTimeout(() => this.aiAct(), 120) as unknown as number;
+      return;
+    }
     const seat = g.currentPlayer;
     let events: GameEvent[];
     if (g.phase === "CHOOSE_STOCK_TARGET") {

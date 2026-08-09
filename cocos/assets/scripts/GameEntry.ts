@@ -378,6 +378,13 @@ export class GameEntry extends Component {
     }
     const session = new LocalPlay(name, playerCount);
     this.offline = session;
+    session.animBusy = () =>
+      this.matchBusy ||
+      this.dealBusy ||
+      this.dealRoundPending ||
+      this.deferredReveal.size > 0 ||
+      this.stockAnimCredit > 0 ||
+      this.pendingDiscardHands.length > 0;
 
     session.onState = (state) => {
       const prev = this.lastPhase;

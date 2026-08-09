@@ -17,6 +17,7 @@ import {
   AI_DELAY_MS,
   RECONNECT_MS,
   captureAnimMs,
+  dealAnimMs,
   discardAnimMs,
   NAME_MAX_LEN,
 } from "@jhd/shared";
@@ -268,6 +269,8 @@ export class GameRoom extends Room<RoomState> {
     this.syncGame();
     this.broadcast("roundStart", { round: this.state.round });
     this.state.players.forEach((p) => this.sendHand(p.seat));
+    // 等客户端发牌动画播完再让 AI/托管出手
+    this.animPadMs = dealAnimMs(count);
     this.beginTurn();
   }
 

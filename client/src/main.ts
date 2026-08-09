@@ -895,6 +895,7 @@ function startOffline(): void {
   void net.leave().catch(() => undefined);
   const session = new LocalPlay(playerName(), maxPlayers);
   offline = session;
+  session.animBusy = () => view.animating || view.turnBlocked;
   session.onState = (state) => {
     applyPlayState(state, session.hand, session.mySeat);
     if (state.phase === "PLAYING") {

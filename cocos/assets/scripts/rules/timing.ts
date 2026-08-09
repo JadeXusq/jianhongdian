@@ -56,15 +56,16 @@ export const DEAL_FLY_S = DEAL_FLY_MS / 1000;
 export const DEAL_ROUND_PAUSE_S = DEAL_ROUND_PAUSE_MS / 1000;
 export const DEAL_TABLE_PAUSE_S = DEAL_TABLE_PAUSE_MS / 1000;
 
-/** 开局发牌动画总时长估算（用于 UI 锁定） */
+/** 开局发牌动画墙钟估算（各座位并行飞牌，按轮数计；含短缓冲） */
 export function dealAnimMs(playerCount: number): number {
   const n = Math.max(2, Math.min(4, playerCount));
   const handSize = TOTAL_HAND_CARDS / n;
   return (
     DEAL_SHUFFLE_MS +
-    handSize * n * (DEAL_FLY_MS + DEAL_ROUND_PAUSE_MS) +
-    INITIAL_TABLE_CARDS * DEAL_FLY_MS +
-    DEAL_TABLE_PAUSE_MS
+    handSize * (DEAL_FLY_MS + DEAL_ROUND_PAUSE_MS) +
+    DEAL_FLY_MS +
+    DEAL_TABLE_PAUSE_MS +
+    240
   );
 }
 
