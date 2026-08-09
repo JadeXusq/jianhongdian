@@ -21,77 +21,77 @@ html[data-theme="mohong"] {
   --serif: "Songti SC", "STSong", "SimSun", serif;
 }
 
-.theme-field {
+.theme-field.field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   margin: 10px 0 14px;
   text-align: left;
 }
 
 .theme-field > span {
   display: block;
-  margin-bottom: 6px;
+  width: auto;
+  margin: 0;
   color: var(--gold);
   font-size: 13px;
 }
 
 .theme-seg {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  width: 100%;
 }
 
 .theme-seg button {
-  flex: 1;
-  min-width: 88px;
-  min-height: 64px;
+  min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 8px 6px 10px;
-  background-color: transparent;
+  align-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--ctrl-radius);
+  background: rgba(0, 0, 0, 0.32);
+  color: rgba(243, 234, 214, 0.85);
+}
+
+.theme-seg .theme-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  background-color: rgba(0, 0, 0, 0.35);
   background-image: var(--theme-preview);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
-  border: 1px solid var(--gold-dim);
-  overflow: hidden;
-  position: relative;
-}
-
-.theme-seg button::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.15) 0%,
-    rgba(0, 0, 0, 0.55) 100%
-  );
-  pointer-events: none;
+  border-bottom: 1px solid var(--gold-dim);
 }
 
 .theme-seg button > span {
-  position: relative;
-  z-index: 1;
-  font-size: 13px;
+  display: block;
+  padding: 7px 4px 8px;
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .theme-seg button.on {
   border-color: var(--seal);
   box-shadow: 0 0 0 1px var(--seal);
-  background-color: transparent;
-  background-image: var(--theme-preview);
   color: var(--cream);
+  background: rgba(0, 0, 0, 0.4);
 }
 
-.theme-seg button.on::before {
-  background: linear-gradient(
-    180deg,
-    rgba(184, 53, 43, 0.2) 0%,
-    rgba(0, 0, 0, 0.6) 100%
-  );
+.theme-seg button.on .theme-thumb {
+  border-bottom-color: color-mix(in srgb, var(--seal) 55%, var(--gold-dim));
 }
 
 * {
@@ -1108,6 +1108,20 @@ input:focus {
 #ui.rot .lobby-panel .seg button {
   padding: 7px 0;
   font-size: 14px;
+}
+
+#ui.rot .lobby-panel .theme-seg {
+  gap: 6px;
+}
+
+#ui.rot .lobby-panel .theme-seg button {
+  padding: 0;
+  font-size: inherit;
+}
+
+#ui.rot .lobby-panel .theme-seg button > span {
+  padding: 5px 2px 6px;
+  font-size: 11px;
 }
 
 #ui.rot .lobby-panel input {

@@ -588,30 +588,30 @@ export class LobbyUI {
     const lobbyTheme = new Node("LobbyTheme");
     lobbyTheme.layer = Layers.Enum.UI_2D;
     panel.addChild(lobbyTheme);
-    lobbyTheme.setPosition(new Vec3(0, 40, 0));
-    this.makeLabel(lobbyTheme, "桌面主题（建房默认）", 0, 28, 14, C.goldDim);
+    lobbyTheme.setPosition(new Vec3(0, 48, 0));
+    this.makeLabel(lobbyTheme, "桌面主题（建房默认）", 0, 42, 14, C.goldDim);
     this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
     this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
 
-    this.makeBtn(panel, "人机练习（离线）", 0, -30, 270, 42, () =>
+    this.makeBtn(panel, "人机练习（离线）", 0, -42, 270, 42, () =>
       this.cb.onPractice(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "快速匹配", 0, -80, 270, 40, () =>
+    this.makeBtn(panel, "快速匹配", 0, -92, 270, 40, () =>
       this.cb.onMatch(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "创建房间", -75, -132, 125, 38, () =>
+    this.makeBtn(panel, "创建房间", -75, -144, 125, 38, () =>
       this.cb.onCreate(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "输房号加入", 75, -132, 125, 38, () =>
+    this.makeBtn(panel, "输房号加入", 75, -144, 125, 38, () =>
       this.openRoomCodeDialog("join")
     );
-    this.makeBtn(panel, "房号观战", -75, -180, 125, 36, () =>
+    this.makeBtn(panel, "房号观战", -75, -192, 125, 36, () =>
       this.openRoomCodeDialog("spectate")
     );
-    this.makeBtn(panel, "账号绑定", 75, -180, 125, 36, () =>
+    this.makeBtn(panel, "账号绑定", 75, -192, 125, 36, () =>
       this.cb.onAccount()
     );
-    this.makeBtn(panel, "查看规则", 0, -235, 120, 30, () =>
+    this.makeBtn(panel, "查看规则", 0, -245, 120, 30, () =>
       this.openRules("lobby")
     );
     return panel;
@@ -810,19 +810,19 @@ export class LobbyUI {
     this.roomThemeRow = new Node("RoomTheme");
     this.roomThemeRow.layer = Layers.Enum.UI_2D;
     panel.addChild(this.roomThemeRow);
-    this.roomThemeRow.setPosition(new Vec3(0, -95, 0));
-    this.makeLabel(this.roomThemeRow, "桌面主题", 0, 28, 14, C.goldDim);
+    this.roomThemeRow.setPosition(new Vec3(0, -88, 0));
+    this.makeLabel(this.roomThemeRow, "桌面主题", 0, 42, 14, C.goldDim);
     this.roomThemeBtns = this.makeThemeSeg(this.roomThemeRow, 0);
     this.roomThemeRow.active = false;
 
-    this.aiBtn = this.makeBtn(panel, "＋ 添加机器人", -90, -160, 150, 40, () =>
+    this.aiBtn = this.makeBtn(panel, "＋ 添加机器人", -90, -175, 150, 40, () =>
       this.cb.onAddAi()
     );
     const readyBtn = this.makeBtn(
       panel,
       "准备",
       90,
-      -160,
+      -175,
       120,
       40,
       () => this.cb.onReady(),
@@ -953,24 +953,24 @@ export class LobbyUI {
   }
 
   private buildMenu(): Node {
-    const panel = this.panel("Menu", 360, 280);
+    const panel = this.panel("Menu", 360, 310);
     this.makeCloseX(panel, () => this.show("none"));
-    this.makeLabel(panel, "菜单", 0, 105, 26, C.gold);
+    this.makeLabel(panel, "菜单", 0, 120, 26, C.gold);
     this.menuThemeRow = new Node("MenuTheme");
     this.menuThemeRow.layer = Layers.Enum.UI_2D;
     panel.addChild(this.menuThemeRow);
     this.menuThemeRow.setPosition(new Vec3(0, 55, 0));
-    this.makeLabel(this.menuThemeRow, "桌面主题", 0, 28, 14, C.goldDim);
+    this.makeLabel(this.menuThemeRow, "桌面主题", 0, 42, 14, C.goldDim);
     this.menuThemeBtns = this.makeThemeSeg(this.menuThemeRow, 0);
     this.menuThemeRow.active = false;
-    this.makeBtn(panel, "查看当前积分", 0, -5, 200, 40, () =>
+    this.makeBtn(panel, "查看当前积分", 0, -25, 200, 40, () =>
       this.cb.onMenuScores()
     );
     this.settleBtn = this.makeBtn(
       panel,
       "结算对局",
       0,
-      -60,
+      -80,
       200,
       40,
       () => {
@@ -987,9 +987,9 @@ export class LobbyUI {
     y: number
   ): { id: string; node: Node; label: Label }[] {
     const items = [
-      { id: "jade", name: "青绿金", x: -110 },
+      { id: "jade", name: "青绿金", x: -102 },
       { id: "anime", name: "动漫风", x: 0 },
-      { id: "mohong", name: "墨红", x: 110 },
+      { id: "mohong", name: "墨红", x: 102 },
     ];
     return items.map((it) => {
       const btn = this.makeThemePreviewBtn(parent, it.id as ThemeId, it.name, it.x, y, () => {
@@ -1018,11 +1018,11 @@ export class LobbyUI {
     n.layer = Layers.Enum.UI_2D;
     parent.addChild(n);
     n.setPosition(new Vec3(x, y, 0));
-    const w = 100;
-    const h = 56;
+    const w = 96;
+    const h = 72;
     n.addComponent(UITransform).setContentSize(new Size(w, h));
     const g = n.addComponent(Graphics);
-    g.fillColor = new Color(0, 0, 0, 70);
+    g.fillColor = new Color(0, 0, 0, 90);
     g.roundRect(-w / 2, -h / 2, w, h, 8);
     g.fill();
     g.strokeColor = C.goldDim;
@@ -1033,8 +1033,8 @@ export class LobbyUI {
     const thumb = new Node("Thumb");
     thumb.layer = Layers.Enum.UI_2D;
     n.addChild(thumb);
-    thumb.setPosition(new Vec3(0, 8, 0));
-    thumb.addComponent(UITransform).setContentSize(new Size(88, 32));
+    thumb.setPosition(new Vec3(0, 10, 0));
+    thumb.addComponent(UITransform).setContentSize(new Size(86, 40));
     const sp = thumb.addComponent(Sprite);
     sp.sizeMode = Sprite.SizeMode.CUSTOM;
     const sf = themePreviewSf(id);
@@ -1048,11 +1048,11 @@ export class LobbyUI {
           ? new Color(26, 21, 20, 255)
           : new Color(28, 76, 59, 255);
       tg.fillColor = fill;
-      tg.roundRect(-44, -16, 88, 32, 4);
+      tg.roundRect(-43, -20, 86, 40, 4);
       tg.fill();
     }
 
-    this.makeLabel(n, name, 0, -18, 14, C.cream);
+    this.makeLabel(n, name, 0, -26, 13, C.cream);
     n.on(Node.EventType.TOUCH_END, onClick);
     return n;
   }
@@ -1067,8 +1067,8 @@ export class LobbyUI {
       const g = b.node.getComponent(Graphics);
       if (!g) continue;
       const ut = b.node.getComponent(UITransform);
-      const w = ut?.contentSize.width ?? 100;
-      const h = ut?.contentSize.height ?? 56;
+      const w = ut?.contentSize.width ?? 96;
+      const h = ut?.contentSize.height ?? 72;
       g.clear();
       g.fillColor = new Color(0, 0, 0, 70);
       g.roundRect(-w / 2, -h / 2, w, h, 8);
