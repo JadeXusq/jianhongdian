@@ -17,7 +17,8 @@ import { bindRotScroll, lockLandscape, onOrientationChange, shouldRotate } from 
 import { LocalPlay } from "./localPlay";
 import { Net, RoundOver, deviceId, savedAccountId } from "./net";
 import { TableView } from "./table";
-import { applyTheme, currentThemeId, loadSavedTheme } from "./theme";
+import { applyTheme, currentThemeId, loadSavedTheme, type ThemeId } from "./theme";
+import { loadThemeArt, themePreviewUrl } from "./themeArt";
 
 const $ = <T extends HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -46,6 +47,17 @@ let roomCodeMode: "join" | "spectate" = "join";
 
 const assetBase = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
 void loadCardAtlas(assetBase);
+void loadThemeArt(assetBase).then(() => {
+  document.querySelectorAll<HTMLElement>(".theme-seg button[data-theme]").forEach((btn) => {
+    const id = btn.dataset.theme;
+    if (!id) return;
+    btn.style.setProperty(
+      "--theme-preview",
+      `url(${themePreviewUrl(id as ThemeId, assetBase)})`
+    );
+  });
+});
+sfx.setTheme(currentThemeId());
 
 const view = new TableView($<HTMLCanvasElement>("table"), {
   onPickHand: (id) => pickHand(id),
@@ -450,7 +462,9 @@ function syncThemeFromState(state: { themeId?: string } | null | undefined): voi
   if (!state?.themeId) return;
   if (state.themeId === currentThemeId()) return;
   applyTheme(state.themeId);
+  sfx.setTheme(state.themeId);
   paintAllThemeSegs(state.themeId);
+  sfx.themeSwitch();
 }
 
 function paintThemeSeg(rootId: string, active: string): void {
@@ -471,12 +485,14 @@ function paintAllThemeSegs(active: string): void {
 function setThemeLocalAndRemote(id: string, announce = true): void {
   const prev = currentThemeId();
   applyTheme(id);
+  sfx.setTheme(id);
   paintAllThemeSegs(id);
   if (offline) offline.setTheme(id);
   else if (net.room && isHost()) net.setTheme(id);
   if (announce && id !== prev) {
     const name = THEMES[id as keyof typeof THEMES]?.name ?? id;
     toast(`主题：${name}`);
+    sfx.themeSwitch();
   }
 }
 

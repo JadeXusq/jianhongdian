@@ -10,8 +10,11 @@ import {
   EditBox,
   Mask,
   ScrollView,
+  Sprite,
 } from "cc";
 import { C, DESIGN } from "./Theme";
+import { themePreviewSf } from "./ThemeArt";
+import type { ThemeId } from "./rules/themes";
 import type { RoundOver } from "./Net";
 
 export type UiScreen =
@@ -989,7 +992,7 @@ export class LobbyUI {
       { id: "night", name: "夜蓝", x: 110 },
     ];
     return items.map((it) => {
-      const btn = this.makeBtn(parent, it.name, it.x, y, 100, 34, () => {
+      const btn = this.makeThemePreviewBtn(parent, it.id as ThemeId, it.name, it.x, y, () => {
         this.cb.onSetTheme(it.id);
         this.paintThemeBtns(this.roomThemeBtns, it.id);
         this.paintThemeBtns(this.menuThemeBtns, it.id);
@@ -1003,6 +1006,57 @@ export class LobbyUI {
     });
   }
 
+  private makeThemePreviewBtn(
+    parent: Node,
+    id: ThemeId,
+    name: string,
+    x: number,
+    y: number,
+    onClick: () => void
+  ): Node {
+    const n = new Node(name);
+    n.layer = Layers.Enum.UI_2D;
+    parent.addChild(n);
+    n.setPosition(new Vec3(x, y, 0));
+    const w = 100;
+    const h = 56;
+    n.addComponent(UITransform).setContentSize(new Size(w, h));
+    const g = n.addComponent(Graphics);
+    g.fillColor = new Color(0, 0, 0, 70);
+    g.roundRect(-w / 2, -h / 2, w, h, 8);
+    g.fill();
+    g.strokeColor = C.goldDim;
+    g.lineWidth = 1;
+    g.roundRect(-w / 2, -h / 2, w, h, 8);
+    g.stroke();
+
+    const thumb = new Node("Thumb");
+    thumb.layer = Layers.Enum.UI_2D;
+    n.addChild(thumb);
+    thumb.setPosition(new Vec3(0, 8, 0));
+    thumb.addComponent(UITransform).setContentSize(new Size(88, 32));
+    const sp = thumb.addComponent(Sprite);
+    sp.sizeMode = Sprite.SizeMode.CUSTOM;
+    const sf = themePreviewSf(id);
+    if (sf) sp.spriteFrame = sf;
+    else {
+      const tg = thumb.addComponent(Graphics);
+      const fill =
+        id === "anime"
+          ? new Color(61, 42, 109, 255)
+          : id === "night"
+          ? new Color(22, 58, 95, 255)
+          : new Color(28, 76, 59, 255);
+      tg.fillColor = fill;
+      tg.roundRect(-44, -16, 88, 32, 4);
+      tg.fill();
+    }
+
+    this.makeLabel(n, name, 0, -18, 14, C.cream);
+    n.on(Node.EventType.TOUCH_END, onClick);
+    return n;
+  }
+
   private paintThemeBtns(
     btns: { id: string; node: Node; label: Label }[],
     active: string
@@ -1010,7 +1064,33 @@ export class LobbyUI {
     for (const b of btns) {
       const on = b.id === active;
       b.label.color = on ? C.seal : C.cream;
+      const g = b.node.getComponent(Graphics);
+      if (!g) continue;
+      const ut = b.node.getComponent(UITransform);
+      const w = ut?.contentSize.width ?? 100;
+      const h = ut?.contentSize.height ?? 56;
+      g.clear();
+      g.fillColor = new Color(0, 0, 0, 70);
+      g.roundRect(-w / 2, -h / 2, w, h, 8);
+      g.fill();
+      g.strokeColor = on ? C.seal : C.gold;
+      g.lineWidth = on ? 2 : 1;
+      g.roundRect(-w / 2, -h / 2, w, h, 8);
+      g.stroke();
+      const thumb = b.node.getChildByName("Thumb");
+      const sp = thumb?.getComponent(Sprite);
+      if (sp) {
+        const sf = themePreviewSf(b.id as ThemeId);
+        if (sf) sp.spriteFrame = sf;
+      }
     }
+  }
+
+  refreshThemeThumbs(): void {
+    const tid = this.cb.currentThemeId();
+    this.paintThemeBtns(this.lobbyThemeBtns, tid);
+    this.paintThemeBtns(this.roomThemeBtns, tid);
+    this.paintThemeBtns(this.menuThemeBtns, tid);
   }
 
   private buildScores(): Node {

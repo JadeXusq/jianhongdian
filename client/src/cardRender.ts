@@ -8,7 +8,8 @@ import {
   isRed,
   RED_JOKER_ID,
 } from "@jhd/shared";
-import { C, CARD_RATIO } from "./theme";
+import { C, CARD_RATIO, currentThemeId } from "./theme";
+import { themeBackImg } from "./themeArt";
 
 const RANKS = [
   "A",
@@ -137,12 +138,16 @@ export function drawCard(
   ctx.save();
   roundRect(ctx, x, y, w, h, r);
   ctx.clip();
-  if (atlasImg && atlasMeta) {
-    blitAtlas(ctx, faceUp ? id : atlasMeta.backIndex, x, y, w, h);
-  } else if (faceUp) {
-    drawFace(ctx, id, x, y, w, h);
+  if (!faceUp) {
+    const back = themeBackImg(currentThemeId());
+    if (back) ctx.drawImage(back, x, y, w, h);
+    else if (atlasImg && atlasMeta)
+      blitAtlas(ctx, atlasMeta.backIndex, x, y, w, h);
+    else drawBack(ctx, x, y, w, h);
+  } else if (atlasImg && atlasMeta) {
+    blitAtlas(ctx, id, x, y, w, h);
   } else {
-    drawBack(ctx, x, y, w, h);
+    drawFace(ctx, id, x, y, w, h);
   }
   if (style.dim) {
     ctx.fillStyle = C.dim;
@@ -276,7 +281,13 @@ function drawBack(
   w: number,
   h: number
 ): void {
-  ctx.strokeStyle = "rgba(201,169,97,0.35)";
+  const tid = currentThemeId();
+  ctx.strokeStyle =
+    tid === "anime"
+      ? "rgba(255,141,199,0.4)"
+      : tid === "night"
+      ? "rgba(94,200,255,0.35)"
+      : "rgba(201,169,97,0.35)";
   ctx.lineWidth = Math.max(0.5, w * 0.012);
   const step = w * 0.18;
   for (let i = -h; i < w + h; i += step) {
@@ -289,8 +300,23 @@ function drawBack(
     ctx.lineTo(x + i + h, y);
     ctx.stroke();
   }
+  if (tid === "night") {
+    ctx.fillStyle = "rgba(180,230,255,0.55)";
+    for (let i = 0; i < 8; i++) {
+      const px = x + w * (0.2 + ((i * 37) % 60) / 100);
+      const py = y + h * (0.15 + ((i * 53) % 70) / 100);
+      ctx.beginPath();
+      ctx.arc(px, py, Math.max(1, w * 0.015), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
   const s = w * 0.42;
-  ctx.fillStyle = "rgba(201,169,97,0.9)";
+  ctx.fillStyle =
+    tid === "anime"
+      ? "rgba(255,141,199,0.9)"
+      : tid === "night"
+      ? "rgba(94,200,255,0.85)"
+      : "rgba(201,169,97,0.9)";
   roundRect(ctx, x + (w - s) / 2, y + (h - s) / 2, s, s, s * 0.12);
   ctx.fill();
   ctx.fillStyle = C.cardBack;

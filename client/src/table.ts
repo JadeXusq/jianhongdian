@@ -18,8 +18,9 @@ import {
   DEAL_TABLE_PAUSE_S,
 } from "@jhd/shared";
 import { drawCard, roundRect } from "./cardRender";
+import { themeFeltImg } from "./themeArt";
+import { C, CARD_RATIO, currentThemeId } from "./theme";
 import { shouldRotate, onOrientationChange } from "./layout";
-import { C, CARD_RATIO } from "./theme";
 
 const H = 720;
 /** 逻辑宽度下限（近方屏如 4:3 平板）与上限（超长屏）*/
@@ -1006,12 +1007,23 @@ export class TableView {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    // 桌面暗金边框与四角回纹
-    ctx.strokeStyle = "rgba(201,169,97,0.28)";
+    const felt = themeFeltImg(currentThemeId());
+    if (felt) {
+      ctx.save();
+      ctx.globalAlpha = 0.42;
+      const pat = ctx.createPattern(felt, "repeat");
+      if (pat) {
+        ctx.fillStyle = pat;
+        ctx.fillRect(0, 0, W, H);
+      }
+      ctx.restore();
+    }
+
+    ctx.strokeStyle = `${C.gold}48`;
     ctx.lineWidth = 2;
     roundRect(ctx, 26, 26, W - 52, H - 52, 18);
     ctx.stroke();
-    ctx.strokeStyle = "rgba(201,169,97,0.5)";
+    ctx.strokeStyle = `${C.gold}80`;
     ctx.lineWidth = 3;
     const c = 34;
     [
@@ -1027,7 +1039,6 @@ export class TableView {
       ctx.stroke();
     });
 
-    // 中央印章水印（置于桌面牌区下方的空白处）
     ctx.save();
     ctx.globalAlpha = 0.05;
     ctx.fillStyle = C.gold;

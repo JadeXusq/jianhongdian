@@ -14,7 +14,8 @@ import {
   Rect,
 } from "cc";
 import { cardFromId, cardScore, isJoker, isRed, RED_JOKER_ID } from "./rules";
-import { C, CARD_RATIO } from "./Theme";
+import { C, CARD_RATIO, currentThemeId } from "./Theme";
+import { themeBackSf } from "./ThemeArt";
 
 const RANKS = [
   "A",
@@ -98,8 +99,42 @@ async function loadFromFetch(pngUrl: string, jsonUrl: string): Promise<boolean> 
 }
 
 export function createCard(id: number, w: number, style: CardStyle = {}): Node {
+  const faceUp = style.faceUp !== false;
+  if (!faceUp && themeBackSf()) return createCardThemeBack(w, style);
   if (atlasTex && atlasMeta) return createCardAtlas(id, w, style);
   return createCardProcedural(id, w, style);
+}
+
+function createCardThemeBack(w: number, style: CardStyle): Node {
+  const h = w * CARD_RATIO;
+  const node = new Node("Card");
+  node.layer = Layers.Enum.UI_2D;
+  const tr = node.addComponent(UITransform);
+  tr.setContentSize(new Size(w, h));
+  tr.setAnchorPoint(0, 1);
+
+  const spNode = new Node("Back");
+  spNode.layer = Layers.Enum.UI_2D;
+  node.addChild(spNode);
+  spNode.setPosition(new Vec3(w / 2, -h / 2, 0));
+  const spTr = spNode.addComponent(UITransform);
+  spTr.setContentSize(new Size(w, h));
+  spTr.setAnchorPoint(0.5, 0.5);
+  const sp = spNode.addComponent(Sprite);
+  sp.spriteFrame = themeBackSf()!;
+  sp.sizeMode = Sprite.SizeMode.CUSTOM;
+
+  const g = node.addComponent(Graphics);
+  if (style.dim) {
+    g.fillColor = C.dim;
+    g.roundRect(0, -h, w, h, w * 0.09);
+    g.fill();
+  }
+  strokeCard(g, w, h, style, false);
+  if (style.discard) {
+    addLabel(node, "弃", w / 2, -h / 2, w * 0.28, new Color(184, 53, 43, 200), true);
+  }
+  return node;
 }
 
 function createCardAtlas(id: number, w: number, style: CardStyle): Node {
@@ -251,8 +286,14 @@ function drawFace(
 }
 
 function drawBack(node: Node, g: Graphics, w: number, h: number): void {
+  const tid = currentThemeId();
   g.lineWidth = Math.max(0.5, w * 0.012);
-  g.strokeColor = new Color(201, 169, 97, 90);
+  g.strokeColor =
+    tid === "anime"
+      ? new Color(255, 141, 199, 100)
+      : tid === "night"
+      ? new Color(94, 200, 255, 90)
+      : new Color(201, 169, 97, 90);
   const step = w * 0.2;
   for (let i = -h; i < w + h; i += step) {
     g.moveTo(i, 0);
@@ -263,7 +304,12 @@ function drawBack(node: Node, g: Graphics, w: number, h: number): void {
   g.stroke();
 
   const s = w * 0.42;
-  g.fillColor = new Color(201, 169, 97, 230);
+  g.fillColor =
+    tid === "anime"
+      ? new Color(255, 141, 199, 230)
+      : tid === "night"
+      ? new Color(94, 200, 255, 220)
+      : new Color(201, 169, 97, 230);
   g.roundRect((w - s) / 2, -(h + s) / 2, s, s, s * 0.12);
   g.fill();
   addLabel(node, "红", w / 2, -h / 2, s * 0.62, C.cardBack, true);

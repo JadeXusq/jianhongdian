@@ -11,8 +11,10 @@ import {
   Label,
   sys,
   tween,
+  Sprite,
 } from "cc";
 import { createCard, addLabel, loadCardAtlas } from "./CardNode";
+import { loadThemeArt, themeFeltSf } from "./ThemeArt";
 import {
   findTargets,
   cardScore,
@@ -242,6 +244,13 @@ export class GameEntry extends Component {
 
     void loadCardAtlas().then((ok) => {
       if (ok) console.log("[card] 位图图集已加载");
+    });
+    void loadThemeArt().then((ok) => {
+      if (ok) {
+        this.drawFelt();
+        this.ui.refreshThemeThumbs();
+        if (this.tableVisible) this.render();
+      }
     });
 
     this.matchNode.setSiblingIndex(this.node.children.length - 1);
@@ -2025,13 +2034,41 @@ export class GameEntry extends Component {
     g.rect(-w / 2, -h / 2, w, h);
     g.fill();
 
-    g.lineWidth = 2;
-    g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 72);
-    g.roundRect(-w / 2 + 26, -h / 2 + 26, w - 52, h - 52, 18);
-    g.stroke();
+    let pat = this.feltNode.getChildByName("FeltPat");
+    const feltSf = themeFeltSf(currentThemeId());
+    if (feltSf) {
+      if (!pat) {
+        pat = new Node("FeltPat");
+        pat.layer = Layers.Enum.UI_2D;
+        this.feltNode.addChild(pat);
+        pat.addComponent(UITransform).setContentSize(new Size(w, h));
+        const sp = pat.addComponent(Sprite);
+        sp.type = Sprite.Type.TILED;
+        sp.sizeMode = Sprite.SizeMode.CUSTOM;
+        sp.color = new Color(255, 255, 255, 110);
+      }
+      pat.getComponent(Sprite)!.spriteFrame = feltSf;
+      pat.active = true;
+    } else if (pat) {
+      pat.active = false;
+    }
 
-    g.lineWidth = 3;
-    g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 128);
+    let border = this.feltNode.getChildByName("FeltBorder");
+    if (!border) {
+      border = new Node("FeltBorder");
+      border.layer = Layers.Enum.UI_2D;
+      this.feltNode.addChild(border);
+      border.addComponent(UITransform).setContentSize(new Size(w, h));
+      border.addComponent(Graphics);
+    }
+    const bg = border.getComponent(Graphics)!;
+    bg.clear();
+    bg.lineWidth = 2;
+    bg.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 72);
+    bg.roundRect(-w / 2 + 26, -h / 2 + 26, w - 52, h - 52, 18);
+    bg.stroke();
+    bg.lineWidth = 3;
+    bg.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 128);
     const c = 34;
     const corners: [number, number, number, number][] = [
       [-w / 2 + 40, h / 2 - 40, 1, -1],
@@ -2040,10 +2077,10 @@ export class GameEntry extends Component {
       [w / 2 - 40, -h / 2 + 40, -1, 1],
     ];
     for (const [x, y, sx, sy] of corners) {
-      g.moveTo(x, y + sy * c);
-      g.lineTo(x, y);
-      g.lineTo(x + sx * c, y);
-      g.stroke();
+      bg.moveTo(x, y + sy * c);
+      bg.lineTo(x, y);
+      bg.lineTo(x + sx * c, y);
+      bg.stroke();
     }
   }
 

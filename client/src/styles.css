@@ -32,7 +32,57 @@ html[data-theme="anime"] {
 
 .theme-seg button {
   flex: 1;
-  min-width: 72px;
+  min-width: 88px;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 6px 10px;
+  background-color: transparent;
+  background-image: var(--theme-preview);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+  border: 1px solid var(--gold-dim);
+  overflow: hidden;
+  position: relative;
+}
+
+.theme-seg button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.15) 0%,
+    rgba(0, 0, 0, 0.55) 100%
+  );
+  pointer-events: none;
+}
+
+.theme-seg button > span {
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+}
+
+.theme-seg button.on {
+  border-color: var(--seal);
+  box-shadow: 0 0 0 1px var(--seal);
+  background-color: transparent;
+  background-image: var(--theme-preview);
+  color: var(--cream);
+}
+
+.theme-seg button.on::before {
+  background: linear-gradient(
+    180deg,
+    rgba(184, 53, 43, 0.2) 0%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
 }
 
 html[data-theme="night"] {
