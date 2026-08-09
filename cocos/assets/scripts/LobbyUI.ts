@@ -12,7 +12,7 @@ import {
   ScrollView,
   Sprite,
 } from "cc";
-import { C, DESIGN } from "./Theme";
+import { C, DESIGN, currentThemeId } from "./Theme";
 import { themePreviewSf } from "./ThemeArt";
 import type { ThemeId } from "./rules/themes";
 import type { RoundOver } from "./Net";
@@ -1124,18 +1124,24 @@ export class LobbyUI {
     return panel;
   }
 
+  private panelRadius(): number {
+    const tid = currentThemeId();
+    return tid === "anime" ? 22 : tid === "night" ? 8 : 16;
+  }
+
   private panel(name: string, w: number, h: number): Node {
     const n = new Node(name);
     n.layer = Layers.Enum.UI_2D;
     this.root.addChild(n);
     n.addComponent(UITransform).setContentSize(new Size(w, h));
     const g = n.addComponent(Graphics);
+    const r = this.panelRadius();
     g.fillColor = C.panelBg;
-    g.roundRect(-w / 2, -h / 2, w, h, 16);
+    g.roundRect(-w / 2, -h / 2, w, h, r);
     g.fill();
     g.strokeColor = C.goldDim;
-    g.lineWidth = 2;
-    g.roundRect(-w / 2, -h / 2, w, h, 16);
+    g.lineWidth = currentThemeId() === "anime" ? 3 : 2;
+    g.roundRect(-w / 2, -h / 2, w, h, r);
     g.stroke();
     return n;
   }

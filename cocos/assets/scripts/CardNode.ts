@@ -170,6 +170,7 @@ function createCardAtlas(id: number, w: number, style: CardStyle): Node {
   sp.sizeMode = Sprite.SizeMode.CUSTOM;
 
   const g = node.addComponent(Graphics);
+  if (faceUp) drawFaceChrome(g, w, h);
   if (style.dim) {
     g.fillColor = C.dim;
     g.roundRect(0, -h, w, h, w * 0.09);
@@ -202,8 +203,10 @@ function createCardProcedural(
   g.roundRect(0, -h, w, h, r);
   g.fill();
 
-  if (faceUp) drawFace(node, g, id, w, h);
-  else drawBack(node, g, w, h);
+  if (faceUp) {
+    drawFace(node, g, id, w, h);
+    drawFaceChrome(g, w, h);
+  } else drawBack(node, g, w, h);
 
   if (style.dim) {
     g.fillColor = C.dim;
@@ -282,6 +285,54 @@ function drawFace(
     g.circle(cx, cy, rad);
     g.stroke();
     addLabel(node, String(score), cx, cy, w * 0.17, C.cream, true);
+  }
+}
+
+function drawFaceChrome(g: Graphics, w: number, h: number): void {
+  const tid = currentThemeId();
+  const m = Math.max(2, w * 0.06);
+  const len = w * 0.16;
+  g.lineWidth = Math.max(1, w * 0.02);
+  g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, tid === "jade" ? 140 : 180);
+  if (tid === "jade") {
+    const corners: [number, number, number, number][] = [
+      [m, -m, 1, -1],
+      [w - m, -m, -1, -1],
+      [m, -h + m, 1, 1],
+      [w - m, -h + m, -1, 1],
+    ];
+    for (const [ox, oy, sx, sy] of corners) {
+      g.moveTo(ox, oy + sy * len);
+      g.lineTo(ox, oy);
+      g.lineTo(ox + sx * len, oy);
+      g.stroke();
+    }
+  } else if (tid === "anime") {
+    g.fillColor = new Color(C.gold.r, C.gold.g, C.gold.b, 140);
+    for (const [px, py] of [
+      [w * 0.82, -h * 0.12],
+      [w * 0.88, -h * 0.22],
+      [w * 0.14, -h * 0.78],
+    ]) {
+      g.circle(px, py, w * 0.03);
+      g.fill();
+    }
+    g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 110);
+    g.roundRect(m, -h + m, w - m * 2, h - m * 2, w * 0.12);
+    g.stroke();
+  } else {
+    g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 130);
+    g.rect(m, -h + m, w - m * 2, h - m * 2);
+    g.stroke();
+    g.fillColor = new Color(C.gold.r, C.gold.g, C.gold.b, 170);
+    for (const [px, py] of [
+      [w * 0.85, -h * 0.14],
+      [w * 0.15, -h * 0.82],
+      [w * 0.78, -h * 0.72],
+    ]) {
+      g.circle(px, py, Math.max(1, w * 0.018));
+      g.fill();
+    }
   }
 }
 

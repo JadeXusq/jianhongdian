@@ -146,8 +146,10 @@ export function drawCard(
     else drawBack(ctx, x, y, w, h);
   } else if (atlasImg && atlasMeta) {
     blitAtlas(ctx, id, x, y, w, h);
+    drawFaceChrome(ctx, x, y, w, h);
   } else {
     drawFace(ctx, id, x, y, w, h);
+    drawFaceChrome(ctx, x, y, w, h);
   }
   if (style.dim) {
     ctx.fillStyle = C.dim;
@@ -218,6 +220,78 @@ function blitAtlas(
   );
 }
 
+function drawFaceChrome(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): void {
+  const tid = currentThemeId();
+  const m = Math.max(2, w * 0.06);
+  const len = w * 0.16;
+  ctx.save();
+  ctx.strokeStyle = C.gold;
+  ctx.lineWidth = Math.max(1, w * 0.02);
+  ctx.globalAlpha = tid === "jade" ? 0.55 : 0.7;
+  if (tid === "jade") {
+    for (const [ox, oy, sx, sy] of [
+      [x + m, y + m, 1, 1],
+      [x + w - m, y + m, -1, 1],
+      [x + m, y + h - m, 1, -1],
+      [x + w - m, y + h - m, -1, -1],
+    ] as const) {
+      ctx.beginPath();
+      ctx.moveTo(ox, oy + sy * len);
+      ctx.lineTo(ox, oy);
+      ctx.lineTo(ox + sx * len, oy);
+      ctx.stroke();
+    }
+  } else if (tid === "anime") {
+    ctx.fillStyle = C.gold;
+    ctx.globalAlpha = 0.55;
+    for (const [px, py] of [
+      [x + w * 0.82, y + h * 0.12],
+      [x + w * 0.88, y + h * 0.22],
+      [x + w * 0.14, y + h * 0.78],
+    ]) {
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const ang = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+        const r = w * 0.035;
+        const nx = px + Math.cos(ang) * r;
+        const ny = py + Math.sin(ang) * r;
+        if (i === 0) ctx.moveTo(nx, ny);
+        else ctx.lineTo(nx, ny);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.strokeStyle = C.gold;
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = Math.max(1, w * 0.018);
+    roundRect(ctx, x + m, y + m, w - m * 2, h - m * 2, w * 0.12);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = C.gold;
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = Math.max(1, w * 0.016);
+    ctx.strokeRect(x + m, y + m, w - m * 2, h - m * 2);
+    ctx.fillStyle = C.gold;
+    ctx.globalAlpha = 0.65;
+    for (const [px, py] of [
+      [x + w * 0.85, y + h * 0.14],
+      [x + w * 0.15, y + h * 0.82],
+      [x + w * 0.78, y + h * 0.72],
+    ]) {
+      ctx.beginPath();
+      ctx.arc(px, py, Math.max(1, w * 0.018), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function drawFace(
   ctx: CanvasRenderingContext2D,
   id: number,
@@ -228,6 +302,7 @@ function drawFace(
 ): void {
   const red = isRed(id);
   const color = red ? C.seal : C.ink;
+  const tid = currentThemeId();
 
   if (isJoker(id)) {
     ctx.fillStyle = id === RED_JOKER_ID ? C.seal : C.ink;
@@ -244,7 +319,13 @@ function drawFace(
     ctx.fillStyle = color;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = `700 ${w * 0.26}px "Helvetica Neue", Arial, sans-serif`;
+    const rankFont =
+      tid === "anime"
+        ? `800 ${w * 0.28}px "PingFang SC", "Helvetica Neue", sans-serif`
+        : tid === "night"
+        ? `600 ${w * 0.26}px "Helvetica Neue", Arial, sans-serif`
+        : `700 ${w * 0.26}px "Helvetica Neue", Arial, sans-serif`;
+    ctx.font = rankFont;
     ctx.fillText(label, x + w * 0.19, y + h * 0.14);
     ctx.font = `${w * 0.2}px serif`;
     ctx.fillText(sym, x + w * 0.19, y + h * 0.27);
@@ -259,13 +340,41 @@ function drawFace(
     const cx = x + w * 0.19;
     const cy = y + h * 0.87;
     const rad = w * 0.14;
-    ctx.beginPath();
-    ctx.arc(cx, cy, rad, 0, Math.PI * 2);
     ctx.fillStyle = C.seal;
-    ctx.fill();
+    if (tid === "anime") {
+      roundRect(ctx, cx - rad, cy - rad, rad * 2, rad * 2, rad * 0.45);
+      ctx.fill();
+    } else if (tid === "night") {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - rad);
+      ctx.lineTo(cx + rad, cy);
+      ctx.lineTo(cx, cy + rad);
+      ctx.lineTo(cx - rad, cy);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.lineWidth = Math.max(1, w * 0.015);
     ctx.strokeStyle = C.gold;
-    ctx.stroke();
+    if (tid === "anime") {
+      roundRect(ctx, cx - rad, cy - rad, rad * 2, rad * 2, rad * 0.45);
+      ctx.stroke();
+    } else if (tid === "night") {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - rad);
+      ctx.lineTo(cx + rad, cy);
+      ctx.lineTo(cx, cy + rad);
+      ctx.lineTo(cx - rad, cy);
+      ctx.closePath();
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.fillStyle = C.cream;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

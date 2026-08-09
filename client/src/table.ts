@@ -994,6 +994,7 @@ export class TableView {
 
   private drawFelt(ctx: CanvasRenderingContext2D): void {
     const W = this.w;
+    const tid = currentThemeId();
     const g = ctx.createRadialGradient(
       W / 2,
       H / 2,
@@ -1007,10 +1008,10 @@ export class TableView {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    const felt = themeFeltImg(currentThemeId());
+    const felt = themeFeltImg(tid);
     if (felt) {
       ctx.save();
-      ctx.globalAlpha = 0.42;
+      ctx.globalAlpha = tid === "anime" ? 0.72 : tid === "night" ? 0.68 : 0.62;
       const pat = ctx.createPattern(felt, "repeat");
       if (pat) {
         ctx.fillStyle = pat;
@@ -1019,33 +1020,78 @@ export class TableView {
       ctx.restore();
     }
 
-    ctx.strokeStyle = `${C.gold}48`;
-    ctx.lineWidth = 2;
-    roundRect(ctx, 26, 26, W - 52, H - 52, 18);
+    if (tid === "anime") {
+      ctx.save();
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = C.gold;
+      for (let i = 0; i < 16; i++) {
+        const px = 80 + ((i * 137) % (W - 160));
+        const py = 90 + ((i * 97) % (H - 180));
+        ctx.beginPath();
+        for (let k = 0; k < 5; k++) {
+          const ang = -Math.PI / 2 + (k * 2 * Math.PI) / 5;
+          const r = 10 + (i % 3) * 3;
+          const nx = px + Math.cos(ang) * r;
+          const ny = py + Math.sin(ang) * r;
+          if (k === 0) ctx.moveTo(nx, ny);
+          else ctx.lineTo(nx, ny);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    } else if (tid === "night") {
+      ctx.save();
+      ctx.fillStyle = C.gold;
+      ctx.globalAlpha = 0.18;
+      for (let i = 0; i < 40; i++) {
+        const px = 60 + ((i * 89) % (W - 120));
+        const py = 70 + ((i * 67) % (H - 140));
+        ctx.beginPath();
+        ctx.arc(px, py, 1 + (i % 3), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    const radius = tid === "anime" ? 28 : tid === "night" ? 10 : 18;
+    ctx.strokeStyle = `${C.gold}55`;
+    ctx.lineWidth = tid === "night" ? 1.5 : 2;
+    roundRect(ctx, 26, 26, W - 52, H - 52, radius);
     ctx.stroke();
-    ctx.strokeStyle = `${C.gold}80`;
-    ctx.lineWidth = 3;
-    const c = 34;
-    [
-      [40, 40, 1, 1],
-      [W - 40, 40, -1, 1],
-      [40, H - 40, 1, -1],
-      [W - 40, H - 40, -1, -1],
-    ].forEach(([x, y, sx, sy]) => {
-      ctx.beginPath();
-      ctx.moveTo(x, y + sy * c);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x + sx * c, y);
+    if (tid !== "night") {
+      ctx.strokeStyle = `${C.gold}90`;
+      ctx.lineWidth = 3;
+      const c = 34;
+      [
+        [40, 40, 1, 1],
+        [W - 40, 40, -1, 1],
+        [40, H - 40, 1, -1],
+        [W - 40, H - 40, -1, -1],
+      ].forEach(([x, y, sx, sy]) => {
+        ctx.beginPath();
+        ctx.moveTo(x, y + sy * c);
+        ctx.lineTo(x, y);
+        ctx.lineTo(x + sx * c, y);
+        ctx.stroke();
+      });
+    } else {
+      ctx.strokeStyle = `${C.gold}40`;
+      ctx.lineWidth = 1;
+      roundRect(ctx, 38, 38, W - 76, H - 76, 6);
       ctx.stroke();
-    });
+    }
 
     ctx.save();
-    ctx.globalAlpha = 0.05;
+    ctx.globalAlpha = tid === "anime" ? 0.08 : 0.06;
     ctx.fillStyle = C.gold;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = `700 130px "Songti SC", "STSong", serif`;
-    ctx.fillText("捡红点", W / 2, 500);
+    ctx.font =
+      tid === "jade"
+        ? `700 130px "Songti SC", "STSong", serif`
+        : `700 110px "PingFang SC", "Helvetica Neue", sans-serif`;
+    ctx.fillText(tid === "night" ? "JHD" : "捡红点", W / 2, 500);
     ctx.restore();
   }
 

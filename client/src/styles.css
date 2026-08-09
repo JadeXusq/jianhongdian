@@ -5,10 +5,19 @@
   --cream: #f3ead6;
   --felt: #123a2e;
   --ink: #0b1f18;
+  --panel-bg-top: #1c4c3b;
+  --panel-bg-bot: #0d2a20;
+  --panel-radius: 14px;
+  --ctrl-radius: 9px;
+  --title-track: 8px;
   --serif: "Songti SC", "STSong", "SimSun", serif;
 }
 
 html[data-theme="anime"] {
+  --serif: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+html[data-theme="night"] {
   --serif: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
 
@@ -83,10 +92,6 @@ html[data-theme="anime"] {
     rgba(184, 53, 43, 0.2) 0%,
     rgba(0, 0, 0, 0.6) 100%
   );
-}
-
-html[data-theme="night"] {
-  --serif: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
 
 * {
@@ -177,14 +182,44 @@ body {
   padding: 26px 24px;
   padding-bottom: calc(26px + env(safe-area-inset-bottom));
   border: 1px solid var(--gold-dim);
-  border-radius: 14px;
+  border-radius: var(--panel-radius);
   background: linear-gradient(
     180deg,
-    rgba(23, 66, 52, 0.96),
-    rgba(10, 30, 23, 0.98)
+    var(--panel-bg-top),
+    var(--panel-bg-bot)
   );
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 22px 60px rgba(0, 0, 0, 0.55);
   text-align: center;
+}
+
+html[data-theme="anime"] .panel {
+  border-width: 2px;
+  box-shadow:
+    0 0 0 1px rgba(255, 141, 199, 0.25),
+    0 18px 50px rgba(40, 10, 60, 0.55);
+}
+
+html[data-theme="night"] .panel {
+  border-width: 1px;
+  box-shadow:
+    0 0 24px rgba(94, 200, 255, 0.12),
+    0 22px 60px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme="anime"] .panel::before,
+html[data-theme="anime"] .panel::after {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px 0 0 0;
+  opacity: 0.7;
+}
+
+html[data-theme="night"] .panel::before,
+html[data-theme="night"] .panel::after {
+  width: 14px;
+  height: 14px;
+  border-width: 1px;
+  opacity: 0.65;
 }
 
 .dialog-panel,
@@ -250,9 +285,19 @@ body {
 .title {
   margin: 4px 0 6px;
   font-size: 40px;
-  letter-spacing: 8px;
+  letter-spacing: var(--title-track);
   color: var(--gold);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+html[data-theme="anime"] .title {
+  font-weight: 800;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--gold) 55%, transparent);
+}
+
+html[data-theme="night"] .title {
+  font-weight: 600;
+  text-shadow: 0 0 16px color-mix(in srgb, var(--gold) 40%, transparent);
 }
 
 .title.small {
@@ -307,7 +352,7 @@ input:focus {
   flex: 1;
   padding: 10px 0;
   border: 1px solid var(--gold-dim);
-  border-radius: 8px;
+  border-radius: var(--ctrl-radius);
   background: rgba(0, 0, 0, 0.25);
   color: rgba(243, 234, 214, 0.75);
   font-family: var(--serif);
@@ -325,7 +370,7 @@ input:focus {
   margin-top: 10px;
   padding: 13px 0;
   border: 1px solid var(--gold-dim);
-  border-radius: 9px;
+  border-radius: var(--ctrl-radius);
   background: rgba(0, 0, 0, 0.28);
   color: var(--cream);
   font-family: var(--serif);
