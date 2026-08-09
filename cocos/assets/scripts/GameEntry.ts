@@ -65,6 +65,7 @@ export class GameEntry extends Component {
   private hintText = "";
   private tableVisible = false;
   private matchBusy = false;
+  private showCaptured = false;
   private stockAnimCredit = 0;
   private wasMyTurn = false;
   private deferredReveal = new Set<number>();
@@ -851,6 +852,7 @@ export class GameEntry extends Component {
     this.discardArmed = -1;
     this.targets = [];
     this.lastRound = null;
+    this.showCaptured = false;
     this.pendingGain.clear();
     this.pendingCards.clear();
     this.pendingHand.clear();
@@ -1155,7 +1157,7 @@ export class GameEntry extends Component {
     const count = (state?.players.size as number) ?? 4;
     const mySeat = this.mySeatNum();
     const rel = (seat - mySeat + count) % count;
-    if (rel === 0) return { x: DESIGN.width / 2 - 120, y: -80 };
+    if (rel === 0) return { x: -DESIGN.width / 2 + 120, y: -80 };
     if (count === 2) return { x: 0, y: DESIGN.height / 2 - 58 };
     if (count === 3) {
       if (rel === 1) return { x: DESIGN.width / 2 - 120, y: 40 };
@@ -1716,7 +1718,7 @@ export class GameEntry extends Component {
     if (me) {
       this.drawPlayerPanel(
         me,
-        DESIGN.width / 2 - 120,
+        -DESIGN.width / 2 + 120,
         -80,
         turnSeat === me.seat,
         state?.roundStarter === me.seat
@@ -1735,7 +1737,8 @@ export class GameEntry extends Component {
     );
 
     if (me) {
-      this.drawCapturedPile(this.displayCaptured(me));
+      const detail: number[] = me.captured ? [...me.captured] : [];
+      this.drawCapturedPile(this.displayCaptured(me), detail);
     }
 
     if (this.hintText && !this.lastRound) {
@@ -1791,20 +1794,151 @@ export class GameEntry extends Component {
     );
   }
 
-  private drawCapturedPile(cards: number[]): void {
-    if (!cards.length) return;
-    const cw = 150;
-    const originX = -DESIGN.width / 2 + 30;
-    const originY = -DESIGN.height / 2 + cw * CARD_RATIO + 10;
-    const maxFanW = Math.min(DESIGN.width * 0.48, 620);
-    const step =
-      cards.length <= 1
-        ? 0
-        : Math.min(52, Math.max(26, (maxFanW - cw) / (cards.length - 1)));
-    cards.forEach((id, i) => {
-      const c = createCard(id, cw);
-      c.setPosition(new Vec3(originX + i * step, originY, 0));
-      this.infoNode.addChild(c);
+  private drawCapturedPile(stackCards: number[], detailCards: number[]): void {
+    const cw = 54;
+    const originX = -DESIGN.width / 2 + 40;
+    const originY = -DESIGN.height / 2 + cw * CARD_RATIO + 14;
+    const step = Math.min(
+      3.2,
+      28 / Math.max(1, stackCards.length - 1 || 1)
+    );
+    const stackW =
+      stackCards.length > 0 ? cw + (stackCards.length - 1) * step : cw;
+    const stackH =
+      stackCards.length > 0
+        ? cw * CARD_RATIO + (stackCards.length - 1) * step
+        : cw * CARD_RATIO;
+    const stackOffset = stackCards.length > 0 ? (stackCards.length - 1) * step : 0;
+    const hitW = Math.max(stackW, 72) + 20;
+    const hitH = stackH + 36;
+    const hit = new Node("CapHit");
+    hit.layer = Layers.Enum.UI_2D;
+    this.infoNode.addChild(hit);
+    hit.setPosition(
+      new Vec3(
+        originX + stackW / 2,
+        originY + stackOffset / 2 - (cw * CARD_RATIO) / 2 + 10,
+        0
+      )
+    );
+    hit.addComponent(UITransform).setContentSize(new Size(hitW, hitH));
+    hit.on(Node.EventType.TOUCH_END, () => {
+      this.showCaptured = !this.showCaptured;
+      this.render();
+    });
+    if (stackCards.length) {
+      stackCards.forEach((id, i) => {
+        const c = createCard(id, cw);
+        c.setPosition(new Vec3(originX + i * step, originY + i * step, 0));
+        this.infoNode.addChild(c);
+      });
+    } else {
+      const empty = new Node("CapEmpty");
+      empty.layer = Layers.Enum.UI_2D;
+      this.infoNode.addChild(empty);
+      empty.setPosition(new Vec3(originX + cw / 2, originY - (cw * CARD_RATIO) / 2, 0));
+      empty.addComponent(UITransform).setContentSize(new Size(cw, cw * CARD_RATIO));
+      const eg = empty.addComponent(Graphics);
+      eg.strokeColor = new Color(201, 169, 97, 115);
+      eg.lineWidth = 1.5;
+      eg.roundRect(-cw / 2, -(cw * CARD_RATIO) / 2, cw, cw * CARD_RATIO, 6);
+      eg.stroke();
+    }
+    const badge = new Node("CapBadge");
+    badge.layer = Layers.Enum.UI_2D;
+    this.infoNode.addChild(badge);
+    badge.setPosition(
+      new Vec3(originX + 32, originY + stackOffset + 18, 0)
+    );
+    badge.addComponent(UITransform).setContentSize(new Size(64, 22));
+    const bg = badge.addComponent(Graphics);
+    bg.fillColor = this.showCaptured
+      ? new Color(184, 53, 43, 235)
+      : new Color(8, 26, 20, 210);
+    bg.roundRect(-32, -11, 64, 22, 11);
+    bg.fill();
+    bg.strokeColor = C.gold;
+    bg.lineWidth = 1;
+    bg.roundRect(-32, -11, 64, 22, 11);
+    bg.stroke();
+    addLabel(badge, `已吃 ${detailCards.length}`, 0, 0, 12, C.cream, true);
+
+    if (!this.showCaptured) return;
+    const mobile = sys.isMobile;
+    const tw = mobile ? 72 : 88;
+    const gap = 8;
+    const innerPad = 14;
+    const panelW = Math.min(DESIGN.width * 0.92, DESIGN.width - 24);
+    const cols = Math.max(
+      1,
+      Math.min(
+        Math.max(1, detailCards.length),
+        Math.floor((panelW - innerPad * 2) / (tw + gap))
+      )
+    );
+    const rows = Math.max(1, Math.ceil(detailCards.length / cols));
+    const panelH = Math.min(
+      DESIGN.height * 0.55,
+      Math.max(120, rows * (tw * CARD_RATIO + gap) + innerPad * 2 + 40)
+    );
+    const panel = new Node("CapPanel");
+    panel.layer = Layers.Enum.UI_2D;
+    this.infoNode.addChild(panel);
+    panel.setPosition(
+      new Vec3(0, -DESIGN.height / 2 + panelH / 2 + 12, 0)
+    );
+    panel.addComponent(UITransform).setContentSize(new Size(panelW, panelH));
+    const pg = panel.addComponent(Graphics);
+    pg.fillColor = new Color(8, 26, 20, 240);
+    pg.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
+    pg.fill();
+    pg.strokeColor = C.gold;
+    pg.lineWidth = 1.5;
+    pg.roundRect(-panelW / 2, -panelH / 2, panelW, panelH, 12);
+    pg.stroke();
+    addLabel(panel, "已吃牌", 0, panelH / 2 - 22, 14, C.gold, true);
+    const close = new Node("CapClose");
+    close.layer = Layers.Enum.UI_2D;
+    panel.addChild(close);
+    close.setPosition(new Vec3(panelW / 2 - 24, panelH / 2 - 24, 0));
+    close.addComponent(UITransform).setContentSize(new Size(32, 32));
+    addLabel(
+      close,
+      "×",
+      0,
+      0,
+      22,
+      new Color(243, 234, 214, 190),
+      true
+    );
+    close.on(Node.EventType.TOUCH_END, () => {
+      this.showCaptured = false;
+      this.render();
+    });
+    if (!detailCards.length) {
+      addLabel(
+        panel,
+        "暂无已吃牌",
+        0,
+        -8,
+        15,
+        new Color(243, 234, 214, 165),
+        true
+      );
+      return;
+    }
+    detailCards.forEach((id, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const c = createCard(id, tw);
+      c.setPosition(
+        new Vec3(
+          -panelW / 2 + innerPad + col * (tw + gap),
+          panelH / 2 - 40 - row * (tw * CARD_RATIO + gap),
+          0
+        )
+      );
+      panel.addChild(c);
     });
   }
 

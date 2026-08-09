@@ -89,6 +89,7 @@ interface Step {
 export interface TableCallbacks {
   onPickHand(cardId: number): void;
   onPickTable(cardId: number): void;
+  onToggleCaptured?(): void;
   onCancelSelection?(): void;
   onDealSfx?(kind: "shuffle" | "round" | "table"): void;
 }
@@ -124,6 +125,19 @@ export class TableView {
   private pendingCards = new Map<number, Set<number>>();
   /** 状态已扣手牌但出牌动画未完：余牌数先加回 */
   private pendingHand = new Map<number, number>();
+  private capturedStackHit: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null = null;
+  private capturedCloseHit: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null = null;
+
   /** 由外部每帧提供的渲染数据 */
   state: any = null;
   hand: number[] = [];
@@ -132,6 +146,8 @@ export class TableView {
   targets: number[] = [];
   /** 弃牌二次确认中的牌 id，-1 表示无 */
   discardArmed = -1;
+  /** 展开查看全部已吃牌 */
+  showCaptured = false;
   /** 轮末：state 已 ROUND_OVER 但吃牌/翻牌动画未播完 */
   roundEnding = false;
   /** 外部置位：上家动画/状态抖动期间锁手牌与回合 UI */
@@ -289,6 +305,26 @@ export class TableView {
   private onPointer(e: PointerEvent): void {
     this.updateLayout();
     const { x, y } = this.pointerPos(e);
+
+    // 已吃详情随时可开合，优先于动画跳过与出牌点击
+    if (this.capturedCloseHit) {
+      const h = this.capturedCloseHit;
+      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
+        this.showCaptured = false;
+        return;
+      }
+    }
+    if (this.capturedStackHit) {
+      const h = this.capturedStackHit;
+      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
+        this.cb.onToggleCaptured?.();
+        return;
+      }
+    }
+    if (this.showCaptured) {
+      this.showCaptured = false;
+      return;
+    }
 
     if (this.animating) {
       this.skipHold();
@@ -924,10 +960,10 @@ export class TableView {
     }
   }
 
-  /** 自己已吃牌堆原点（左下角） */
+  /** 自己已吃牌堆原点（左下角，避开用户信息） */
   private myCapturedPileOrigin(): Pt {
-    const cardH = 150 * CARD_RATIO;
-    return { x: 12, y: H - cardH - 10 };
+    const cardH = 54 * CARD_RATIO;
+    return { x: 18, y: H - cardH - 14 };
   }
 
   private handSlotAt(i: number, n: number): Pt {
@@ -946,10 +982,10 @@ export class TableView {
     const rel = (seat - this.mySeat + count) % count;
     const right = this.w - 108;
     const mid = this.w / 2;
-    // 2 人：对手正上方，自己右下（左下留给已吃牌）
+    // 2 人：标准对战，对手正上方，自己左下避开手牌
     if (count === 2)
-      return rel === 0 ? { x: right, y: 474 } : { x: mid, y: 58 };
-    if (rel === 0) return { x: right, y: 474 };
+      return rel === 0 ? { x: 108, y: 474 } : { x: mid, y: 58 };
+    if (rel === 0) return { x: 108, y: 474 };
     if (count === 3)
       return rel === 1 ? { x: right, y: 300 } : { x: 108, y: 300 };
     return rel === 1
@@ -1134,24 +1170,135 @@ export class TableView {
     this.drawCaptured(ctx);
   }
 
-  /** 自己的已吃牌堆：横向摊开随时可读 */
+  /** 自己的已吃牌堆：小堆叠 + 常驻入口，随时点开底部详情 */
   private drawCaptured(ctx: CanvasRenderingContext2D): void {
+    this.capturedStackHit = null;
+    this.capturedCloseHit = null;
+    if (!this.state) return;
     const me = [...this.state.players.values()].find(
       (p: any) => p.seat === this.mySeat
     ) as any;
     if (!me) return;
-    const cards = this.displayCaptured(me);
-    if (!cards.length) return;
+    const stackCards = this.displayCaptured(me);
+    const detailCards: number[] = me.captured ? [...me.captured] : [];
     const origin = this.myCapturedPileOrigin();
-    const cw = 150;
-    const maxFanW = Math.min(this.w * 0.48, 620);
-    const step =
-      cards.length <= 1
-        ? 0
-        : Math.min(52, Math.max(26, (maxFanW - cw) / (cards.length - 1)));
-    cards.forEach((id, i) => {
-      drawCard(ctx, id, origin.x + i * step, origin.y, cw);
-    });
+    const cw = 54;
+    const ch = cw * CARD_RATIO;
+    const step = Math.min(
+      3.2,
+      28 / Math.max(1, stackCards.length - 1 || 1)
+    );
+    const stackW =
+      stackCards.length > 0 ? cw + (stackCards.length - 1) * step : cw;
+    const stackH =
+      stackCards.length > 0 ? ch + (stackCards.length - 1) * step : ch;
+    const stackY =
+      stackCards.length > 0
+        ? origin.y - (stackCards.length - 1) * step
+        : origin.y;
+    const hitPad = 10;
+    this.capturedStackHit = {
+      x: origin.x - hitPad,
+      y: stackY - 28 - hitPad,
+      w: Math.max(stackW, 72) + hitPad * 2,
+      h: stackH + 28 + hitPad * 2,
+    };
+    if (stackCards.length) {
+      stackCards.forEach((id, i) => {
+        drawCard(ctx, id, origin.x + i * step, origin.y - i * step, cw);
+      });
+    } else {
+      ctx.save();
+      roundRect(ctx, origin.x, origin.y, cw, ch, 6);
+      ctx.strokeStyle = "rgba(201,169,97,0.45)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.save();
+    roundRect(ctx, origin.x, stackY - 26, 64, 22, 11);
+    ctx.fillStyle = this.showCaptured
+      ? "rgba(184,53,43,0.92)"
+      : "rgba(8,26,20,0.82)";
+    ctx.fill();
+    ctx.strokeStyle = C.gold;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = C.cream;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `600 12px "Songti SC", serif`;
+    ctx.fillText(`已吃 ${detailCards.length}`, origin.x + 32, stackY - 15);
+    ctx.restore();
+
+    if (!this.showCaptured) return;
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const tw = coarse ? 72 : 88;
+    const gap = 8;
+    const panelW = Math.min(this.w * 0.92, this.w - 24);
+    const innerPad = 14;
+    const cols = Math.max(
+      1,
+      Math.min(
+        Math.max(1, detailCards.length),
+        Math.floor((panelW - innerPad * 2) / (tw + gap))
+      )
+    );
+    const rows = Math.max(1, Math.ceil(detailCards.length / cols));
+    const panelH = Math.min(
+      H * 0.55,
+      Math.max(
+        120,
+        rows * (tw * CARD_RATIO + gap) + innerPad * 2 + 40
+      )
+    );
+    const px = (this.w - panelW) / 2;
+    const py = H - panelH - 12;
+    const closeSize = 32;
+    this.capturedCloseHit = {
+      x: px + panelW - closeSize - 8,
+      y: py + 8,
+      w: closeSize,
+      h: closeSize,
+    };
+    ctx.save();
+    roundRect(ctx, px, py, panelW, panelH, 12);
+    ctx.fillStyle = "rgba(8,26,20,0.94)";
+    ctx.fill();
+    ctx.strokeStyle = C.gold;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = C.gold;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `600 14px "Songti SC", serif`;
+    ctx.fillText("已吃牌", px + panelW / 2, py + 22);
+    ctx.fillStyle = "rgba(243, 234, 214, 0.75)";
+    ctx.font = `600 22px "Helvetica Neue", Arial, sans-serif`;
+    ctx.fillText(
+      "×",
+      this.capturedCloseHit.x + closeSize / 2,
+      this.capturedCloseHit.y + closeSize / 2
+    );
+    if (!detailCards.length) {
+      ctx.fillStyle = "rgba(243,234,214,0.65)";
+      ctx.font = `600 15px "Songti SC", serif`;
+      ctx.fillText("暂无已吃牌", px + panelW / 2, py + panelH / 2 + 8);
+    } else {
+      detailCards.forEach((id, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        drawCard(
+          ctx,
+          id,
+          px + innerPad + col * (tw + gap),
+          py + 40 + row * (tw * CARD_RATIO + gap),
+          tw
+        );
+      });
+    }
+    ctx.restore();
   }
 
   private drawPanels(ctx: CanvasRenderingContext2D): void {

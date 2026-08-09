@@ -906,7 +906,7 @@ export class LobbyUI {
 
   private buildRules(): Node {
     const rw = Math.round((DESIGN.width * 2) / 3);
-    const rh = Math.round((DESIGN.height * 2) / 3);
+    const rh = DESIGN.height - 72;
     const panel = this.panel("Rules", rw, rh);
     this.makeCloseX(panel, () => this.closeRules());
     this.makeLabel(panel, "玩法规则", 0, rh / 2 - 40, 24, C.gold);

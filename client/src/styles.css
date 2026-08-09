@@ -676,8 +676,8 @@ input:focus {
   flex-direction: column;
   overflow: hidden;
   width: min(66.67vw, calc(100vw - 24px));
-  height: min(66.67vh, calc(100dvh - 24px));
-  max-height: min(66.67vh, calc(100dvh - 24px));
+  height: calc(100dvh - 72px);
+  max-height: calc(100dvh - 72px);
 }
 
 .rules-panel .title {
@@ -1164,8 +1164,8 @@ input:focus {
 
 #ui.rot .rules-panel {
   width: 66.67%;
-  height: 66.67%;
-  max-height: 66.67%;
+  height: calc(100% - 72px);
+  max-height: calc(100% - 72px);
 }
 
 #ui.rot .room-panel,
@@ -1286,9 +1286,14 @@ input:focus {
   .room-panel,
   .result-panel,
   .guide-panel,
-  .rules-panel,
   #rank > .panel {
     height: calc(100dvh - 20px);
+    padding: 14px 18px;
+  }
+
+  .rules-panel {
+    height: calc(100dvh - 72px);
+    max-height: calc(100dvh - 72px);
     padding: 14px 18px;
   }
 
