@@ -1,7 +1,7 @@
 /**
  * 牌定义与基础规则：54 张牌（含大小王）、配对判定、计分
  *
- * 牌 id 编码：0..51 = 花色*13 + (rank-1)，52 = 黑鬼（小王），53 = 红鬼（大王）
+ * 牌 id 编码：0..51 = 花色*13 + (rank-1)，52 = 小王，53 = 大王
  * 花色顺序：0=♠ 1=♥ 2=♦ 3=♣
  */
 
@@ -64,7 +64,7 @@ export function canPair(a: number, b: number): boolean {
 }
 
 /**
- * 计分：红鬼 30；红A 20；红 9~K 各 10；红 2~8 按面值；其余（含黑鬼、黑牌）0
+ * 计分：大王 30；红A 20；红 9~K 各 10；红 2~8 按面值；其余（含小王、黑牌）0
  */
 export function cardScore(id: number): number {
   if (id === RED_JOKER_ID) return 30;

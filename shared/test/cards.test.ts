@@ -20,7 +20,7 @@ describe("牌与计分", () => {
     expect(totalScore(deck)).toBe(TOTAL_SCORE);
   });
 
-  it("计分：红鬼30 / 红A20 / 红9~K各10 / 红2~8按面值 / 黑牌与小王0", () => {
+  it("计分：大王30 / 红A20 / 红9~K各10 / 红2~8按面值 / 黑牌与小王0", () => {
     expect(cardScore(RED_JOKER_ID)).toBe(30);
     expect(cardScore(BLACK_JOKER_ID)).toBe(0);
     expect(cardScore(card(1, 1))).toBe(20); // ♥A

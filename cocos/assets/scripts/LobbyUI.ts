@@ -561,7 +561,7 @@ export class LobbyUI {
   private buildLobby(): Node {
     const panel = this.panel("Lobby", 400, 620);
     this.makeLabel(panel, "捡红点", 0, 250, 38, C.gold);
-    this.makeLabel(panel, "出手牌凑十吃红分 · 红鬼最大", 0, 208, 15, C.cream);
+    this.makeLabel(panel, "出手牌凑十吃红分 · 大王最大", 0, 208, 15, C.cream);
 
     this.makeLabel(panel, "昵称", -130, 158, 17, C.goldDim);
     this.nameBox = this.makeEdit(panel, 0, 153, 250, 38, "请输入昵称");
@@ -872,7 +872,7 @@ export class LobbyUI {
     this.makeLabel(panel, "怎么玩", 0, 170, 28, C.gold);
     const lines = [
       "1. 目标：吃红色分牌，比底分（240÷人数）高就赢",
-      "红鬼 30 · 红A 20 · 红9~K 10 · 红2~8 面值",
+      "大王 30 · 红A 20 · 红9~K 10 · 红2~8 面值",
       "2. 配对：A~9 凑成 10；10/J/Q/K 同点；大小王互吃",
       "3. 操作：点手牌 → 有目标则吃，无目标再点一次弃牌",
       "4. 每回合出手牌后再翻牌堆，能吃也要吃",
@@ -931,7 +931,7 @@ export class LobbyUI {
       "牌：54 张含大小王。手牌 24 张均分，桌面 6 张，牌堆 24。",
       "配对：A~9 相加为 10；10/J/Q/K 同点；大小王互配。",
       "流程：出手牌 → 能配必吃 → 翻牌堆同样能配必吃 → 下家。",
-      "计分：红鬼 30，红 A 20，红 9~K 各 10，红 2~8 按面值。",
+      "计分：大王 30，红 A 20，红 9~K 各 10，红 2~8 按面值。",
       "胜负：得分 − 底分（240÷人数），正为赢、负为输。",
       "多轮：不限局数；首轮随机庄、之后逆时针；菜单可查分，房主可结算。",
     ];
