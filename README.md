@@ -80,9 +80,11 @@ npx tsx tools/spectateSmoke.ts
 ### GitHub Pages（静态站 + 离线人机）
 
 1. 仓库 Settings → Pages → Source 选 **GitHub Actions**
-2. 推送 `main` 后自动构建；地址：  
-   https://jadexusq.github.io/jianhongdian/
+2. 推送 `main` 后自动构建；地址：
+   - Vite：https://jadexusq.github.io/jianhongdian/
+   - Cocos：https://jadexusq.github.io/jianhongdian/cocos/
 3. 打开后点 **「人机练习（可离线）」** 即可玩（不依赖服务器）
+4. Cocos 产物：本机 Creator 构建 `web-mobile` 后执行 `node tools/syncCocosPages.mjs`，再提交 `publish/cocos/`
 
 ### Render 免费档（联网对战服务端）
 

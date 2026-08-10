@@ -24,13 +24,40 @@ interface RoomLike {
   onLeave(cb: (code: number) => void): void;
 }
 
+function configuredWsUrl(): string | undefined {
+  const g = globalThis as any;
+  try {
+    const q = new URLSearchParams(g.location?.search || "").get("ws")?.trim();
+    if (q) return q;
+  } catch {
+    /* ignore */
+  }
+  const fromGlobal =
+    typeof g.__JHD_WS__ === "string" ? g.__JHD_WS__.trim() : "";
+  return fromGlobal || undefined;
+}
+
+/** 是否已配置远程 WebSocket（Pages HTTPS 联网依赖此项） */
+export function hasRemoteWs(): boolean {
+  return !!configuredWsUrl();
+}
+
 function defaultWsUrl(): string {
+  const configured = configuredWsUrl();
+  if (configured) return configured;
   const g = globalThis as any;
   const host =
     typeof g.location?.hostname === "string" && g.location.hostname
       ? g.location.hostname
       : "localhost";
   return `ws://${host}:2567`;
+}
+
+function assertOnlineReady(): void {
+  const g = globalThis as any;
+  if (g.location?.protocol === "https:" && !hasRemoteWs()) {
+    throw new Error("联网未配置，请先用人机练习；或部署服务端后设置 ?ws= / __JHD_WS__");
+  }
 }
 
 const TOKEN_KEY = "jhd.reconnect";
@@ -164,6 +191,7 @@ export class Net {
 
   private async enterRoom(connect: () => Promise<RoomLike>): Promise<void> {
     if (this.joining) throw new Error("正在进入房间，请稍候");
+    assertOnlineReady();
     this.joining = true;
     try {
       await this.leave().catch(() => undefined);

@@ -24,13 +24,39 @@ jobs:
           node-version: "20"
           cache: npm
       - run: npm ci
-      - name: Build client
+      - name: Build Vite client
         env:
           VITE_BASE: /jianhongdian/
           VITE_OFFLINE_ONLY: "1"
           # 可选：部署了 Colyseus 后在仓库 Secrets 填 VITE_WS=wss://your-host
           VITE_WS: ${{ secrets.VITE_WS }}
         run: npm run build -w client
+      - name: Merge Cocos web-mobile under /cocos/
+        env:
+          VITE_WS: ${{ secrets.VITE_WS }}
+        run: |
+          test -f publish/cocos/index.html
+          mkdir -p client/dist/cocos
+          cp -R publish/cocos/. client/dist/cocos/
+          if [ -n "$VITE_WS" ]; then
+            node -e '
+              const fs = require("fs");
+              const p = "client/dist/cocos/index.html";
+              let h = fs.readFileSync(p, "utf8");
+              const ws = JSON.stringify(process.env.VITE_WS);
+              const tag = `<script>window.__JHD_WS__=${ws};</script>`;
+              if (h.includes("window.__JHD_WS__")) {
+                h = h.replace(
+                  /<script>window\.__JHD_WS__=.*?<\/script>/,
+                  tag
+                );
+              } else {
+                h = h.replace("<head>", "<head>\n  " + tag);
+              }
+              fs.writeFileSync(p, h);
+              console.log("injected __JHD_WS__");
+            '
+          fi
       - uses: actions/upload-pages-artifact@v3
         with:
           path: client/dist
