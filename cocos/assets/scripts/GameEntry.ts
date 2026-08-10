@@ -1573,7 +1573,10 @@ export class GameEntry extends Component {
 
     for (const id of this.lingerCards) {
       if (table.indexOf(id) >= 0) continue;
-      if (this.matchQueue.some((m) => m.targetId === id || m.cardId === id))
+      // MATCH 居中层已画的牌不重绘；命中层只跳过出手那张，目标与排队暂留必须留在桌面
+      if (this.matchCommit?.cards.includes(id)) continue;
+      const hit = this.matchQueue[0];
+      if (hit && this.hitTargetId === hit.targetId && id === hit.cardId)
         continue;
       const pos = this.lastTablePos.get(id);
       if (!pos) continue;

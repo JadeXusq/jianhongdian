@@ -414,8 +414,14 @@ export class TableView {
         };
       if (this.tableSlots.has(ev.target))
         this.lingerTable.set(ev.target, { ...this.tableSlots.get(ev.target)! });
-      this.lingerHold.delete(ev.target);
-      this.lingerHold.delete(ev.card);
+      else if (!this.lingerTable.has(ev.target))
+        this.lingerTable.set(ev.target, {
+          x: targetSlot.x,
+          y: targetSlot.y,
+          w: TABLE_CARD_W,
+        });
+      // 命中/MATCH 前始终暂留，避免 prune 在动画间隙把目标牌清掉
+      this.lingerHold.add(ev.target);
       const hitSlot = {
         x: targetSlot.x + 6,
         y: targetSlot.y + TABLE_CARD_W * CARD_RATIO * 0.28,
