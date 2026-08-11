@@ -442,6 +442,13 @@ export class TableView {
         });
       // 命中/MATCH 前始终暂留，避免 prune 在动画间隙把目标牌清掉
       this.lingerHold.add(ev.target);
+      // events 可能早于 state：吃牌一开始就冻结落点，避免其余牌先挤位
+      if (!this.tableLayoutFreeze) {
+        this.tableLayoutFreeze = new Map();
+        for (const [id, s] of this.tableSlots)
+          this.tableLayoutFreeze.set(id, { ...s });
+      }
+      this.tableLayoutFreeze.delete(ev.target);
       const hitSlot = {
         x: targetSlot.x + 6,
         y: targetSlot.y + TABLE_CARD_W * CARD_RATIO * 0.28,
