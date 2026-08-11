@@ -464,17 +464,33 @@ input:focus {
   touch-action: pan-y;
 }
 
+#result.screen,
+#scores.screen {
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
 .result-panel,
 .scores-panel {
   width: min(420px, calc(100vw - 28px));
-  max-height: calc(100dvh - 24px);
+  height: 100%;
+  max-height: 100%;
   padding: 12px 14px 12px;
 }
 
 .result-panel .result-list,
 .scores-panel .result-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.result-panel > .result-actions,
+.scores-panel > .subtitle {
   flex: none;
-  overflow: visible;
 }
 
 .room-status {
@@ -490,6 +506,7 @@ input:focus {
 .result-panel > .title,
 .result-panel > .result-dots,
 .result-panel > .row,
+.scores-panel > .title,
 .guide-panel > .title,
 .guide-panel > .btn,
 .rules-panel > .btn,
@@ -1209,11 +1226,17 @@ input:focus {
   height: calc(100% - 12px);
 }
 
+#ui.rot #result.screen,
+#ui.rot #scores.screen {
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
 #ui.rot .result-panel,
 #ui.rot .scores-panel {
   width: min(460px, 72%);
-  height: auto;
-  max-height: calc(100% - 24px);
+  height: 100%;
+  max-height: 100%;
   padding: 10px 14px 12px;
 }
 
@@ -1330,8 +1353,8 @@ input:focus {
 
   .result-panel,
   .scores-panel {
-    height: auto;
-    max-height: calc(100dvh - 20px);
+    height: 100%;
+    max-height: 100%;
     padding: 10px 14px;
   }
 
