@@ -2260,7 +2260,7 @@ export class GameEntry extends Component {
         255,
         255,
         255,
-        tid === "anime" ? 185 : tid === "mohong" ? 180 : 160
+        tid === "jilan" ? 175 : tid === "mohong" ? 180 : 160
       );
       pat.active = true;
     } else if (pat) {
@@ -2277,7 +2277,7 @@ export class GameEntry extends Component {
     }
     const bg = border.getComponent(Graphics)!;
     bg.clear();
-    const radius = tid === "anime" ? 28 : tid === "mohong" ? 12 : 18;
+    const radius = tid === "jilan" ? 20 : tid === "mohong" ? 12 : 18;
     bg.lineWidth = 2;
     bg.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 90);
     bg.roundRect(-w / 2 + 26, -h / 2 + 26, w - 52, h - 52, radius);

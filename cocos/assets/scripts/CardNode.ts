@@ -316,18 +316,11 @@ function drawFaceChrome(g: Graphics, w: number, h: number): void {
       g.rect(w - m - s, -m - s, s, s);
       g.fill();
     }
-  } else if (tid === "anime") {
-    g.fillColor = new Color(C.gold.r, C.gold.g, C.gold.b, 140);
-    for (const [px, py] of [
-      [w * 0.82, -h * 0.12],
-      [w * 0.88, -h * 0.22],
-      [w * 0.14, -h * 0.78],
-    ]) {
-      g.circle(px, py, w * 0.03);
-      g.fill();
-    }
-    g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 110);
-    g.roundRect(m, -h + m, w - m * 2, h - m * 2, w * 0.12);
+  } else if (tid === "jilan") {
+    g.strokeColor = new Color(C.gold.r, C.gold.g, C.gold.b, 100);
+    g.roundRect(m, -h + m, w - m * 2, h - m * 2, w * 0.08);
+    g.stroke();
+    g.circle(w * 0.78, -h * 0.18, w * 0.05);
     g.stroke();
   }
 }
@@ -336,8 +329,8 @@ function drawBack(node: Node, g: Graphics, w: number, h: number): void {
   const tid = currentThemeId();
   g.lineWidth = Math.max(0.5, w * 0.012);
   g.strokeColor =
-    tid === "anime"
-      ? new Color(255, 141, 199, 100)
+    tid === "jilan"
+      ? new Color(212, 196, 154, 95)
       : tid === "mohong"
       ? new Color(196, 163, 106, 90)
       : new Color(201, 169, 97, 90);
@@ -352,8 +345,8 @@ function drawBack(node: Node, g: Graphics, w: number, h: number): void {
 
   const s = w * 0.42;
   g.fillColor =
-    tid === "anime"
-      ? new Color(255, 141, 199, 230)
+    tid === "jilan"
+      ? new Color(212, 196, 154, 230)
       : tid === "mohong"
       ? new Color(184, 53, 43, 235)
       : new Color(201, 169, 97, 230);

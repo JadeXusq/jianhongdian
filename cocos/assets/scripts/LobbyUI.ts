@@ -997,7 +997,7 @@ export class LobbyUI {
   ): { id: string; node: Node; label: Label }[] {
     const items = [
       { id: "jade", name: "青绿金", x: -114 },
-      { id: "anime", name: "动漫风", x: 0 },
+      { id: "jilan", name: "霁蓝", x: 0 },
       { id: "mohong", name: "墨红", x: 114 },
     ];
     return items.map((it) => {
@@ -1056,8 +1056,8 @@ export class LobbyUI {
     if (sf) sp.spriteFrame = sf;
     const tg = thumb.addComponent(Graphics);
     tg.fillColor =
-      id === "anime"
-        ? new Color(61, 42, 109, 255)
+      id === "jilan"
+        ? new Color(26, 61, 92, 255)
         : id === "mohong"
           ? new Color(26, 21, 20, 255)
           : new Color(28, 76, 59, 255);
@@ -1145,7 +1145,7 @@ export class LobbyUI {
 
   private panelRadius(): number {
     const tid = currentThemeId();
-    return tid === "anime" ? 22 : tid === "mohong" ? 10 : 16;
+    return tid === "jilan" ? 16 : tid === "mohong" ? 10 : 16;
   }
 
   private panel(name: string, w: number, h: number): Node {
@@ -1159,7 +1159,7 @@ export class LobbyUI {
     g.roundRect(-w / 2, -h / 2, w, h, r);
     g.fill();
     g.strokeColor = C.goldDim;
-    g.lineWidth = currentThemeId() === "anime" ? 3 : 2;
+    g.lineWidth = 2;
     g.roundRect(-w / 2, -h / 2, w, h, r);
     g.stroke();
     return n;

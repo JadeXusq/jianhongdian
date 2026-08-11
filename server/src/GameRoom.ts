@@ -21,7 +21,7 @@ import {
   discardAnimMs,
   NAME_MAX_LEN,
   resolveThemeId,
-  isThemeId,
+  isThemeInput,
 } from "@jhd/shared";
 import { registerCode, unregisterCode } from "./roomCodes";
 import { recordResult } from "./store";
@@ -103,7 +103,7 @@ export class GameRoom extends Room<RoomState> {
       client.send("error", { message: "仅房主可切换主题" });
       return;
     }
-    if (!isThemeId(msg.themeId)) {
+    if (!isThemeInput(msg.themeId)) {
       client.send("error", { message: "未知主题" });
       return;
     }

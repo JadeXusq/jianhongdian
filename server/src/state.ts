@@ -45,7 +45,7 @@ export class RoomState extends Schema {
   @type("number") pendingStockCard = -1;
   /** 当前回合截止时间戳（毫秒），客户端据此画倒计时环 */
   @type("number") turnDeadline = 0;
-  /** 房间桌面主题：jade | anime */
+  /** 房间桌面主题：jade | jilan | mohong */
   @type("string") themeId = "jade";
   @type({ map: PlayerSchema }) players = new MapSchema<PlayerSchema>();
 }

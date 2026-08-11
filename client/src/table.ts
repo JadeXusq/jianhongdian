@@ -1123,7 +1123,7 @@ export class TableView {
     if (felt) {
       ctx.save();
       ctx.globalAlpha =
-        tid === "anime" ? 0.72 : tid === "mohong" ? 0.7 : 0.62;
+        tid === "jilan" ? 0.68 : tid === "mohong" ? 0.7 : 0.62;
       const pat = ctx.createPattern(felt, "repeat");
       if (pat) {
         ctx.fillStyle = pat;
@@ -1132,24 +1132,21 @@ export class TableView {
       ctx.restore();
     }
 
-    if (tid === "anime") {
+    if (tid === "jilan") {
       ctx.save();
-      ctx.globalAlpha = 0.12;
-      ctx.fillStyle = C.gold;
-      for (let i = 0; i < 16; i++) {
-        const px = 80 + ((i * 137) % (W - 160));
-        const py = 90 + ((i * 97) % (H - 180));
+      ctx.strokeStyle = C.gold;
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.1;
+      for (let i = 0; i < 8; i++) {
+        const px = 120 + ((i * 151) % (W - 240));
+        const py = 140 + ((i * 113) % (H - 280));
+        const r = 22 + (i % 3) * 10;
         ctx.beginPath();
-        for (let k = 0; k < 5; k++) {
-          const ang = -Math.PI / 2 + (k * 2 * Math.PI) / 5;
-          const r = 10 + (i % 3) * 3;
-          const nx = px + Math.cos(ang) * r;
-          const ny = py + Math.sin(ang) * r;
-          if (k === 0) ctx.moveTo(nx, ny);
-          else ctx.lineTo(nx, ny);
-        }
-        ctx.closePath();
-        ctx.fill();
+        ctx.arc(px, py, r, Math.PI * 0.15, Math.PI * 0.95);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(px + r * 0.35, py - 4, r * 0.55, Math.PI * 0.2, Math.PI * 0.9);
+        ctx.stroke();
       }
       ctx.restore();
     } else if (tid === "mohong") {
@@ -1165,7 +1162,7 @@ export class TableView {
       ctx.restore();
     }
 
-    const radius = tid === "anime" ? 28 : tid === "mohong" ? 12 : 18;
+    const radius = tid === "jilan" ? 20 : tid === "mohong" ? 12 : 18;
     ctx.strokeStyle = `${C.gold}55`;
     ctx.lineWidth = 2;
     roundRect(ctx, 26, 26, W - 52, H - 52, radius);
@@ -1187,14 +1184,11 @@ export class TableView {
     });
 
     ctx.save();
-    ctx.globalAlpha = tid === "anime" ? 0.08 : 0.06;
+    ctx.globalAlpha = tid === "jilan" ? 0.07 : 0.06;
     ctx.fillStyle = C.gold;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font =
-      tid === "anime"
-        ? `700 110px "PingFang SC", "Helvetica Neue", sans-serif`
-        : `700 130px "Songti SC", "STSong", serif`;
+    ctx.font = `700 130px "Songti SC", "STSong", serif`;
     ctx.fillText("捡红点", W / 2, 500);
     ctx.restore();
   }

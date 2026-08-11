@@ -39,15 +39,15 @@ export function applyTheme(id: unknown): ThemeId {
   root.style.setProperty("--panel-bg-bot", t.canvas.feltOuter);
   root.style.setProperty(
     "--panel-radius",
-    tid === "anime" ? "22px" : tid === "mohong" ? "10px" : "14px"
+    tid === "jilan" ? "16px" : tid === "mohong" ? "10px" : "14px"
   );
   root.style.setProperty(
     "--ctrl-radius",
-    tid === "anime" ? "16px" : tid === "mohong" ? "7px" : "9px"
+    tid === "jilan" ? "11px" : tid === "mohong" ? "7px" : "9px"
   );
   root.style.setProperty(
     "--title-track",
-    tid === "anime" ? "2px" : tid === "mohong" ? "6px" : "8px"
+    tid === "jilan" ? "5px" : tid === "mohong" ? "6px" : "8px"
   );
   try {
     localStorage.setItem("jhd.theme", tid);

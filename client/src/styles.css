@@ -13,8 +13,8 @@
   --serif: "Songti SC", "STSong", "SimSun", serif;
 }
 
-html[data-theme="anime"] {
-  --serif: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+html[data-theme="jilan"] {
+  --serif: "Songti SC", "STSong", "SimSun", serif;
 }
 
 html[data-theme="mohong"] {
@@ -192,11 +192,11 @@ body {
   text-align: center;
 }
 
-html[data-theme="anime"] .panel {
-  border-width: 2px;
+html[data-theme="jilan"] .panel {
+  border-width: 1px;
   box-shadow:
-    0 0 0 1px rgba(255, 141, 199, 0.25),
-    0 18px 50px rgba(40, 10, 60, 0.55);
+    0 0 0 1px rgba(212, 196, 154, 0.28),
+    0 18px 52px rgba(6, 18, 36, 0.6);
 }
 
 html[data-theme="mohong"] .panel {
@@ -206,12 +206,12 @@ html[data-theme="mohong"] .panel {
     0 20px 56px rgba(0, 0, 0, 0.65);
 }
 
-html[data-theme="anime"] .panel::before,
-html[data-theme="anime"] .panel::after {
-  width: 18px;
-  height: 18px;
-  border-radius: 6px 0 0 0;
-  opacity: 0.7;
+html[data-theme="jilan"] .panel::before,
+html[data-theme="jilan"] .panel::after {
+  width: 20px;
+  height: 20px;
+  border-radius: 2px 0 0 0;
+  opacity: 0.65;
 }
 
 html[data-theme="mohong"] .panel::before,
@@ -290,9 +290,11 @@ html[data-theme="mohong"] .panel::after {
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
 }
 
-html[data-theme="anime"] .title {
-  font-weight: 800;
-  text-shadow: 0 0 18px color-mix(in srgb, var(--gold) 55%, transparent);
+html[data-theme="jilan"] .title {
+  font-weight: 700;
+  text-shadow:
+    0 1px 0 rgba(212, 196, 154, 0.25),
+    0 2px 14px rgba(6, 18, 36, 0.7);
 }
 
 html[data-theme="mohong"] .title {

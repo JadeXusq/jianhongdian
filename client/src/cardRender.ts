@@ -257,30 +257,18 @@ function drawFaceChrome(
       ctx.globalAlpha = 0.28;
       ctx.fillRect(x + w - m - s, y + m, s, s);
     }
-  } else if (tid === "anime") {
-    ctx.fillStyle = C.gold;
-    ctx.globalAlpha = 0.55;
-    for (const [px, py] of [
-      [x + w * 0.82, y + h * 0.12],
-      [x + w * 0.88, y + h * 0.22],
-      [x + w * 0.14, y + h * 0.78],
-    ]) {
-      ctx.beginPath();
-      for (let i = 0; i < 5; i++) {
-        const ang = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
-        const r = w * 0.035;
-        const nx = px + Math.cos(ang) * r;
-        const ny = py + Math.sin(ang) * r;
-        if (i === 0) ctx.moveTo(nx, ny);
-        else ctx.lineTo(nx, ny);
-      }
-      ctx.closePath();
-      ctx.fill();
-    }
+  } else if (tid === "jilan") {
     ctx.strokeStyle = C.gold;
-    ctx.globalAlpha = 0.45;
-    ctx.lineWidth = Math.max(1, w * 0.018);
-    roundRect(ctx, x + m, y + m, w - m * 2, h - m * 2, w * 0.12);
+    ctx.globalAlpha = 0.4;
+    ctx.lineWidth = Math.max(1, w * 0.016);
+    roundRect(ctx, x + m, y + m, w - m * 2, h - m * 2, w * 0.08);
+    ctx.stroke();
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(x + w * 0.78, y + h * 0.18, w * 0.06, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + w * 0.82, y + h * 0.16, w * 0.045, 0.2, Math.PI * 1.4);
     ctx.stroke();
   }
   ctx.restore();
@@ -314,9 +302,7 @@ function drawFace(
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font =
-      tid === "anime"
-        ? `800 ${w * 0.28}px "PingFang SC", "Helvetica Neue", sans-serif`
-        : tid === "mohong"
+      tid === "jilan" || tid === "mohong"
         ? `700 ${w * 0.26}px "Songti SC", "STSong", serif`
         : `700 ${w * 0.26}px "Helvetica Neue", Arial, sans-serif`;
     ctx.fillText(label, x + w * 0.19, y + h * 0.14);
@@ -334,10 +320,7 @@ function drawFace(
     const cy = y + h * 0.87;
     const rad = w * 0.14;
     ctx.fillStyle = C.seal;
-    if (tid === "anime") {
-      roundRect(ctx, cx - rad, cy - rad, rad * 2, rad * 2, rad * 0.45);
-      ctx.fill();
-    } else if (tid === "mohong") {
+    if (tid === "mohong") {
       ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
     } else {
       ctx.beginPath();
@@ -346,10 +329,7 @@ function drawFace(
     }
     ctx.lineWidth = Math.max(1, w * 0.015);
     ctx.strokeStyle = C.gold;
-    if (tid === "anime") {
-      roundRect(ctx, cx - rad, cy - rad, rad * 2, rad * 2, rad * 0.45);
-      ctx.stroke();
-    } else if (tid === "mohong") {
+    if (tid === "mohong") {
       ctx.strokeRect(cx - rad, cy - rad, rad * 2, rad * 2);
     } else {
       ctx.beginPath();
@@ -373,8 +353,8 @@ function drawBack(
 ): void {
   const tid = currentThemeId();
   ctx.strokeStyle =
-    tid === "anime"
-      ? "rgba(255,141,199,0.4)"
+    tid === "jilan"
+      ? "rgba(212,196,154,0.38)"
       : tid === "mohong"
       ? "rgba(196,163,106,0.35)"
       : "rgba(201,169,97,0.35)";
@@ -392,8 +372,8 @@ function drawBack(
   }
   const s = w * 0.42;
   ctx.fillStyle =
-    tid === "anime"
-      ? "rgba(255,141,199,0.9)"
+    tid === "jilan"
+      ? "rgba(212,196,154,0.92)"
       : tid === "mohong"
       ? "rgba(184,53,43,0.92)"
       : "rgba(201,169,97,0.9)";

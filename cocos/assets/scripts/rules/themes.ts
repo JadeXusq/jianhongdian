@@ -1,7 +1,7 @@
 // ⚠️ 自动生成，请勿直接修改：源文件在 shared/src/，改完执行 node tools/syncCocosLib.mjs
 /** 房间桌面主题（Web / Cocos / 服务端白名单同源） */
 
-export type ThemeId = "jade" | "anime" | "mohong";
+export type ThemeId = "jade" | "jilan" | "mohong";
 
 export interface ThemeCanvas {
   feltInner: string;
@@ -34,8 +34,11 @@ export interface ThemeDef {
   css: ThemeCss;
 }
 
-export const THEME_IDS: ThemeId[] = ["jade", "anime", "mohong"];
+export const THEME_IDS: ThemeId[] = ["jade", "jilan", "mohong"];
 export const DEFAULT_THEME_ID: ThemeId = "jade";
+
+/** 旧版「动漫风」id，读取存档/房间时迁到霁蓝 */
+const THEME_ALIASES: Record<string, ThemeId> = { anime: "jilan" };
 
 export const THEMES: Record<ThemeId, ThemeDef> = {
   jade: {
@@ -64,30 +67,30 @@ export const THEMES: Record<ThemeId, ThemeDef> = {
       ink: "#0b1f18",
     },
   },
-  anime: {
-    id: "anime",
-    name: "动漫风",
+  jilan: {
+    id: "jilan",
+    name: "霁蓝",
     canvas: {
-      feltInner: "#3d2a6d",
-      feltOuter: "#1a1038",
-      gold: "#ff8dc7",
-      goldDim: "#c45a9a",
-      seal: "#ff4d6d",
-      cream: "#fff5fb",
-      ink: "#2a1a3a",
-      cardFace: "#fffafc",
-      cardBack: "#6b3fa0",
-      shadow: "rgba(40,10,60,0.45)",
-      dim: "rgba(30,15,50,0.55)",
-      panelBg: "rgba(28,16,56,0.78)",
+      feltInner: "#1a3d5c",
+      feltOuter: "#0a1628",
+      gold: "#d4c49a",
+      goldDim: "#7a6b45",
+      seal: "#c23b3b",
+      cream: "#f2efe6",
+      ink: "#1a2430",
+      cardFace: "#f7f5ef",
+      cardBack: "#163452",
+      shadow: "rgba(6,14,28,0.5)",
+      dim: "rgba(8,16,28,0.58)",
+      panelBg: "rgba(10,24,42,0.8)",
     },
     css: {
-      gold: "#ff8dc7",
-      goldDim: "rgba(255, 141, 199, 0.4)",
-      seal: "#ff4d6d",
-      cream: "#fff5fb",
-      felt: "#2b1b52",
-      ink: "#120a24",
+      gold: "#d4c49a",
+      goldDim: "rgba(212, 196, 154, 0.38)",
+      seal: "#c23b3b",
+      cream: "#f2efe6",
+      felt: "#12263c",
+      ink: "#081018",
     },
   },
   mohong: {
@@ -122,6 +125,15 @@ export function isThemeId(v: unknown): v is ThemeId {
   return typeof v === "string" && (THEME_IDS as string[]).includes(v);
 }
 
+/** 是否可接受的主题入参（含历史别名） */
+export function isThemeInput(v: unknown): boolean {
+  return (
+    isThemeId(v) || (typeof v === "string" && v in THEME_ALIASES)
+  );
+}
+
 export function resolveThemeId(v: unknown): ThemeId {
-  return isThemeId(v) ? v : DEFAULT_THEME_ID;
+  if (typeof v !== "string") return DEFAULT_THEME_ID;
+  if (isThemeId(v)) return v;
+  return THEME_ALIASES[v] ?? DEFAULT_THEME_ID;
 }

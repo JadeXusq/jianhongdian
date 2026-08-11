@@ -11,7 +11,7 @@
     "6c48a": {
       "importer": "texture",
       "uuid": "a1000001-1111-4222-8333-000000000004@6c48a",
-      "displayName": "anime-back",
+      "displayName": "jilan-back",
       "id": "6c48a",
       "name": "texture",
       "userData": {
@@ -35,7 +35,7 @@
     "f9941": {
       "importer": "sprite-frame",
       "uuid": "a1000001-1111-4222-8333-000000000004@f9941",
-      "displayName": "anime-back",
+      "displayName": "jilan-back",
       "id": "f9941",
       "name": "spriteFrame",
       "userData": {
