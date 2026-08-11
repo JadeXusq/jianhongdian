@@ -205,8 +205,9 @@ export class TableView {
         this.lingerTable.set(id, { ...slot });
         this.lingerHold.add(id);
       }
-      // 桌面减员后立刻按新长度重排会穿帮；冻结旧落点直到动效结束
-      if (leftTable && !this.tableLayoutFreeze) {
+      // 减员/有新牌未落地时立刻重排会穿帮；冻结旧落点直到新牌揭晓
+      const hasArrival = [...neu].some((id) => !old.has(id));
+      if ((leftTable || hasArrival) && !this.tableLayoutFreeze) {
         this.tableLayoutFreeze = new Map();
         for (const [id, s] of prevSlots)
           this.tableLayoutFreeze.set(id, { ...s });
@@ -863,6 +864,10 @@ export class TableView {
   private releaseTableLayoutFreeze(): void {
     if (!this.tableLayoutFreeze) return;
     if (this.animating || this.lingerHold.size || this.lingerTable.size) return;
+    const table = this.state?.table as number[] | undefined;
+    if (table?.some((id) => this.deferredReveal.has(id))) return;
+    const pending = this.state?.pendingStockCard;
+    if (typeof pending === "number" && pending >= 0) return;
     this.tableLayoutFreeze = null;
   }
 
@@ -932,6 +937,7 @@ export class TableView {
   }
 
   private layout(): void {
+    this.releaseTableLayoutFreeze();
     const table: number[] = [...this.state.table].filter(
       (id) => !this.deferredReveal.has(id)
     );
@@ -941,19 +947,11 @@ export class TableView {
         const frozen = this.tableLayoutFreeze.get(id);
         if (frozen) this.tableSlots.set(id, { ...frozen });
       }
-      const missing = table.filter((id) => !this.tableSlots.has(id));
-      if (missing.length) {
-        const computed = this.computeTableSlots(table);
-        for (const id of missing) {
-          const s = computed.get(id);
-          if (s) this.tableSlots.set(id, s);
-        }
-      }
+      // 冻结期间不把「尚未落地」的牌算进重排，避免其余牌提前挤位
     } else {
       this.tableSlots = this.computeTableSlots(table);
     }
     this.pruneLingerTable(table);
-    this.releaseTableLayoutFreeze();
 
     this.handSlots.clear();
     const n = this.hand.length;
