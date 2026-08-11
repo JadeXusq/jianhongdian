@@ -480,16 +480,13 @@ input:focus {
   max-height: 100%;
   margin-inline: auto;
   padding: 12px 14px 12px;
+  justify-content: flex-start;
 }
 
 .result-panel .result-list,
 .scores-panel .result-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
+  flex: none;
+  overflow: visible;
 }
 
 .result-panel > .result-actions,
