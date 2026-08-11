@@ -116,7 +116,7 @@ export class TableView {
   private lingerTable = new Map<number, Slot>();
   /** 状态已删、events 未到：暂留桌面牌位，防闪没 */
   private lingerHold = new Set<number>();
-  /** 吃牌等桌面减员期间冻结落点，动效完再重排 */
+  /** 本回合桌面落点冻结：吃牌留空，新牌只追加，回合结束后再压实 */
   private tableLayoutFreeze: Map<number, Slot> | null = null;
   private animClock = 0;
   /** 已同步但翻牌动画未开始的牌堆张数，用于延后扣减显示 */
@@ -205,14 +205,21 @@ export class TableView {
         this.lingerTable.set(id, { ...slot });
         this.lingerHold.add(id);
       }
-      // 减员/有新牌未落地时立刻重排会穿帮；冻结旧落点直到新牌揭晓
-      const hasArrival = [...neu].some((id) => !old.has(id));
-      if ((leftTable || hasArrival) && !this.tableLayoutFreeze) {
+      if (leftTable && !this.tableLayoutFreeze) {
         this.tableLayoutFreeze = new Map();
         for (const [id, s] of prevSlots)
           this.tableLayoutFreeze.set(id, { ...s });
         for (const [id, s] of this.tableSlots)
           this.tableLayoutFreeze.set(id, { ...s });
+      }
+      if (this.tableLayoutFreeze) {
+        for (const id of old) {
+          if (!neu.has(id)) this.tableLayoutFreeze.delete(id);
+        }
+        for (const id of next.table as number[]) {
+          if (old.has(id) || this.tableLayoutFreeze.has(id)) continue;
+          this.tableLayoutFreeze.set(id, this.nextFrozenAppendSlot());
+        }
       }
     }
     const prevPending = prev.pendingStockCard;
@@ -861,6 +868,30 @@ export class TableView {
     }
   }
 
+  private nextFrozenAppendSlot(): Slot {
+    const gap = 12;
+    const w = TABLE_CARD_W;
+    const rowH = w * CARD_RATIO + gap;
+    const area = this.area;
+    const occupied = [...(this.tableLayoutFreeze?.values() ?? [])];
+    if (!occupied.length) return this.computeSlotAt(0, 1);
+    let anchor = occupied[0];
+    for (const s of occupied) {
+      if (s.y > anchor.y + 1 || (Math.abs(s.y - anchor.y) < 1 && s.x > anchor.x))
+        anchor = s;
+    }
+    let x = anchor.x + w + gap;
+    let y = anchor.y;
+    if (x + w > area.x + area.w) {
+      let left = occupied[0].x;
+      for (const s of occupied) if (s.x < left) left = s.x;
+      x = left;
+      y = anchor.y + rowH;
+    }
+    return { x, y, w };
+  }
+
+  /** 回合动作全部结束后再压实填空隙 */
   private releaseTableLayoutFreeze(): void {
     if (!this.tableLayoutFreeze) return;
     if (this.animating || this.lingerHold.size || this.lingerTable.size) return;
@@ -868,6 +899,7 @@ export class TableView {
     if (table?.some((id) => this.deferredReveal.has(id))) return;
     const pending = this.state?.pendingStockCard;
     if (typeof pending === "number" && pending >= 0) return;
+    if (this.state?.turnPhase === "CHOOSE_STOCK_TARGET") return;
     this.tableLayoutFreeze = null;
   }
 
@@ -909,29 +941,41 @@ export class TableView {
   /** 含尚未揭晓牌的落点（飞牌终点），不用于静态绘制 */
   private slotForTableCard(cardId: number): Pt | null {
     if (!this.state) return null;
+    if (this.tableLayoutFreeze) {
+      const existing = this.tableLayoutFreeze.get(cardId);
+      if (existing) return { ...existing };
+      const slot = this.nextFrozenAppendSlot();
+      this.tableLayoutFreeze.set(cardId, slot);
+      return { ...slot };
+    }
     const slots = this.computeTableSlots([...this.state.table]);
     return slots.get(cardId) ?? null;
+  }
+
+  private computeSlotAt(index: number, count: number): Slot {
+    const n = Math.max(1, count);
+    const cols = Math.min(9, Math.max(1, n));
+    const gap = 12;
+    const rows = Math.ceil(n / cols);
+    const rowH = TABLE_CARD_W * CARD_RATIO + gap;
+    const area = this.area;
+    const startY = area.y + (area.h - rows * rowH + gap) / 2;
+    const row = Math.floor(index / cols);
+    const inRow = Math.min(cols, n - row * cols);
+    const rowW = inRow * TABLE_CARD_W + (inRow - 1) * gap;
+    const startX = area.x + (area.w - rowW) / 2;
+    return {
+      x: startX + (index % cols) * (TABLE_CARD_W + gap),
+      y: startY + row * rowH,
+      w: TABLE_CARD_W,
+    };
   }
 
   private computeTableSlots(table: number[]): Map<number, Slot> {
     const slots = new Map<number, Slot>();
     if (!table.length) return slots;
-    const cols = Math.min(9, Math.max(1, table.length));
-    const gap = 12;
-    const rows = Math.ceil(table.length / cols);
-    const rowH = TABLE_CARD_W * CARD_RATIO + gap;
-    const area = this.area;
-    const startY = area.y + (area.h - rows * rowH + gap) / 2;
     table.forEach((id, i) => {
-      const row = Math.floor(i / cols);
-      const inRow = Math.min(cols, table.length - row * cols);
-      const rowW = inRow * TABLE_CARD_W + (inRow - 1) * gap;
-      const startX = area.x + (area.w - rowW) / 2;
-      slots.set(id, {
-        x: startX + (i % cols) * (TABLE_CARD_W + gap),
-        y: startY + row * rowH,
-        w: TABLE_CARD_W,
-      });
+      slots.set(id, this.computeSlotAt(i, table.length));
     });
     return slots;
   }
@@ -944,10 +988,13 @@ export class TableView {
     if (this.tableLayoutFreeze) {
       this.tableSlots = new Map();
       for (const id of table) {
-        const frozen = this.tableLayoutFreeze.get(id);
-        if (frozen) this.tableSlots.set(id, { ...frozen });
+        let slot = this.tableLayoutFreeze.get(id);
+        if (!slot) {
+          slot = this.nextFrozenAppendSlot();
+          this.tableLayoutFreeze.set(id, slot);
+        }
+        this.tableSlots.set(id, { ...slot });
       }
-      // 冻结期间不把「尚未落地」的牌算进重排，避免其余牌提前挤位
     } else {
       this.tableSlots = this.computeTableSlots(table);
     }
