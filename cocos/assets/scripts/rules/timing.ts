@@ -29,18 +29,23 @@ export const NAME_MAX_LEN = 10;
 export const ROUND_RESULT_AUTO_MS = 5_000;
 /** 刚切到自己回合时的提示短锁（墙钟，不依赖 RAF 帧计数） */
 export const TURN_UI_LOCK_MS = 150;
-/** 等动画结束后再弹结算的最长等待（须盖住完整吃牌动画，防提前结算） */
+/**
+ * 等动画结束后再弹结算的最长等待。
+ * 最后一手常见「出手吃 + 翻牌吃」，须盖住两段完整吃牌 + 一次弃牌余量。
+ */
 export const ROUND_RESULT_MAX_WAIT_MS =
-  320 +
-  FLY_TARGET_HOLD_MS +
-  HIT_HOLD_MS +
-  220 +
-  MATCH_HOLD_MS +
-  280 +
-  FLY_PILE_HOLD_MS +
-  1_200;
+  2 *
+    (320 +
+      FLY_TARGET_HOLD_MS +
+      HIT_HOLD_MS +
+      220 +
+      MATCH_HOLD_MS +
+      280 +
+      FLY_PILE_HOLD_MS) +
+  (240 + DISCARD_HOLD_MS) +
+  2_000;
 /** 轮末结算前留给 events 消息到达的宽限（防 state 先于 events） */
-export const ROUND_END_EVENT_GRACE_MS = 280;
+export const ROUND_END_EVENT_GRACE_MS = 500;
 
 /** 开局洗牌展示 */
 export const DEAL_SHUFFLE_MS = 700;

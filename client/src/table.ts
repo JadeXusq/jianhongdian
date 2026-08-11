@@ -676,6 +676,17 @@ export class TableView {
     return this.current !== null || this.steps.length > 0 || this.openingDeal;
   }
 
+  /** 轮末结算前：飞牌/暂留/未揭晓/未压实都算未完成 */
+  get settleBusy(): boolean {
+    if (this.animating || this.lingerHold.size || this.lingerTable.size)
+      return true;
+    if (this.tableLayoutFreeze) return true;
+    const table = this.state?.table as number[] | undefined;
+    if (table?.some((id) => this.deferredReveal.has(id))) return true;
+    const pending = this.state?.pendingStockCard;
+    return typeof pending === "number" && pending >= 0;
+  }
+
   /** 新一轮开始时清掉未提交的显示延迟 */
   resetAnimVisuals(): void {
     this.steps.length = 0;

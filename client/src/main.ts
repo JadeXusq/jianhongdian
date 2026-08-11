@@ -221,7 +221,7 @@ function flushRoundOverIfReady(): boolean {
   if (!pendingRoundOver) return false;
   const waited = performance.now() - roundOverWaitStarted;
   if (waited < ROUND_END_EVENT_GRACE_MS) return false;
-  if (view.animating && waited < ROUND_RESULT_MAX_WAIT_MS) return false;
+  if (view.settleBusy && waited < ROUND_RESULT_MAX_WAIT_MS) return false;
   const r = pendingRoundOver;
   pendingRoundOver = null;
   view.roundEnding = false;
@@ -1005,6 +1005,8 @@ function startOffline(): void {
   session.onEvents = (events) => {
     view.pushEvents(events);
     view.hand = session.hand;
+    if (pendingRoundOver && view.settleBusy)
+      roundOverWaitStarted = performance.now();
     for (const ev of events) {
       if (ev.target === undefined) sfx.discard();
       else if (ev.type === "FLIP")
@@ -1095,6 +1097,8 @@ net.onEvents = (events) => {
   if (offline) return;
   view.pushEvents(events);
   view.hand = net.hand;
+  if (pendingRoundOver && view.settleBusy)
+    roundOverWaitStarted = performance.now();
   for (const ev of events) {
     if (ev.target === undefined) sfx.discard();
     else if (ev.type === "FLIP")
