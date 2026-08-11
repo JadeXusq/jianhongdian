@@ -26,6 +26,7 @@ import {
   MATCH_HOLD_S,
   HIT_HOLD_S,
   FLY_TARGET_HOLD_S,
+  FLY_PILE_HOLD_S,
   DISCARD_HOLD_S,
   DEAL_SHUFFLE_S,
   DEAL_FLY_S,
@@ -102,6 +103,7 @@ export class GameEntry extends Component {
   private dealBusy = false;
   private dealRoundPending = false;
   private lastDealRound = 0;
+  private lastPlayFrom: Vec3 | null = null;
   private orientTip!: Node;
 
   private feltNode!: Node;
@@ -1163,6 +1165,21 @@ export class GameEntry extends Component {
     });
   }
 
+  private makeFlyWrap(
+    cardId: number,
+    w: number,
+    faceUp: boolean
+  ): Node {
+    const h = w * CARD_RATIO;
+    const wrap = new Node("FlyWrap");
+    wrap.layer = Layers.Enum.UI_2D;
+    wrap.addComponent(UITransform).setContentSize(new Size(w, h));
+    const card = createCard(cardId, w, { faceUp });
+    card.setPosition(new Vec3(-w / 2, h / 2, 0));
+    wrap.addChild(card);
+    return wrap;
+  }
+
   private flyDealCard(
     cardId: number,
     from: Vec3,
@@ -1171,33 +1188,30 @@ export class GameEntry extends Component {
     flip: boolean,
     onDone: () => void
   ): void {
-    const layer = new Node("DealFly");
-    layer.layer = Layers.Enum.UI_2D;
     this.matchNode.active = true;
-    this.matchNode.addChild(layer);
-    const card = createCard(flip ? 0 : cardId, w, { faceUp: !flip });
-    card.setPosition(from.clone());
-    layer.addChild(card);
     if (flip) {
+      const wrap = this.makeFlyWrap(0, w, false);
+      wrap.setPosition(from.clone());
+      this.matchNode.addChild(wrap);
       const mid = new Vec3((from.x + to.x) / 2, (from.y + to.y) / 2, 0);
-      tween(card)
+      tween(wrap)
         .to(DEAL_FLY_S * 0.5, {
           position: mid,
           scale: new Vec3(0.02, 1, 1),
         })
         .call(() => {
-          layer.removeAllChildren();
-          const face = createCard(cardId, w, { faceUp: true });
+          wrap.removeFromParent();
+          const face = this.makeFlyWrap(cardId, w, true);
           face.setPosition(mid.clone());
           face.setScale(new Vec3(0.02, 1, 1));
-          layer.addChild(face);
+          this.matchNode.addChild(face);
           tween(face)
             .to(DEAL_FLY_S * 0.5, {
               position: to,
               scale: new Vec3(1, 1, 1),
             })
             .call(() => {
-              layer.removeFromParent();
+              face.removeFromParent();
               onDone();
             })
             .start();
@@ -1205,13 +1219,36 @@ export class GameEntry extends Component {
         .start();
       return;
     }
-    tween(card)
+    const wrap = this.makeFlyWrap(cardId, w, true);
+    wrap.setPosition(from.clone());
+    this.matchNode.addChild(wrap);
+    tween(wrap)
       .to(DEAL_FLY_S, { position: to })
       .call(() => {
-        layer.removeFromParent();
+        wrap.removeFromParent();
         onDone();
       })
       .start();
+  }
+
+  private cardFlyFrom(seat: number, _cardId: number): Vec3 {
+    if (seat === this.mySeatNum() && this.lastPlayFrom) {
+      return this.lastPlayFrom.clone();
+    }
+    const p = this.panelPosForSeat(seat);
+    return new Vec3(p.x, p.y, 0);
+  }
+
+  private pilePosForSeat(seat: number): Vec3 {
+    if (seat === this.mySeatNum()) {
+      return new Vec3(
+        -DESIGN.width / 2 + 70,
+        -DESIGN.height / 2 + 54 * CARD_RATIO + 40,
+        0
+      );
+    }
+    const p = this.panelPosForSeat(seat);
+    return new Vec3(p.x, p.y - 10, 0);
   }
 
   private handSlotVec(i: number, n: number): Vec3 {
@@ -1250,27 +1287,24 @@ export class GameEntry extends Component {
     onDone: () => void
   ): void {
     this.matchBusy = true;
-    const layer = new Node("StockFlip");
-    layer.layer = Layers.Enum.UI_2D;
     this.matchNode.active = true;
-    this.matchNode.addChild(layer);
     const from = new Vec3(-540, 220, 0);
-    const back = createCard(0, TABLE_CARD_W, { faceUp: false });
-    back.setPosition(from.clone());
-    layer.addChild(back);
+    const wrap = this.makeFlyWrap(0, TABLE_CARD_W, false);
+    wrap.setPosition(from.clone());
+    this.matchNode.addChild(wrap);
     const mid = new Vec3((from.x + toX) / 2, (from.y + toY) / 2, 0);
-    tween(back)
+    tween(wrap)
       .to(
         0.22,
         { position: mid, scale: new Vec3(0.02, 1, 1) },
         { easing: "sineIn" }
       )
       .call(() => {
-        layer.removeAllChildren();
-        const face = createCard(cardId, TABLE_CARD_W, { faceUp: true });
+        wrap.removeFromParent();
+        const face = this.makeFlyWrap(cardId, TABLE_CARD_W, true);
         face.setPosition(mid.clone());
         face.setScale(new Vec3(0.02, 1, 1));
-        layer.addChild(face);
+        this.matchNode.addChild(face);
         tween(face)
           .to(
             0.26,
@@ -1281,7 +1315,7 @@ export class GameEntry extends Component {
             { easing: "sineOut" }
           )
           .call(() => {
-            layer.removeFromParent();
+            face.removeFromParent();
             if (!this.matchQueue.length) {
               this.matchNode.removeAllChildren();
               this.matchNode.active = false;
@@ -1301,10 +1335,11 @@ export class GameEntry extends Component {
     this.matchBusy = true;
     this.visualTurnSeat = next.seat;
     this.lingerCards.add(next.targetId);
+    const hitPos = this.lastTablePos.get(next.targetId) ?? { x: 0, y: 40 };
+    const hitX = hitPos.x + 6;
+    const hitY = hitPos.y - TABLE_CARD_W * CARD_RATIO * 0.28;
     if (next.fromStock) {
-      const hitPos = this.lastTablePos.get(next.targetId) ?? { x: 0, y: 40 };
-      const hitY = hitPos.y - TABLE_CARD_W * CARD_RATIO * 0.28;
-      this.playStockFlip(next.cardId, hitPos.x + 6, hitY, () => {
+      this.playStockFlip(next.cardId, hitX, hitY, () => {
         this.hitTargetId = next.targetId;
         if (this.tableVisible) this.render();
         this.unschedule(this.finishHitThenMatch);
@@ -1315,13 +1350,22 @@ export class GameEntry extends Component {
       });
       return;
     }
-    this.hitTargetId = next.targetId;
+    const from = this.cardFlyFrom(next.seat, next.cardId);
+    this.matchNode.active = true;
+    const wrap = this.makeFlyWrap(next.cardId, TABLE_CARD_W, true);
+    wrap.setPosition(from);
+    this.matchNode.addChild(wrap);
     if (this.tableVisible) this.render();
-    this.unschedule(this.finishHitThenMatch);
-    this.scheduleOnce(
-      this.finishHitThenMatch,
-      FLY_TARGET_HOLD_S + HIT_HOLD_S
-    );
+    tween(wrap)
+      .to(0.22, { position: new Vec3(hitX, hitY, 0) })
+      .call(() => {
+        wrap.removeFromParent();
+        this.hitTargetId = next.targetId;
+        if (this.tableVisible) this.render();
+        this.unschedule(this.finishHitThenMatch);
+        this.scheduleOnce(this.finishHitThenMatch, HIT_HOLD_S);
+      })
+      .start();
   }
 
   private finishHitThenMatch = (): void => {
@@ -1366,47 +1410,90 @@ export class GameEntry extends Component {
 
     const w = TABLE_CARD_W * 1.3;
     const h = w * CARD_RATIO;
+    const targetPos = this.lastTablePos.get(targetId) ?? { x: 0, y: 40 };
+    const hitPos = {
+      x: targetPos.x + 6,
+      y: targetPos.y - TABLE_CARD_W * CARD_RATIO * 0.28,
+    };
+    const toRight = new Vec3(10, 0, 0);
+    const toLeft = new Vec3(-w - 10, 0, 0);
 
-    const spark = new Node("Spark");
-    spark.layer = Layers.Enum.UI_2D;
-    this.matchNode.addChild(spark);
-    const sg = spark.addComponent(Graphics);
-    const n = gain >= 30 ? 14 : 8;
-    for (let i = 0; i < n; i++) {
-      const ang = (i / n) * Math.PI * 2;
-      const rad = 50 + (i % 3) * 12;
-      sg.fillColor = i % 2 ? C.gold : new Color(255, 243, 196);
-      sg.circle(Math.cos(ang) * rad, Math.sin(ang) * rad * 0.55 + 20, 3);
-      sg.fill();
-    }
-
-    const right = createCard(targetId, w);
-    const left = createCard(cardId, w);
-    right.setPosition(new Vec3(10, h / 2, 0));
-    left.setPosition(new Vec3(-w - 10, h / 2, 0));
+    const right = this.makeFlyWrap(targetId, w, true);
+    const left = this.makeFlyWrap(cardId, w, true);
+    right.setPosition(new Vec3(targetPos.x, targetPos.y, 0));
+    left.setPosition(new Vec3(hitPos.x, hitPos.y, 0));
     this.matchNode.addChild(right);
     this.matchNode.addChild(left);
-    addLabel(
-      this.matchNode,
-      gain > 0 ? `MATCH! +${gain}` : "MATCH!",
-      0,
-      h / 2 + 36,
-      28,
-      C.gold,
-      true
-    );
+    if (this.tableVisible) this.render();
 
-    this.render();
-    this.scheduleOnce(this.clearMatch, MATCH_HOLD_S);
+    let arrived = 0;
+    const onArrived = () => {
+      arrived++;
+      if (arrived < 2) return;
+      const spark = new Node("Spark");
+      spark.layer = Layers.Enum.UI_2D;
+      this.matchNode.addChild(spark);
+      const sg = spark.addComponent(Graphics);
+      const n = gain >= 30 ? 14 : 8;
+      for (let i = 0; i < n; i++) {
+        const ang = (i / n) * Math.PI * 2;
+        const rad = 50 + (i % 3) * 12;
+        sg.fillColor = i % 2 ? C.gold : new Color(255, 243, 196);
+        sg.circle(Math.cos(ang) * rad, Math.sin(ang) * rad * 0.55 + 20, 3);
+        sg.fill();
+      }
+      addLabel(
+        this.matchNode,
+        gain > 0 ? `MATCH! +${gain}` : "MATCH!",
+        0,
+        h / 2 + 36,
+        28,
+        C.gold,
+        true
+      );
+      this.scheduleOnce(this.clearMatch, MATCH_HOLD_S);
+    };
+    tween(right).to(0.22, { position: toRight }).call(onArrived).start();
+    tween(left).to(0.22, { position: toLeft }).call(onArrived).start();
   }
 
   private clearMatch = (): void => {
-    if (this.matchCommit) {
-      this.applyCaptureCommit(this.matchCommit);
-      if (this.matchCommit.hand) this.applyHandCommit(this.matchCommit.seat);
-      this.matchCommit = null;
+    const commit = this.matchCommit;
+    if (!commit) {
+      this.finishClearMatch();
+      return;
     }
+    const pile = this.pilePosForSeat(commit.seat);
+    const flies = this.matchNode.children.filter(
+      (c) => c.name === "FlyWrap"
+    );
+    if (!flies.length) {
+      this.applyCaptureCommit(commit);
+      if (commit.hand) this.applyHandCommit(commit.seat);
+      this.matchCommit = null;
+      this.finishClearMatch();
+      return;
+    }
+    let left = flies.length;
+    for (const f of flies) {
+      tween(f)
+        .to(0.28, { position: pile, scale: new Vec3(0.55, 0.55, 1) })
+        .call(() => {
+          f.removeFromParent();
+          left--;
+          if (left > 0) return;
+          this.applyCaptureCommit(commit);
+          if (commit.hand) this.applyHandCommit(commit.seat);
+          this.matchCommit = null;
+          this.scheduleOnce(() => this.finishClearMatch(), FLY_PILE_HOLD_S);
+        })
+        .start();
+    }
+  };
+
+  private finishClearMatch(): void {
     if (this.matchQueue.length) {
+      this.matchNode.removeAllChildren();
       this.playNextMatch();
       return;
     }
@@ -1426,7 +1513,7 @@ export class GameEntry extends Component {
     this.refreshTurnHint();
     if (this.tableVisible) this.render();
     this.tryFlushRoundOver();
-  };
+  }
 
   private deferCapture(seat: number, cards: number[], gain: number): void {
     this.pendingGain.set(seat, (this.pendingGain.get(seat) ?? 0) + gain);
@@ -2117,6 +2204,11 @@ export class GameEntry extends Component {
   }
 
   private send(cardId: number, targetId?: number): void {
+    const idx = this.hand.indexOf(cardId);
+    this.lastPlayFrom =
+      idx >= 0
+        ? this.handSlotVec(idx, this.hand.length)
+        : new Vec3(0, -DESIGN.height / 2 + HAND_W * CARD_RATIO + 40, 0);
     if (this.offline) {
       this.offline.play(cardId, targetId);
       this.offline.hand = this.offline.hand.filter((c) => c !== cardId);

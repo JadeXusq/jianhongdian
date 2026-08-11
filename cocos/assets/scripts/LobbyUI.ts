@@ -548,26 +548,33 @@ export class LobbyUI {
   }
 
   private buildLobby(): Node {
-    // 单列居中，对齐 Vite 桌面大厅结构
-    const panel = this.panel("Lobby", 420, 600);
-    const fieldW = 340;
+    const panel = this.panel("Lobby", 760, 420);
+    const lx = -180;
+    const rx = 200;
 
-    this.makeLabel(panel, "捡红点", 0, 260, 34, C.gold);
-    this.makeLabel(panel, "出手牌凑十吃红分 · 大王最大", 0, 228, 13, C.cream);
+    this.makeLabel(panel, "捡红点", lx, 160, 34, C.gold);
+    this.makeLabel(panel, "出手牌凑十吃红分 · 大王最大", lx, 126, 13, C.cream);
+    this.makeFieldLabel(panel, "主题", lx - 160, 78);
+    const lobbyTheme = new Node("LobbyTheme");
+    lobbyTheme.layer = Layers.Enum.UI_2D;
+    panel.addChild(lobbyTheme);
+    lobbyTheme.setPosition(new Vec3(lx, -10, 0));
+    this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
+    this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
 
-    this.makeFieldLabel(panel, "昵称", -fieldW / 2, 188);
-    this.nameBox = this.makeEdit(panel, 36, 188, 268, 36, "请输入昵称");
+    this.makeFieldLabel(panel, "昵称", rx - 150, 160);
+    this.nameBox = this.makeEdit(panel, rx + 20, 160, 240, 36, "请输入昵称");
     try {
       this.nameBox.string = localStorage.getItem("jhd.name") || "";
     } catch {
       /* ignore */
     }
 
-    this.makeFieldLabel(panel, "人数", -fieldW / 2, 140);
+    this.makeFieldLabel(panel, "人数", rx - 150, 108);
     this.countLabels = [];
     [2, 3, 4].forEach((n, i) => {
-      const x = -86 + i * 96;
-      const btn = this.makeBtn(panel, `${n} 人`, x, 140, 88, 34, () => {
+      const x = rx - 70 + i * 90;
+      const btn = this.makeBtn(panel, `${n} 人`, x, 108, 84, 34, () => {
         this.count = n;
         this.countLabels.forEach((l, j) => {
           l.color = j === i ? C.seal : C.cream;
@@ -578,40 +585,33 @@ export class LobbyUI {
       if (n === 4) lbl.color = C.seal;
     });
 
-    this.makeFieldLabel(panel, "主题", -fieldW / 2, 88);
-    const lobbyTheme = new Node("LobbyTheme");
-    lobbyTheme.layer = Layers.Enum.UI_2D;
-    panel.addChild(lobbyTheme);
-    lobbyTheme.setPosition(new Vec3(0, 28, 0));
-    this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
-    this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
-
+    const aw = 300;
     this.makeBtn(
       panel,
       "人机练习（可离线）",
-      0,
-      -55,
-      fieldW,
-      44,
+      rx,
+      48,
+      aw,
+      42,
       () => this.cb.onPractice(this.playerName(), this.count),
       true
     );
-    this.makeBtn(panel, "快速匹配", 0, -108, fieldW, 40, () =>
+    this.makeBtn(panel, "快速匹配", rx, -2, aw, 38, () =>
       this.cb.onMatch(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "创建房间", -88, -158, 160, 36, () =>
+    this.makeBtn(panel, "创建房间", rx - 78, -52, 144, 34, () =>
       this.cb.onCreate(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "输房号加入", 88, -158, 160, 36, () =>
+    this.makeBtn(panel, "输房号加入", rx + 78, -52, 144, 34, () =>
       this.openRoomCodeDialog("join")
     );
-    this.makeBtn(panel, "房号观战", -88, -202, 160, 36, () =>
+    this.makeBtn(panel, "房号观战", rx - 78, -96, 144, 34, () =>
       this.openRoomCodeDialog("spectate")
     );
-    this.makeBtn(panel, "账号绑定", 88, -202, 160, 36, () =>
+    this.makeBtn(panel, "账号绑定", rx + 78, -96, 144, 34, () =>
       this.cb.onAccount()
     );
-    this.makeBtn(panel, "查看规则", 0, -250, 160, 34, () =>
+    this.makeBtn(panel, "查看规则", rx, -148, 160, 34, () =>
       this.openRules("lobby")
     );
     return panel;
@@ -1283,9 +1283,18 @@ export class LobbyUI {
     const eb = n.addComponent(EditBox);
     eb.inputMode = EditBox.InputMode.SINGLE_LINE;
     eb.maxLength = 10;
-    eb.placeholder = placeholder;
+    eb.placeholder = "";
     eb.textLabel = textLabel;
     eb.placeholderLabel = phLabel;
+    const syncPh = () => {
+      phLabel.node.active = !(eb.string && eb.string.length);
+    };
+    n.on(EditBox.EventType.EDITING_DID_BEGAN, () => {
+      phLabel.node.active = false;
+    });
+    n.on(EditBox.EventType.EDITING_DID_ENDED, syncPh);
+    n.on(EditBox.EventType.TEXT_CHANGED, syncPh);
+    syncPh();
     return eb;
   }
 }
