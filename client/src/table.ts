@@ -193,8 +193,11 @@ export class TableView {
       const neu = new Set(nextTable);
       let prevSlots: Map<number, Slot> | null = null;
       let leftTable = false;
+      let hasArrival = false;
       for (const id of nextTable) {
-        if (!old.has(id)) this.deferredReveal.add(id);
+        if (old.has(id)) continue;
+        hasArrival = true;
+        this.deferredReveal.add(id);
       }
       for (const id of old) {
         if (neu.has(id)) continue;
@@ -208,14 +211,16 @@ export class TableView {
         this.lingerTable.set(id, { ...slot });
         this.lingerHold.add(id);
       }
-      if (leftTable) {
-        this.beginTableLayoutFreeze(prevTable);
-        for (const id of old) {
-          if (!neu.has(id)) this.tableLayoutFreeze!.delete(id);
-        }
-      }
+      // 减员或有新牌入桌：冻结旧牌落点，回合结束再压实（避免中途重排）
+      if (leftTable || hasArrival) this.beginTableLayoutFreeze(prevTable);
       if (this.tableLayoutFreeze) {
-        for (const id of nextTable) this.ensureFrozenSlot(id);
+        for (const id of old) {
+          if (!neu.has(id)) this.tableLayoutFreeze.delete(id);
+        }
+        for (const id of nextTable) {
+          if (this.lingerHold.has(id)) continue;
+          this.ensureFrozenSlot(id);
+        }
       }
     }
     const prevPending = prev.pendingStockCard;
@@ -389,6 +394,9 @@ export class TableView {
 
       if (ev.target === undefined) {
         // 无目标：手牌/翻牌弃到桌面，或多目标翻出到待选位
+        // events 可能早于 state：弃牌入桌也先冻结，避免旧牌被提前重排
+        if (!(ev.type === "FLIP" && ev.awaitChoice))
+          this.beginTableLayoutFreeze();
         const to =
           ev.type === "FLIP" && ev.awaitChoice
             ? pendingPos()
@@ -1004,7 +1012,7 @@ export class TableView {
 
   private layout(): void {
     const table: number[] = [...this.state.table].filter(
-      (id) => !this.deferredReveal.has(id)
+      (id) => !this.deferredReveal.has(id) && !this.lingerHold.has(id)
     );
     this.pruneLingerTable(table);
     this.releaseTableLayoutFreeze();
