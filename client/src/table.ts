@@ -187,39 +187,35 @@ export class TableView {
     if (!next || next.phase !== "PLAYING") return;
     if (prev?.phase !== "PLAYING") return;
     if (prev.table && next.table) {
-      const old = new Set(prev.table as number[]);
-      const neu = new Set(next.table as number[]);
-      const prevSlots = this.computeTableSlots([...(prev.table as number[])]);
+      const prevTable = prev.table as number[];
+      const nextTable = next.table as number[];
+      const old = new Set(prevTable);
+      const neu = new Set(nextTable);
+      let prevSlots: Map<number, Slot> | null = null;
       let leftTable = false;
-      for (const id of next.table as number[]) {
+      for (const id of nextTable) {
         if (!old.has(id)) this.deferredReveal.add(id);
       }
       for (const id of old) {
         if (neu.has(id)) continue;
         leftTable = true;
-        const slot =
-          this.tableSlots.get(id) ??
-          this.lingerTable.get(id) ??
-          prevSlots.get(id);
+        let slot = this.tableSlots.get(id) ?? this.lingerTable.get(id);
+        if (!slot) {
+          prevSlots ??= this.computeTableSlots([...prevTable]);
+          slot = prevSlots.get(id);
+        }
         if (!slot) continue;
         this.lingerTable.set(id, { ...slot });
         this.lingerHold.add(id);
       }
-      if (leftTable && !this.tableLayoutFreeze) {
-        this.tableLayoutFreeze = new Map();
-        for (const [id, s] of prevSlots)
-          this.tableLayoutFreeze.set(id, { ...s });
-        for (const [id, s] of this.tableSlots)
-          this.tableLayoutFreeze.set(id, { ...s });
+      if (leftTable) {
+        this.beginTableLayoutFreeze(prevTable);
+        for (const id of old) {
+          if (!neu.has(id)) this.tableLayoutFreeze!.delete(id);
+        }
       }
       if (this.tableLayoutFreeze) {
-        for (const id of old) {
-          if (!neu.has(id)) this.tableLayoutFreeze.delete(id);
-        }
-        for (const id of next.table as number[]) {
-          if (old.has(id) || this.tableLayoutFreeze.has(id)) continue;
-          this.tableLayoutFreeze.set(id, this.nextFrozenAppendSlot());
-        }
+        for (const id of nextTable) this.ensureFrozenSlot(id);
       }
     }
     const prevPending = prev.pendingStockCard;
@@ -443,12 +439,8 @@ export class TableView {
       // 命中/MATCH 前始终暂留，避免 prune 在动画间隙把目标牌清掉
       this.lingerHold.add(ev.target);
       // events 可能早于 state：吃牌一开始就冻结落点，避免其余牌先挤位
-      if (!this.tableLayoutFreeze) {
-        this.tableLayoutFreeze = new Map();
-        for (const [id, s] of this.tableSlots)
-          this.tableLayoutFreeze.set(id, { ...s });
-      }
-      this.tableLayoutFreeze.delete(ev.target);
+      this.beginTableLayoutFreeze();
+      this.tableLayoutFreeze!.delete(ev.target);
       const hitSlot = {
         x: targetSlot.x + 6,
         y: targetSlot.y + TABLE_CARD_W * CARD_RATIO * 0.28,
@@ -875,38 +867,66 @@ export class TableView {
     }
   }
 
+  private beginTableLayoutFreeze(prevTable?: number[]): void {
+    if (this.tableLayoutFreeze) return;
+    this.tableLayoutFreeze = new Map();
+    for (const [id, s] of this.tableSlots)
+      this.tableLayoutFreeze.set(id, { ...s });
+    if (prevTable?.length && this.tableLayoutFreeze.size < prevTable.length) {
+      for (const [id, s] of this.computeTableSlots([...prevTable])) {
+        if (!this.tableLayoutFreeze.has(id))
+          this.tableLayoutFreeze.set(id, { ...s });
+      }
+    }
+  }
+
+  private ensureFrozenSlot(id: number): Slot {
+    const freeze = this.tableLayoutFreeze!;
+    const existing = freeze.get(id);
+    if (existing) return existing;
+    const slot = this.nextFrozenAppendSlot();
+    freeze.set(id, slot);
+    return slot;
+  }
+
   private nextFrozenAppendSlot(): Slot {
     const gap = 12;
     const w = TABLE_CARD_W;
     const rowH = w * CARD_RATIO + gap;
     const area = this.area;
-    const occupied = [...(this.tableLayoutFreeze?.values() ?? [])];
+    const occupied = this.tableLayoutFreeze
+      ? [...this.tableLayoutFreeze.values()]
+      : [];
     if (!occupied.length) return this.computeSlotAt(0, 1);
     let anchor = occupied[0];
+    let left = occupied[0].x;
     for (const s of occupied) {
+      if (s.x < left) left = s.x;
       if (s.y > anchor.y + 1 || (Math.abs(s.y - anchor.y) < 1 && s.x > anchor.x))
         anchor = s;
     }
     let x = anchor.x + w + gap;
     let y = anchor.y;
     if (x + w > area.x + area.w) {
-      let left = occupied[0].x;
-      for (const s of occupied) if (s.x < left) left = s.x;
       x = left;
       y = anchor.y + rowH;
     }
     return { x, y, w };
   }
 
+  private tableFreezeBusy(): boolean {
+    if (this.animating || this.lingerHold.size || this.lingerTable.size)
+      return true;
+    if (this.state?.turnPhase === "CHOOSE_STOCK_TARGET") return true;
+    const pending = this.state?.pendingStockCard;
+    if (typeof pending === "number" && pending >= 0) return true;
+    const table = this.state?.table as number[] | undefined;
+    return !!table?.some((id) => this.deferredReveal.has(id));
+  }
+
   /** 回合动作全部结束后再压实填空隙 */
   private releaseTableLayoutFreeze(): void {
-    if (!this.tableLayoutFreeze) return;
-    if (this.animating || this.lingerHold.size || this.lingerTable.size) return;
-    const table = this.state?.table as number[] | undefined;
-    if (table?.some((id) => this.deferredReveal.has(id))) return;
-    const pending = this.state?.pendingStockCard;
-    if (typeof pending === "number" && pending >= 0) return;
-    if (this.state?.turnPhase === "CHOOSE_STOCK_TARGET") return;
+    if (!this.tableLayoutFreeze || this.tableFreezeBusy()) return;
     this.tableLayoutFreeze = null;
   }
 
@@ -948,13 +968,8 @@ export class TableView {
   /** 含尚未揭晓牌的落点（飞牌终点），不用于静态绘制 */
   private slotForTableCard(cardId: number): Pt | null {
     if (!this.state) return null;
-    if (this.tableLayoutFreeze) {
-      const existing = this.tableLayoutFreeze.get(cardId);
-      if (existing) return { ...existing };
-      const slot = this.nextFrozenAppendSlot();
-      this.tableLayoutFreeze.set(cardId, slot);
-      return { ...slot };
-    }
+    if (this.tableLayoutFreeze)
+      return { ...this.ensureFrozenSlot(cardId) };
     const slots = this.computeTableSlots([...this.state.table]);
     return slots.get(cardId) ?? null;
   }
@@ -988,24 +1003,18 @@ export class TableView {
   }
 
   private layout(): void {
-    this.releaseTableLayoutFreeze();
     const table: number[] = [...this.state.table].filter(
       (id) => !this.deferredReveal.has(id)
     );
+    this.pruneLingerTable(table);
+    this.releaseTableLayoutFreeze();
     if (this.tableLayoutFreeze) {
-      this.tableSlots = new Map();
-      for (const id of table) {
-        let slot = this.tableLayoutFreeze.get(id);
-        if (!slot) {
-          slot = this.nextFrozenAppendSlot();
-          this.tableLayoutFreeze.set(id, slot);
-        }
-        this.tableSlots.set(id, { ...slot });
-      }
+      this.tableSlots.clear();
+      for (const id of table)
+        this.tableSlots.set(id, { ...this.ensureFrozenSlot(id) });
     } else {
       this.tableSlots = this.computeTableSlots(table);
     }
-    this.pruneLingerTable(table);
 
     this.handSlots.clear();
     const n = this.hand.length;
