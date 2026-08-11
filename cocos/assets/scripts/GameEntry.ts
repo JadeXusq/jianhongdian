@@ -314,7 +314,6 @@ export class GameEntry extends Component {
   }
 
   private refreshOrientTip = (): void => {
-    // ORIENTATION_LANDSCAPE 下 screen.windowSize 会被对调，改用浏览器视口判断
     const w =
       typeof window !== "undefined" ? window.innerWidth : screen.windowSize.width;
     const h =
