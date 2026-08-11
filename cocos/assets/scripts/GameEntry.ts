@@ -12,6 +12,10 @@ import {
   sys,
   tween,
   Sprite,
+  view,
+  screen,
+  ResolutionPolicy,
+  Camera,
 } from "cc";
 import { createCard, addLabel, loadCardAtlas } from "./CardNode";
 import { loadThemeArt, themeFeltSf } from "./ThemeArt";
@@ -97,6 +101,7 @@ export class GameEntry extends Component {
   private dealBusy = false;
   private dealRoundPending = false;
   private lastDealRound = 0;
+  private softRot = false;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -106,6 +111,8 @@ export class GameEntry extends Component {
   private matchNode!: Node;
 
   start(): void {
+    this.bindOrient();
+    this.applyOrient();
     this.net = new Net();
     this.feltNode = this.makeContainer("Felt");
     this.tableNode = this.makeContainer("Table");
@@ -116,6 +123,7 @@ export class GameEntry extends Component {
     this.matchNode.active = false;
 
     applyTheme(loadSavedTheme());
+    this.tintCamera();
     this.drawFelt();
     this.setTableVisible(false);
     this.bindNet();
@@ -266,6 +274,63 @@ export class GameEntry extends Component {
 
     (globalThis as any).__gameEntry = this;
     (globalThis as any).__Net = Net;
+  }
+
+  /** 与 Web shouldRotate 对齐：竖屏触屏时软件旋转为横屏布局 */
+  private shouldSoftRot(): boolean {
+    const win = screen.windowSize;
+    if (win.height <= win.width) return false;
+    if (sys.isMobile) return true;
+    try {
+      return !!globalThis.matchMedia?.("(pointer: coarse)")?.matches;
+    } catch {
+      return false;
+    }
+  }
+
+  private bindOrient(): void {
+    view.on("canvas-resize", this.applyOrient, this);
+    if (typeof window === "undefined") return;
+    const bump = () => {
+      this.scheduleOnce(this.applyOrient, 0.12);
+      this.scheduleOnce(this.applyOrient, 0.32);
+    };
+    window.addEventListener("orientationchange", bump);
+    window.addEventListener("resize", bump);
+  }
+
+  private applyOrient = (): void => {
+    const want = this.shouldSoftRot();
+    if (want) {
+      view.setDesignResolutionSize(
+        DESIGN.height,
+        DESIGN.width,
+        ResolutionPolicy.SHOW_ALL
+      );
+      this.node.setRotationFromEuler(0, 0, 90);
+    } else {
+      view.setDesignResolutionSize(
+        DESIGN.width,
+        DESIGN.height,
+        ResolutionPolicy.SHOW_ALL
+      );
+      this.node.setRotationFromEuler(0, 0, 0);
+    }
+    const canvas = this.node.parent;
+    const ut = canvas?.getComponent(UITransform);
+    if (ut) {
+      ut.setContentSize(
+        want
+          ? new Size(DESIGN.height, DESIGN.width)
+          : new Size(DESIGN.width, DESIGN.height)
+      );
+    }
+    this.softRot = want;
+  };
+
+  private tintCamera(): void {
+    const cam = this.node.parent?.getChildByName("Camera")?.getComponent(Camera);
+    if (cam) cam.clearColor = C.feltOuter;
   }
 
   private makeContainer(name: string): Node {
@@ -657,6 +722,7 @@ export class GameEntry extends Component {
 
   private applyRoomTheme(themeId: unknown): void {
     applyTheme(themeId);
+    this.tintCamera();
     this.drawFelt();
     if (this.tableVisible) this.render();
   }
