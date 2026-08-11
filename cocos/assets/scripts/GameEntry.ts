@@ -16,6 +16,7 @@ import {
   screen,
   ResolutionPolicy,
   Camera,
+  macro,
 } from "cc";
 import { createCard, addLabel, loadCardAtlas } from "./CardNode";
 import { loadThemeArt, themeFeltSf } from "./ThemeArt";
@@ -101,7 +102,7 @@ export class GameEntry extends Component {
   private dealBusy = false;
   private dealRoundPending = false;
   private lastDealRound = 0;
-  private softRot = false;
+  private orientTip!: Node;
 
   private feltNode!: Node;
   private tableNode!: Node;
@@ -111,8 +112,12 @@ export class GameEntry extends Component {
   private matchNode!: Node;
 
   start(): void {
-    this.bindOrient();
-    this.applyOrient();
+    view.setOrientation(macro.ORIENTATION_LANDSCAPE);
+    view.setDesignResolutionSize(
+      DESIGN.width,
+      DESIGN.height,
+      ResolutionPolicy.SHOW_ALL
+    );
     this.net = new Net();
     this.feltNode = this.makeContainer("Felt");
     this.tableNode = this.makeContainer("Table");
@@ -121,12 +126,15 @@ export class GameEntry extends Component {
     this.infoNode = this.makeContainer("Info");
     this.matchNode = this.makeContainer("Match");
     this.matchNode.active = false;
+    this.orientTip = this.makeOrientTip();
 
     applyTheme(loadSavedTheme());
     this.tintCamera();
     this.drawFelt();
     this.setTableVisible(false);
     this.bindNet();
+    this.bindOrientTip();
+    this.refreshOrientTip();
     this.ui = new LobbyUI(this.node, {
       onMatch: (name, n) => this.guard(() => this.doMatch(name, n)),
       onCreate: (name, n) => this.guard(() => this.doCreate(name, n)),
@@ -276,57 +284,56 @@ export class GameEntry extends Component {
     (globalThis as any).__Net = Net;
   }
 
-  /** 与 Web shouldRotate 对齐：竖屏触屏时软件旋转为横屏布局 */
-  private shouldSoftRot(): boolean {
-    const win = screen.windowSize;
-    if (win.height <= win.width) return false;
-    if (sys.isMobile) return true;
+  private makeOrientTip(): Node {
+    const n = new Node("OrientTip");
+    n.layer = Layers.Enum.UI_2D;
+    this.node.addChild(n);
+    n.addComponent(UITransform).setContentSize(
+      new Size(DESIGN.width, DESIGN.height)
+    );
+    const g = n.addComponent(Graphics);
+    g.fillColor = new Color(C.feltOuter.r, C.feltOuter.g, C.feltOuter.b, 245);
+    g.rect(-DESIGN.width / 2, -DESIGN.height / 2, DESIGN.width, DESIGN.height);
+    g.fill();
+    addLabel(n, "请横屏游玩", 0, 16, 36, C.gold, true);
+    addLabel(n, "本游戏为横屏布局", 0, -28, 18, C.cream, true);
+    n.active = false;
+    n.setSiblingIndex(this.node.children.length - 1);
+    return n;
+  }
+
+  private bindOrientTip(): void {
+    view.on("canvas-resize", this.refreshOrientTip, this);
+    if (typeof window === "undefined") return;
+    const bump = () => {
+      this.scheduleOnce(this.refreshOrientTip, 0.12);
+      this.scheduleOnce(this.refreshOrientTip, 0.32);
+    };
+    window.addEventListener("orientationchange", bump);
+    window.addEventListener("resize", bump);
+  }
+
+  private refreshOrientTip = (): void => {
+    // ORIENTATION_LANDSCAPE 下 screen.windowSize 会被对调，改用浏览器视口判断
+    const w =
+      typeof window !== "undefined" ? window.innerWidth : screen.windowSize.width;
+    const h =
+      typeof window !== "undefined"
+        ? window.innerHeight
+        : screen.windowSize.height;
+    const portrait = h > w + 8;
+    const tip = portrait && (sys.isMobile || this.isCoarsePointer());
+    this.orientTip.active = tip;
+    if (tip) this.orientTip.setSiblingIndex(this.node.children.length - 1);
+  };
+
+  private isCoarsePointer(): boolean {
     try {
       return !!globalThis.matchMedia?.("(pointer: coarse)")?.matches;
     } catch {
       return false;
     }
   }
-
-  private bindOrient(): void {
-    view.on("canvas-resize", this.applyOrient, this);
-    if (typeof window === "undefined") return;
-    const bump = () => {
-      this.scheduleOnce(this.applyOrient, 0.12);
-      this.scheduleOnce(this.applyOrient, 0.32);
-    };
-    window.addEventListener("orientationchange", bump);
-    window.addEventListener("resize", bump);
-  }
-
-  private applyOrient = (): void => {
-    const want = this.shouldSoftRot();
-    if (want) {
-      view.setDesignResolutionSize(
-        DESIGN.height,
-        DESIGN.width,
-        ResolutionPolicy.SHOW_ALL
-      );
-      this.node.setRotationFromEuler(0, 0, 90);
-    } else {
-      view.setDesignResolutionSize(
-        DESIGN.width,
-        DESIGN.height,
-        ResolutionPolicy.SHOW_ALL
-      );
-      this.node.setRotationFromEuler(0, 0, 0);
-    }
-    const canvas = this.node.parent;
-    const ut = canvas?.getComponent(UITransform);
-    if (ut) {
-      ut.setContentSize(
-        want
-          ? new Size(DESIGN.height, DESIGN.width)
-          : new Size(DESIGN.width, DESIGN.height)
-      );
-    }
-    this.softRot = want;
-  };
 
   private tintCamera(): void {
     const cam = this.node.parent?.getChildByName("Camera")?.getComponent(Camera);

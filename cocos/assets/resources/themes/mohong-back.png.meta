@@ -60,17 +60,17 @@
         "meshType": 0,
         "vertices": {
           "rawPosition": [
-            -70.0,
-            -98.0,
+            -70,
+            -98,
             0,
-            70.0,
-            -98.0,
+            70,
+            -98,
             0,
-            -70.0,
-            98.0,
+            -70,
+            98,
             0,
-            70.0,
-            98.0,
+            70,
+            98,
             0
           ],
           "indexes": [
@@ -83,12 +83,12 @@
           ],
           "uv": [
             0,
-            1,
-            1,
-            1,
+            196,
+            140,
+            196,
             0,
             0,
-            1,
+            140,
             0
           ],
           "nuv": [
@@ -102,19 +102,20 @@
             1
           ],
           "minPos": [
-            -70.0,
-            -98.0,
+            -70,
+            -98,
             0
           ],
           "maxPos": [
-            70.0,
-            98.0,
+            70,
+            98,
             0
           ]
         },
         "isUuid": true,
         "imageUuidOrDatabaseUri": "a1000001-1111-4222-8333-0000000000a1@6c48a",
-        "atlasUuid": ""
+        "atlasUuid": "",
+        "trimType": "auto"
       },
       "ver": "1.0.12",
       "imported": true,
@@ -126,7 +127,8 @@
   },
   "userData": {
     "type": "sprite-frame",
-    "hasAlpha": true,
-    "fixAlphaTransparencyArtifacts": false
+    "hasAlpha": false,
+    "fixAlphaTransparencyArtifacts": false,
+    "redirect": "a1000001-1111-4222-8333-0000000000a1@6c48a"
   }
 }

@@ -15,8 +15,8 @@
       "id": "6c48a",
       "name": "texture",
       "userData": {
-        "wrapModeS": "repeat",
-        "wrapModeT": "repeat",
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
         "imageUuidOrDatabaseUri": "a1000001-1111-4222-8333-000000000005",
         "isUuid": true,
         "visible": false,
@@ -60,17 +60,17 @@
         "meshType": 0,
         "vertices": {
           "rawPosition": [
-            -128.0,
-            -128.0,
+            -128,
+            -128,
             0,
-            128.0,
-            -128.0,
+            128,
+            -128,
             0,
-            -128.0,
-            128.0,
+            -128,
+            128,
             0,
-            128.0,
-            128.0,
+            128,
+            128,
             0
           ],
           "indexes": [
@@ -83,12 +83,12 @@
           ],
           "uv": [
             0,
-            1,
-            1,
-            1,
+            256,
+            256,
+            256,
             0,
             0,
-            1,
+            256,
             0
           ],
           "nuv": [
@@ -102,19 +102,20 @@
             1
           ],
           "minPos": [
-            -128.0,
-            -128.0,
+            -128,
+            -128,
             0
           ],
           "maxPos": [
-            128.0,
-            128.0,
+            128,
+            128,
             0
           ]
         },
         "isUuid": true,
         "imageUuidOrDatabaseUri": "a1000001-1111-4222-8333-000000000005@6c48a",
-        "atlasUuid": ""
+        "atlasUuid": "",
+        "trimType": "auto"
       },
       "ver": "1.0.12",
       "imported": true,
@@ -127,6 +128,7 @@
   "userData": {
     "type": "sprite-frame",
     "hasAlpha": true,
-    "fixAlphaTransparencyArtifacts": false
+    "fixAlphaTransparencyArtifacts": false,
+    "redirect": "a1000001-1111-4222-8333-000000000005@6c48a"
   }
 }

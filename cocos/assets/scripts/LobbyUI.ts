@@ -548,33 +548,26 @@ export class LobbyUI {
   }
 
   private buildLobby(): Node {
-    const panel = this.panel("Lobby", 720, 480);
-    const lx = -170;
-    const rx = 170;
+    // 单列居中，对齐 Vite 桌面大厅结构
+    const panel = this.panel("Lobby", 420, 600);
+    const fieldW = 340;
 
-    this.makeLabel(panel, "捡红点", lx, 180, 36, C.gold);
-    this.makeLabel(panel, "出手牌凑十吃红分 · 大王最大", lx, 142, 14, C.cream);
+    this.makeLabel(panel, "捡红点", 0, 260, 34, C.gold);
+    this.makeLabel(panel, "出手牌凑十吃红分 · 大王最大", 0, 228, 13, C.cream);
 
-    const lobbyTheme = new Node("LobbyTheme");
-    lobbyTheme.layer = Layers.Enum.UI_2D;
-    panel.addChild(lobbyTheme);
-    lobbyTheme.setPosition(new Vec3(lx, 40, 0));
-    this.makeLabel(lobbyTheme, "主题", 0, 42, 14, C.goldDim);
-    this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
-    this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
-
-    this.makeLabel(panel, "昵称", rx - 120, 180, 17, C.goldDim);
-    this.nameBox = this.makeEdit(panel, rx + 20, 175, 220, 38, "请输入昵称");
+    this.makeFieldLabel(panel, "昵称", -fieldW / 2, 188);
+    this.nameBox = this.makeEdit(panel, 36, 188, 268, 36, "请输入昵称");
     try {
       this.nameBox.string = localStorage.getItem("jhd.name") || "";
     } catch {
       /* ignore */
     }
 
-    this.makeLabel(panel, "人数", rx - 120, 120, 17, C.goldDim);
+    this.makeFieldLabel(panel, "人数", -fieldW / 2, 140);
+    this.countLabels = [];
     [2, 3, 4].forEach((n, i) => {
-      const x = rx - 70 + i * 80;
-      const btn = this.makeBtn(panel, `${n} 人`, x, 116, 72, 34, () => {
+      const x = -86 + i * 96;
+      const btn = this.makeBtn(panel, `${n} 人`, x, 140, 88, 34, () => {
         this.count = n;
         this.countLabels.forEach((l, j) => {
           l.color = j === i ? C.seal : C.cream;
@@ -585,28 +578,59 @@ export class LobbyUI {
       if (n === 4) lbl.color = C.seal;
     });
 
-    this.makeBtn(panel, "人机练习（离线）", rx, 40, 270, 42, () =>
-      this.cb.onPractice(this.playerName(), this.count)
+    this.makeFieldLabel(panel, "主题", -fieldW / 2, 88);
+    const lobbyTheme = new Node("LobbyTheme");
+    lobbyTheme.layer = Layers.Enum.UI_2D;
+    panel.addChild(lobbyTheme);
+    lobbyTheme.setPosition(new Vec3(0, 28, 0));
+    this.lobbyThemeBtns = this.makeThemeSeg(lobbyTheme, 0);
+    this.paintThemeBtns(this.lobbyThemeBtns, this.cb.currentThemeId());
+
+    this.makeBtn(
+      panel,
+      "人机练习（可离线）",
+      0,
+      -55,
+      fieldW,
+      44,
+      () => this.cb.onPractice(this.playerName(), this.count),
+      true
     );
-    this.makeBtn(panel, "快速匹配", rx, -10, 270, 40, () =>
+    this.makeBtn(panel, "快速匹配", 0, -108, fieldW, 40, () =>
       this.cb.onMatch(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "创建房间", rx - 70, -62, 125, 38, () =>
+    this.makeBtn(panel, "创建房间", -88, -158, 160, 36, () =>
       this.cb.onCreate(this.playerName(), this.count)
     );
-    this.makeBtn(panel, "输房号加入", rx + 70, -62, 125, 38, () =>
+    this.makeBtn(panel, "输房号加入", 88, -158, 160, 36, () =>
       this.openRoomCodeDialog("join")
     );
-    this.makeBtn(panel, "房号观战", rx - 70, -112, 125, 36, () =>
+    this.makeBtn(panel, "房号观战", -88, -202, 160, 36, () =>
       this.openRoomCodeDialog("spectate")
     );
-    this.makeBtn(panel, "账号绑定", rx + 70, -112, 125, 36, () =>
+    this.makeBtn(panel, "账号绑定", 88, -202, 160, 36, () =>
       this.cb.onAccount()
     );
-    this.makeBtn(panel, "查看规则", rx, -160, 160, 34, () =>
+    this.makeBtn(panel, "查看规则", 0, -250, 160, 34, () =>
       this.openRules("lobby")
     );
     return panel;
+  }
+
+  private makeFieldLabel(
+    parent: Node,
+    text: string,
+    x: number,
+    y: number
+  ): Label {
+    const l = this.makeLabel(parent, text, x, y, 14, C.gold);
+    l.horizontalAlign = Label.HorizontalAlign.LEFT;
+    const ut = l.node.getComponent(UITransform);
+    if (ut) {
+      ut.setAnchorPoint(0, 0.5);
+      ut.setContentSize(new Size(56, 24));
+    }
+    return l;
   }
 
   private buildRoomCodeDialog(): Node {
@@ -972,16 +996,23 @@ export class LobbyUI {
     y: number
   ): { id: string; node: Node; label: Label }[] {
     const items = [
-      { id: "jade", name: "青绿金", x: -102 },
+      { id: "jade", name: "青绿金", x: -114 },
       { id: "anime", name: "动漫风", x: 0 },
-      { id: "mohong", name: "墨红", x: 102 },
+      { id: "mohong", name: "墨红", x: 114 },
     ];
     return items.map((it) => {
-      const btn = this.makeThemePreviewBtn(parent, it.id as ThemeId, it.name, it.x, y, () => {
-        this.cb.onSetTheme(it.id);
-        this.paintThemeBtns(this.menuThemeBtns, it.id);
-        this.paintThemeBtns(this.lobbyThemeBtns, it.id);
-      });
+      const btn = this.makeThemePreviewBtn(
+        parent,
+        it.id as ThemeId,
+        it.name,
+        it.x,
+        y,
+        () => {
+          this.cb.onSetTheme(it.id);
+          this.paintThemeBtns(this.menuThemeBtns, it.id);
+          this.paintThemeBtns(this.lobbyThemeBtns, it.id);
+        }
+      );
       return {
         id: it.id,
         node: btn,
@@ -1002,8 +1033,8 @@ export class LobbyUI {
     n.layer = Layers.Enum.UI_2D;
     parent.addChild(n);
     n.setPosition(new Vec3(x, y, 0));
-    const w = 96;
-    const h = 72;
+    const w = 104;
+    const h = 78;
     n.addComponent(UITransform).setContentSize(new Size(w, h));
     const g = n.addComponent(Graphics);
     g.fillColor = new Color(0, 0, 0, 90);
@@ -1017,26 +1048,25 @@ export class LobbyUI {
     const thumb = new Node("Thumb");
     thumb.layer = Layers.Enum.UI_2D;
     n.addChild(thumb);
-    thumb.setPosition(new Vec3(0, 10, 0));
-    thumb.addComponent(UITransform).setContentSize(new Size(86, 40));
+    thumb.setPosition(new Vec3(0, 12, 0));
+    thumb.addComponent(UITransform).setContentSize(new Size(92, 46));
     const sp = thumb.addComponent(Sprite);
     sp.sizeMode = Sprite.SizeMode.CUSTOM;
     const sf = themePreviewSf(id);
     if (sf) sp.spriteFrame = sf;
-    else {
-      const tg = thumb.addComponent(Graphics);
-      const fill =
-        id === "anime"
-          ? new Color(61, 42, 109, 255)
-          : id === "mohong"
+    const tg = thumb.addComponent(Graphics);
+    tg.fillColor =
+      id === "anime"
+        ? new Color(61, 42, 109, 255)
+        : id === "mohong"
           ? new Color(26, 21, 20, 255)
           : new Color(28, 76, 59, 255);
-      tg.fillColor = fill;
-      tg.roundRect(-43, -20, 86, 40, 4);
-      tg.fill();
-    }
+    tg.roundRect(-46, -23, 92, 46, 4);
+    tg.fill();
+    tg.node.setSiblingIndex(0);
+    if (sf) tg.enabled = false;
 
-    this.makeLabel(n, name, 0, -26, 13, C.cream);
+    this.makeLabel(n, name, 0, -28, 12, C.cream);
     n.on(Node.EventType.TOUCH_END, onClick);
     return n;
   }
@@ -1051,8 +1081,8 @@ export class LobbyUI {
       const g = b.node.getComponent(Graphics);
       if (!g) continue;
       const ut = b.node.getComponent(UITransform);
-      const w = ut?.contentSize.width ?? 96;
-      const h = ut?.contentSize.height ?? 72;
+      const w = ut?.contentSize.width ?? 104;
+      const h = ut?.contentSize.height ?? 78;
       g.clear();
       g.fillColor = new Color(0, 0, 0, 70);
       g.roundRect(-w / 2, -h / 2, w, h, 8);
@@ -1062,10 +1092,15 @@ export class LobbyUI {
       g.roundRect(-w / 2, -h / 2, w, h, 8);
       g.stroke();
       const thumb = b.node.getChildByName("Thumb");
-      const sp = thumb?.getComponent(Sprite);
-      if (sp) {
-        const sf = themePreviewSf(b.id as ThemeId);
-        if (sf) sp.spriteFrame = sf;
+      if (!thumb) continue;
+      const sp = thumb.getComponent(Sprite);
+      const tg = thumb.getComponent(Graphics);
+      const sf = themePreviewSf(b.id as ThemeId);
+      if (sp && sf) {
+        sp.spriteFrame = sf;
+        if (tg) tg.enabled = false;
+      } else if (tg) {
+        tg.enabled = true;
       }
     }
   }
