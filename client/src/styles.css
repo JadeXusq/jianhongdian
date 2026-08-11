@@ -466,28 +466,25 @@ input:focus {
 
 .result-panel,
 .scores-panel {
+  /* 弹窗最小高度按约 4.5 人信息预留，内部内容仍按原尺寸排布 */
+  --res-h: 34px;
+  --res-gap: 4px;
   box-sizing: border-box;
   width: min(420px, calc(100vw - 28px));
   height: auto;
+  min-height: calc(
+    12px + 28px + 18px + (4.5 * var(--res-h) + 4 * var(--res-gap)) + 14px +
+      52px + 12px
+  );
   max-height: calc(100dvh - 48px);
   margin-inline: auto;
   padding: 12px 14px 12px;
 }
 
-/* 固定约 4.5 人行高，超出可滚 */
 .result-panel .result-list,
 .scores-panel .result-list {
-  --res-h: 34px;
-  --res-gap: 4px;
   flex: none;
-  gap: var(--res-gap);
-  height: calc(4.5 * var(--res-h) + 4 * var(--res-gap));
-  max-height: calc(4.5 * var(--res-h) + 4 * var(--res-gap));
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
+  overflow: visible;
 }
 
 .result-panel > .result-actions,
@@ -617,12 +614,10 @@ input:focus {
 }
 
 .res {
-  box-sizing: border-box;
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr) auto 52px;
   align-items: center;
   column-gap: 8px;
-  min-height: var(--res-h, 34px);
   padding: 6px 10px;
   border: 1px solid var(--gold-dim);
   border-radius: 8px;
@@ -1232,17 +1227,13 @@ input:focus {
 
 #ui.rot .result-panel,
 #ui.rot .scores-panel {
+  --res-h: 32px;
   box-sizing: border-box;
   width: min(460px, 72%);
   height: auto;
   max-height: calc(100% - 48px);
   margin-inline: auto;
   padding: 10px 14px 12px;
-}
-
-#ui.rot .result-panel .result-list,
-#ui.rot .scores-panel .result-list {
-  --res-h: 32px;
 }
 
 /* 旋转层下 Android 原生滚动常失效，改由整板滚动 + JS 补位移 */
@@ -1358,16 +1349,12 @@ input:focus {
 
   .result-panel,
   .scores-panel {
+    --res-h: 32px;
     box-sizing: border-box;
     height: auto;
     max-height: calc(100dvh - 48px);
     margin-inline: auto;
     padding: 10px 14px;
-  }
-
-  .result-panel .result-list,
-  .scores-panel .result-list {
-    --res-h: 32px;
   }
 
   .rules-panel {
