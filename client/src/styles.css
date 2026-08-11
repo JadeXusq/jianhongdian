@@ -487,7 +487,11 @@ input:focus {
   overflow: visible;
 }
 
-.result-panel > .result-actions,
+.result-panel > .result-actions {
+  flex: none;
+  margin-top: auto;
+}
+
 .scores-panel > .subtitle {
   flex: none;
 }
