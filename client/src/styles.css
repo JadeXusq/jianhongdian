@@ -466,15 +466,15 @@ input:focus {
 
 .result-panel,
 .scores-panel {
-  /* 弹窗最小高度按约 4.5 人信息预留，内部内容仍按原尺寸排布 */
+  /* 弹窗最小高度按 4 人信息预留，内部内容仍按原尺寸排布 */
   --res-h: 34px;
   --res-gap: 4px;
   box-sizing: border-box;
   width: min(420px, calc(100vw - 28px));
   height: auto;
   min-height: calc(
-    12px + 28px + 18px + (4.5 * var(--res-h) + 4 * var(--res-gap)) + 14px +
-      52px + 12px
+    12px + 28px + 18px + (4 * var(--res-h) + 3 * var(--res-gap)) + 14px + 52px +
+      12px
   );
   max-height: calc(100dvh - 48px);
   margin-inline: auto;
