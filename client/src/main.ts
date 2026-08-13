@@ -4,11 +4,8 @@
  */
 import {
   autoTarget,
-  cardName,
   cardScore,
   findTargets,
-  isRed,
-  sortHand,
   turnHint,
   THEMES,
   ROUND_RESULT_MAX_WAIT_MS,
@@ -831,39 +828,27 @@ function renderResult(r: RoundOver): void {
   }
 
   $("result-list").innerHTML = rows
-    .map((row, i) => {
-      const pile = sortHand([...(r.captured?.[row.p.seat] ?? [])]);
-      const chips = pile.length
-        ? pile
-            .map((id) => {
-              const cls = isRed(id) ? "pile-card red" : "pile-card";
-              return `<span class="${cls}">${cardName(id)}</span>`;
-            })
-            .join("")
-        : `<span class="pile-empty">无吃牌</span>`;
-      return `
-      <div class="res-block${row.p.seat === mySeat ? " me" : ""}">
-        <div class="res${row.p.seat === mySeat ? " me" : ""}${
-          i === 0 ? " top" : ""
-        }">
-          <span class="rank">${i === 0 ? "胜" : i + 1}</span>
-          <span class="who">${row.p.name}${
-            row.p.isAi && !String(row.p.name).startsWith("机器人")
-              ? '<span class="ai-tag">机</span>'
-              : ""
-          }</span>
-          <span class="calc">${
-            r.allDone
-              ? `累计 ${row.p.totalNet > 0 ? "+" : ""}${row.p.totalNet}`
-              : `${row.points}−${r.base}`
-          }</span>
-          <span class="net ${
-            row.net > 0 ? "win" : row.net < 0 ? "lose" : ""
-          }">${row.net > 0 ? "+" : ""}${row.net}</span>
-        </div>
-        <div class="res-pile">${chips}</div>
-      </div>`;
-    })
+    .map(
+      (row, i) => `
+      <div class="res${row.p.seat === mySeat ? " me" : ""}${
+        i === 0 ? " top" : ""
+      }">
+        <span class="rank">${i === 0 ? "胜" : i + 1}</span>
+        <span class="who">${row.p.name}${
+          row.p.isAi && !String(row.p.name).startsWith("机器人")
+            ? '<span class="ai-tag">机</span>'
+            : ""
+        }</span>
+        <span class="calc">${
+          r.allDone
+            ? `累计 ${row.p.totalNet > 0 ? "+" : ""}${row.p.totalNet}`
+            : `${row.points}−${r.base}`
+        }</span>
+        <span class="net ${
+          row.net > 0 ? "win" : row.net < 0 ? "lose" : ""
+        }">${row.net > 0 ? "+" : ""}${row.net}</span>
+      </div>`
+    )
     .join("");
 
   const btnAgain = $<HTMLButtonElement>("btn-again");
