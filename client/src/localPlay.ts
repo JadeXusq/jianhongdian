@@ -53,6 +53,7 @@ export interface LocalRoundOver {
   points: number[];
   net: number[];
   base: number;
+  captured: number[][];
   round: number;
   totalRounds: number;
   allDone: boolean;
@@ -239,6 +240,7 @@ export class LocalPlay {
       points: result.points,
       net: result.net,
       base: result.base,
+      captured: this.game!.players.map((p) => [...p.captured]),
       round: this.round,
       totalRounds: allDone ? this.round : 0,
       allDone,
@@ -254,6 +256,7 @@ export class LocalPlay {
       points: [...this.totals],
       net: [...this.totals],
       base: 0,
+      captured: this.totals.map(() => [] as number[]),
       round: this.round,
       totalRounds: this.round,
       allDone: true,
