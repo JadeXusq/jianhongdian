@@ -70,12 +70,29 @@ const view = new TableView($<HTMLCanvasElement>("table"), {
     view.showCaptured = !view.showCaptured;
   },
   onCancelSelection: () => clearSelection(),
+  onReorderHand: (order) => adoptHand(order, true),
   onDealSfx: (kind) => {
     if (kind === "shuffle") sfx.dealShuffle();
     else if (kind === "round") sfx.dealRound();
     else sfx.dealTable();
   },
 });
+
+/** 保留已有手牌顺序，新牌追加到末尾 */
+function mergeHandOrder(prev: number[], next: number[]): number[] {
+  const nextSet = new Set(next);
+  const kept = prev.filter((id) => nextSet.has(id));
+  const keptSet = new Set(kept);
+  const added = next.filter((id) => !keptSet.has(id));
+  return [...kept, ...added];
+}
+
+function adoptHand(next: number[], exact = false): void {
+  const order = exact ? [...next] : mergeHandOrder(view.hand, next);
+  view.hand = order;
+  if (offline) offline.hand = [...order];
+  else net.hand = [...order];
+}
 
 // ---------- 界面切换 ----------
 
@@ -251,6 +268,7 @@ function onDealRoundStart(): void {
   lastRound = null;
   view.showCaptured = false;
   view.roundEnding = false;
+  view.hand = [];
   clearToast();
   hint(null);
 }
@@ -259,7 +277,7 @@ function applyPlayState(state: any, hand: number[], mySeat: number): void {
   const prev = view.state;
   view.deferStateArrivals(prev, state);
   view.state = state;
-  view.hand = sortHand(hand);
+  adoptHand(hand);
   view.mySeat = mySeat;
   const newRound =
     state.phase === "PLAYING" &&
@@ -1020,7 +1038,7 @@ function startOffline(): void {
   };
   session.onEvents = (events) => {
     view.pushEvents(events);
-    view.hand = sortHand(session.hand);
+    adoptHand(session.hand);
     if (pendingRoundOver && view.settleBusy)
       roundOverWaitStarted = performance.now();
     for (const ev of events) {
@@ -1032,7 +1050,7 @@ function startOffline(): void {
   };
   session.onRoundStart = () => {
     onDealRoundStart();
-    view.hand = sortHand(session.hand);
+    adoptHand(session.hand);
     if (localStorage.getItem("jhd.guided") !== "1") show("guide");
     else show("none");
   };
@@ -1090,7 +1108,7 @@ net.onState = (state) => {
 
 net.onRoundStart = () => {
   onDealRoundStart();
-  view.hand = sortHand(net.hand);
+  adoptHand(net.hand);
   ensureDealAnimForRound();
   if (localStorage.getItem("jhd.guided") !== "1") {
     show("guide");
@@ -1101,7 +1119,7 @@ net.onRoundStart = () => {
 
 net.onHand = () => {
   if (offline) return;
-  view.hand = sortHand(net.hand);
+  adoptHand(net.hand);
   if (dealRoundPending) view.syncDealHidden();
   tryStartDealAnim();
 };
@@ -1109,7 +1127,7 @@ net.onHand = () => {
 net.onEvents = (events) => {
   if (offline) return;
   view.pushEvents(events);
-  view.hand = sortHand(net.hand);
+  adoptHand(net.hand);
   if (pendingRoundOver && view.settleBusy)
     roundOverWaitStarted = performance.now();
   for (const ev of events) {
@@ -1365,7 +1383,7 @@ function frame(now: number): void {
   last = now;
   if ($("ui").classList.contains("rot") !== shouldRotate()) applyOrientation();
   try {
-    view.hand = sortHand(offline ? offline.hand : net.hand);
+    adoptHand(offline ? offline.hand : net.hand);
     if (dealRoundPending) view.syncDealHidden();
     if (dealRoundPending) tryStartDealAnim();
     view.render(dt);

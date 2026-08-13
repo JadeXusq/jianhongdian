@@ -86,15 +86,18 @@ export function findTargets(card: number, table: number[]): number[] {
 }
 
 /**
- * 可自动选定的吃牌目标：唯一目标，或同组可吃里同时有红黑时优先红牌。
- * 多个同色目标仍返回 undefined，交给玩家自选。
+ * 可自动选定的吃牌目标：
+ * - 唯一目标直接选
+ * - 同组既有红又有黑：优先最高分红牌
+ * - 全红或全黑：自动选最高分（同分取先出现的）
  */
 export function autoTarget(targets: number[]): number | undefined {
   if (!targets.length) return undefined;
   if (targets.length === 1) return targets[0];
   const reds = targets.filter(isRed);
-  if (!reds.length || reds.length === targets.length) return undefined;
-  return reds.reduce((best, t) => (cardScore(t) > cardScore(best) ? t : best));
+  const pool =
+    reds.length > 0 && reds.length < targets.length ? reds : targets;
+  return pool.reduce((best, t) => (cardScore(t) > cardScore(best) ? t : best));
 }
 
 /** 手牌展示序：点数升序，同点红前黑后，王在最后（小王→大王） */

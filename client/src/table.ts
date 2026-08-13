@@ -91,6 +91,7 @@ export interface TableCallbacks {
   onPickTable(cardId: number): void;
   onToggleCaptured?(): void;
   onCancelSelection?(): void;
+  onReorderHand?(order: number[]): void;
   onDealSfx?(kind: "shuffle" | "round" | "table"): void;
 }
 
@@ -165,6 +166,15 @@ export class TableView {
   /** 本帧绘制/命中共用的 CSS 视口，避免读到不一致尺寸 */
   private viewCw = 0;
   private viewCh = 0;
+  private handDrag: {
+    id: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    curX: number;
+    curY: number;
+    active: boolean;
+  } | null = null;
 
   constructor(private canvas: HTMLCanvasElement, private cb: TableCallbacks) {
     this.ctx = canvas.getContext("2d")!;
@@ -174,7 +184,10 @@ export class TableView {
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") this.updateLayout();
     });
-    canvas.addEventListener("pointerdown", (e) => this.onPointer(e));
+    canvas.addEventListener("pointerdown", (e) => this.onPointerDown(e));
+    canvas.addEventListener("pointermove", (e) => this.onPointerMove(e));
+    canvas.addEventListener("pointerup", (e) => this.onPointerUp(e));
+    canvas.addEventListener("pointercancel", (e) => this.onPointerUp(e));
   }
 
   /** 状态已到、动画未到：先藏起桌面新牌 */
@@ -323,11 +336,26 @@ export class TableView {
     };
   }
 
-  private onPointer(e: PointerEvent): void {
+  private hitSlot(slots: Map<number, Slot>, x: number, y: number): number {
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const pad = coarse ? (this.rotated ? 22 : 12) : 0;
+    const entries = [...slots.entries()].reverse();
+    for (const [id, s] of entries)
+      if (
+        x >= s.x - pad &&
+        x <= s.x + s.w + pad &&
+        y >= s.y - pad &&
+        y <= s.y + s.w * CARD_RATIO + pad
+      )
+        return id;
+    return -1;
+  }
+
+  private onPointerDown(e: PointerEvent): void {
+    if (this.handDrag) return;
     this.updateLayout();
     const { x, y } = this.pointerPos(e);
 
-    // 已吃详情随时可开合，优先于出牌点击
     if (this.capturedCloseHit) {
       const h = this.capturedCloseHit;
       if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) {
@@ -349,27 +377,82 @@ export class TableView {
 
     if (this.animating) return;
 
-    // 手牌在上层，优先命中；同层从右往左（后绘制的在上）
-    // 触屏加大命中外扩；竖屏软件旋转后再放大（物理牌面更窄）
-    const coarse = window.matchMedia("(pointer: coarse)").matches;
-    const pad = coarse ? (this.rotated ? 22 : 12) : 0;
-    const hit = (slots: Map<number, Slot>) => {
-      const entries = [...slots.entries()].reverse();
-      for (const [id, s] of entries)
-        if (
-          x >= s.x - pad &&
-          x <= s.x + s.w + pad &&
-          y >= s.y - pad &&
-          y <= s.y + s.w * CARD_RATIO + pad
-        )
-          return id;
-      return -1;
-    };
-    const handId = hit(this.handSlots);
-    if (handId >= 0) return this.cb.onPickHand(handId);
-    const t = hit(this.tableSlots);
+    const handId = this.hitSlot(this.handSlots, x, y);
+    if (handId >= 0) {
+      this.handDrag = {
+        id: handId,
+        pointerId: e.pointerId,
+        startX: x,
+        startY: y,
+        curX: x,
+        curY: y,
+        active: false,
+      };
+      try {
+        this.canvas.setPointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    const t = this.hitSlot(this.tableSlots, x, y);
     if (t >= 0) return this.cb.onPickTable(t);
     this.cb.onCancelSelection?.();
+  }
+
+  private onPointerMove(e: PointerEvent): void {
+    const d = this.handDrag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    this.updateLayout();
+    const { x, y } = this.pointerPos(e);
+    d.curX = x;
+    d.curY = y;
+    if (!d.active) {
+      const dx = x - d.startX;
+      const dy = y - d.startY;
+      if (dx * dx + dy * dy < 12 * 12) return;
+      d.active = true;
+      this.cb.onCancelSelection?.();
+      this.canvas.style.cursor = "grabbing";
+    }
+    this.reorderHandByX(d.id, x);
+  }
+
+  private onPointerUp(e: PointerEvent): void {
+    const d = this.handDrag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    this.handDrag = null;
+    this.canvas.style.cursor = "";
+    try {
+      this.canvas.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (d.active) {
+      this.cb.onReorderHand?.([...this.hand]);
+      return;
+    }
+    if (this.animating) return;
+    this.cb.onPickHand(d.id);
+  }
+
+  private reorderHandByX(id: number, x: number): void {
+    const n = this.hand.length;
+    if (n < 2) return;
+    const from = this.hand.indexOf(id);
+    if (from < 0) return;
+    const maxW = this.w - 200;
+    const step = Math.min(HAND_W + 10, maxW / n);
+    const startX = (this.w - ((n - 1) * step + HAND_W)) / 2;
+    let to = 0;
+    for (let i = 0; i < n; i++) {
+      if (x >= startX + i * step + HAND_W / 2) to = i;
+    }
+    if (to === from) return;
+    const next = [...this.hand];
+    next.splice(from, 1);
+    next.splice(to, 0, id);
+    this.hand = next;
   }
 
   /** 把服务器事件转成动画步骤 */
@@ -1259,12 +1342,22 @@ export class TableView {
       this.state.currentSeat === this.mySeat &&
       !this.animating &&
       !this.turnBlocked;
+    const drag = this.handDrag?.active ? this.handDrag : null;
     for (const [id, s] of this.handSlots) {
       if (this.hidden.has(id) || this.deferredReveal.has(id)) continue;
+      if (drag && drag.id === id) continue;
       drawCard(ctx, id, s.x, s.y, s.w, {
         selected: this.selected === id && this.discardArmed !== id && myTurn,
         discard: this.discardArmed === id && myTurn,
         dim: !myTurn,
+      });
+    }
+    if (drag && !this.hidden.has(drag.id) && !this.deferredReveal.has(drag.id)) {
+      const w = HAND_W;
+      const h = w * CARD_RATIO;
+      drawCard(ctx, drag.id, drag.curX - w / 2, drag.curY - h / 2 - 18, w, {
+        selected: true,
+        dim: false,
       });
     }
     this.drawCaptured(ctx);
