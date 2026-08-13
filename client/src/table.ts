@@ -375,8 +375,7 @@ export class TableView {
       return;
     }
 
-    if (this.animating) return;
-
+    // 对局中任意时刻可拖手牌排序（含动画/发牌）；点选仍仅非动画时生效
     const handId = this.hitSlot(this.handSlots, x, y);
     if (handId >= 0) {
       this.handDrag = {
@@ -395,6 +394,9 @@ export class TableView {
       }
       return;
     }
+
+    if (this.animating) return;
+
     const t = this.hitSlot(this.tableSlots, x, y);
     if (t >= 0) return this.cb.onPickTable(t);
     this.cb.onCancelSelection?.();
@@ -757,6 +759,10 @@ export class TableView {
 
   get animating(): boolean {
     return this.current !== null || this.steps.length > 0 || this.openingDeal;
+  }
+
+  get handDragging(): boolean {
+    return this.handDrag !== null;
   }
 
   /** 轮末结算前：飞牌/暂留/未揭晓/未压实都算未完成 */
@@ -1352,7 +1358,7 @@ export class TableView {
         dim: !myTurn,
       });
     }
-    if (drag && !this.hidden.has(drag.id) && !this.deferredReveal.has(drag.id)) {
+    if (drag) {
       const w = HAND_W;
       const h = w * CARD_RATIO;
       drawCard(ctx, drag.id, drag.curX - w / 2, drag.curY - h / 2 - 18, w, {

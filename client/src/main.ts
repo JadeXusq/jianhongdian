@@ -1383,7 +1383,7 @@ function frame(now: number): void {
   last = now;
   if ($("ui").classList.contains("rot") !== shouldRotate()) applyOrientation();
   try {
-    adoptHand(offline ? offline.hand : net.hand);
+    if (!view.handDragging) adoptHand(offline ? offline.hand : net.hand);
     if (dealRoundPending) view.syncDealHidden();
     if (dealRoundPending) tryStartDealAnim();
     view.render(dt);
