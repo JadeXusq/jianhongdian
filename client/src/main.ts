@@ -4,8 +4,10 @@
  */
 import {
   autoTarget,
+  cardName,
   cardScore,
   findTargets,
+  isRed,
   turnHint,
   THEMES,
   ROUND_RESULT_MAX_WAIT_MS,
@@ -828,27 +830,41 @@ function renderResult(r: RoundOver): void {
   }
 
   $("result-list").innerHTML = rows
-    .map(
-      (row, i) => `
-      <div class="res${row.p.seat === mySeat ? " me" : ""}${
-        i === 0 ? " top" : ""
-      }">
-        <span class="rank">${i === 0 ? "胜" : i + 1}</span>
-        <span class="who">${row.p.name}${
-          row.p.isAi && !String(row.p.name).startsWith("机器人")
-            ? '<span class="ai-tag">机</span>'
-            : ""
-        }</span>
-        <span class="calc">${
-          r.allDone
-            ? `累计 ${row.p.totalNet > 0 ? "+" : ""}${row.p.totalNet}`
-            : `${row.points}−${r.base}`
-        }</span>
-        <span class="net ${
-          row.net > 0 ? "win" : row.net < 0 ? "lose" : ""
-        }">${row.net > 0 ? "+" : ""}${row.net}</span>
-      </div>`
-    )
+    .map((row, i) => {
+      const scoreRow = `
+        <div class="res${row.p.seat === mySeat ? " me" : ""}${
+          i === 0 ? " top" : ""
+        }">
+          <span class="rank">${i === 0 ? "胜" : i + 1}</span>
+          <span class="who">${row.p.name}${
+            row.p.isAi && !String(row.p.name).startsWith("机器人")
+              ? '<span class="ai-tag">机</span>'
+              : ""
+          }</span>
+          <span class="calc">${
+            r.allDone
+              ? `累计 ${row.p.totalNet > 0 ? "+" : ""}${row.p.totalNet}`
+              : `${row.points}−${r.base}`
+          }</span>
+          <span class="net ${
+            row.net > 0 ? "win" : row.net < 0 ? "lose" : ""
+          }">${row.net > 0 ? "+" : ""}${row.net}</span>
+        </div>`;
+      // 仅轮间结算展示已吃牌（入堆顺序）；最终结算只比分
+      if (r.allDone) return scoreRow;
+      const pile = [...(r.captured?.[row.p.seat] ?? [])];
+      const chips = pile
+        .map((id) => {
+          const cls = isRed(id) ? "pile-card red" : "pile-card";
+          return `<span class="${cls}">${cardName(id)}</span>`;
+        })
+        .join("");
+      return `
+      <div class="res-block${row.p.seat === mySeat ? " me" : ""}">
+        ${scoreRow}
+        ${pile.length ? `<div class="res-pile">${chips}</div>` : ""}
+      </div>`;
+    })
     .join("");
 
   const btnAgain = $<HTMLButtonElement>("btn-again");

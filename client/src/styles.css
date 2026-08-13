@@ -628,6 +628,49 @@ input:focus {
   margin: 2px 0 10px;
 }
 
+.res-block {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.res-block.me {
+  border-color: var(--gold);
+  background: rgba(201, 169, 97, 0.1);
+}
+
+.res-block .res {
+  border: none;
+  background: transparent;
+  padding: 2px 2px 0;
+}
+
+.res-pile {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pile-card {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid rgba(243, 234, 214, 0.28);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(243, 234, 214, 0.88);
+  font-size: 11px;
+  line-height: 1.35;
+  font-family: "Songti SC", "STSong", serif;
+}
+
+.pile-card.red {
+  color: #e57373;
+  border-color: rgba(229, 115, 115, 0.45);
+}
+
 .res {
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr) auto 52px;
