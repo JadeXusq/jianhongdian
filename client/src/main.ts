@@ -809,6 +809,10 @@ function renderResult(r: RoundOver): void {
     .map((p) => ({ p, points: r.points[p.seat], net: r.net[p.seat] }))
     .sort((a, b) => b.net - a.net);
 
+  $("result")
+    .querySelector(".result-panel")
+    ?.classList.toggle("is-final", !!r.allDone);
+
   const title = $("result").querySelector(".title") as HTMLElement;
   const winner = rows[0];
   const iWin = winner?.p.seat === mySeat && winner.net >= 0;

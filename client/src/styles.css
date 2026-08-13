@@ -468,7 +468,7 @@ input:focus {
 
 .result-panel,
 .scores-panel {
-  /* 弹窗最小高度按 4 人信息预留，内部内容仍按原尺寸排布 */
+  /* 轮间结算：按 4 人预留高度；最终结算见 .is-final */
   --res-h: 34px;
   --res-gap: 4px;
   box-sizing: border-box;
@@ -483,6 +483,10 @@ input:focus {
   padding: 12px 14px 12px;
 }
 
+.result-panel.is-final {
+  min-height: 0;
+}
+
 .result-panel .result-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -493,6 +497,11 @@ input:focus {
   touch-action: pan-y;
 }
 
+.result-panel.is-final .result-list {
+  flex: none;
+  overflow: visible;
+}
+
 .scores-panel .result-list {
   flex: none;
   overflow: visible;
@@ -501,6 +510,10 @@ input:focus {
 .result-panel > .result-actions {
   flex: none;
   margin-top: auto;
+}
+
+.result-panel.is-final > .result-actions {
+  margin-top: 10px;
 }
 
 .scores-panel > .subtitle {
