@@ -6,6 +6,7 @@
  * 多目标进入选择阶段）→ 下一家。手牌与牌堆同时耗尽即终局。
  */
 import {
+  autoTarget,
   canPair,
   cardScore,
   createDeck,
@@ -102,8 +103,7 @@ export class Game {
     const targets = findTargets(cardId, this.table);
     const events: GameEvent[] = [];
     if (targets.length > 0) {
-      const target =
-        targetId ?? (targets.length === 1 ? targets[0] : undefined);
+      const target = targetId ?? autoTarget(targets);
       if (target === undefined)
         throw new RuleError("存在多个可吃目标，须指定其一");
       if (!targets.includes(target)) throw new RuleError("目标不可配对");
@@ -149,12 +149,11 @@ export class Game {
       this.endTurn();
       return [{ type: "FLIP", player, card, fromStock: true }];
     }
-    if (targets.length === 1) {
-      this.capture(player, card, targets[0]);
+    const target = autoTarget(targets);
+    if (target !== undefined) {
+      this.capture(player, card, target);
       this.endTurn();
-      return [
-        { type: "FLIP", player, card, target: targets[0], fromStock: true },
-      ];
+      return [{ type: "FLIP", player, card, target, fromStock: true }];
     }
     this.pendingStockCard = card;
     this.phase = "CHOOSE_STOCK_TARGET";

@@ -2,7 +2,7 @@
  * AI 策略（人机补位 / 超时托管共用）
  * 贪心：吃收益最大；无可吃弃分最低
  */
-import { cardScore, findTargets } from "./cards";
+import { autoTarget, cardScore, findTargets, isRed } from "./cards";
 
 export interface AiMove {
   cardId: number;
@@ -11,7 +11,11 @@ export interface AiMove {
 
 export function bestTarget(targets: number[]): number {
   if (!targets.length) throw new Error("bestTarget: empty");
-  return targets.reduce((best, t) =>
+  const auto = autoTarget(targets);
+  if (auto !== undefined) return auto;
+  const reds = targets.filter(isRed);
+  const pool = reds.length ? reds : targets;
+  return pool.reduce((best, t) =>
     cardScore(t) > cardScore(best) ? t : best
   );
 }

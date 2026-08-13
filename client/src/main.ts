@@ -3,8 +3,10 @@
  * 交互约定：点手牌 → 唯一目标直接吃；多目标高亮待选；无目标需再点一次确认弃牌。
  */
 import {
+  autoTarget,
   cardScore,
   findTargets,
+  sortHand,
   turnHint,
   THEMES,
   ROUND_RESULT_MAX_WAIT_MS,
@@ -255,7 +257,7 @@ function applyPlayState(state: any, hand: number[], mySeat: number): void {
   const prev = view.state;
   view.deferStateArrivals(prev, state);
   view.state = state;
-  view.hand = hand;
+  view.hand = sortHand(hand);
   view.mySeat = mySeat;
   const newRound =
     state.phase === "PLAYING" &&
@@ -882,8 +884,8 @@ function pickHand(id: number): void {
   )
     return;
   const targets = findTargets(id, [...state.table]);
-
-  if (targets.length === 1) return send(id, targets[0]);
+  const auto = autoTarget(targets);
+  if (auto !== undefined) return send(id, auto);
   if (targets.length === 0) {
     if (discardArmed === id) return send(id);
     discardArmed = id;
@@ -1004,7 +1006,7 @@ function startOffline(): void {
   };
   session.onEvents = (events) => {
     view.pushEvents(events);
-    view.hand = session.hand;
+    view.hand = sortHand(session.hand);
     if (pendingRoundOver && view.settleBusy)
       roundOverWaitStarted = performance.now();
     for (const ev of events) {
@@ -1016,7 +1018,7 @@ function startOffline(): void {
   };
   session.onRoundStart = () => {
     onDealRoundStart();
-    view.hand = session.hand;
+    view.hand = sortHand(session.hand);
     if (localStorage.getItem("jhd.guided") !== "1") show("guide");
     else show("none");
   };
@@ -1077,7 +1079,7 @@ net.onState = (state) => {
 
 net.onRoundStart = () => {
   onDealRoundStart();
-  view.hand = net.hand;
+  view.hand = sortHand(net.hand);
   ensureDealAnimForRound();
   if (localStorage.getItem("jhd.guided") !== "1") {
     show("guide");
@@ -1088,7 +1090,7 @@ net.onRoundStart = () => {
 
 net.onHand = () => {
   if (offline) return;
-  view.hand = net.hand;
+  view.hand = sortHand(net.hand);
   if (dealRoundPending) view.syncDealHidden();
   tryStartDealAnim();
 };
@@ -1096,7 +1098,7 @@ net.onHand = () => {
 net.onEvents = (events) => {
   if (offline) return;
   view.pushEvents(events);
-  view.hand = net.hand;
+  view.hand = sortHand(net.hand);
   if (pendingRoundOver && view.settleBusy)
     roundOverWaitStarted = performance.now();
   for (const ev of events) {
@@ -1352,7 +1354,7 @@ function frame(now: number): void {
   last = now;
   if ($("ui").classList.contains("rot") !== shouldRotate()) applyOrientation();
   try {
-    view.hand = offline ? offline.hand : net.hand;
+    view.hand = sortHand(offline ? offline.hand : net.hand);
     if (dealRoundPending) view.syncDealHidden();
     if (dealRoundPending) tryStartDealAnim();
     view.render(dt);

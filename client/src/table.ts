@@ -27,7 +27,7 @@ const H = 720;
 const W_MIN = 1040;
 const W_MAX = 1700;
 const HAND_W = 96;
-const TABLE_CARD_W = 74;
+const TABLE_CARD_W = 86;
 const MAX_ANIM_STEPS = 24;
 // 牌堆放在左上角：左/右/上三个方向均可能有对手面板，此处不会重叠
 const DECK = { x: 118, y: 128, w: 66 };

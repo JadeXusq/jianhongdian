@@ -84,6 +84,35 @@ export function findTargets(card: number, table: number[]): number[] {
   return table.filter((t) => canPair(card, t));
 }
 
+/**
+ * 可自动选定的吃牌目标：唯一目标，或同组可吃里同时有红黑时优先红牌。
+ * 多个同色目标仍返回 undefined，交给玩家自选。
+ */
+export function autoTarget(targets: number[]): number | undefined {
+  if (!targets.length) return undefined;
+  if (targets.length === 1) return targets[0];
+  const reds = targets.filter(isRed);
+  if (!reds.length || reds.length === targets.length) return undefined;
+  return reds.reduce((best, t) => (cardScore(t) > cardScore(best) ? t : best));
+}
+
+/** 手牌展示序：点数升序，同点红前黑后，王在最后（小王→大王） */
+export function sortHand(ids: number[]): number[] {
+  return [...ids].sort((a, b) => {
+    const ja = isJoker(a);
+    const jb = isJoker(b);
+    if (ja !== jb) return ja ? 1 : -1;
+    if (ja && jb) return a - b;
+    const ra = (a % 13) + 1;
+    const rb = (b % 13) + 1;
+    if (ra !== rb) return ra - rb;
+    const redA = isRed(a) ? 0 : 1;
+    const redB = isRed(b) ? 0 : 1;
+    if (redA !== redB) return redA - redB;
+    return a - b;
+  });
+}
+
 export function createDeck(): number[] {
   return Array.from({ length: DECK_SIZE }, (_, i) => i);
 }
