@@ -142,6 +142,7 @@ function bindOverlayScrolls(): void {
     ".room-panel",
     ".rules-body",
     ".result-panel .result-list",
+    ".scores-panel .result-list",
     "#rank .result-list",
     ".guide-panel .guide-list",
     ".lobby-panel",
@@ -338,19 +339,131 @@ function netClass(n: number): string {
   return n > 0 ? "win" : n < 0 ? "lose" : "";
 }
 
-function roundChipsHtml(seat: number, highlightRound?: number): string {
-  if (!matchRoundNets.length) {
-    return `<span class="sr muted">暂无轮次记录</span>`;
+function playerLabel(p: {
+  name: string;
+  isAi?: boolean;
+}): string {
+  const name = String(p.name ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  const ai =
+    p.isAi && !String(p.name).startsWith("机器人")
+      ? '<span class="ai-tag">机</span>'
+      : "";
+  return `${name}${ai}`;
+}
+
+/** 优先用分轮净胜求和，避免 roundOver 早于 state 同步时累计滞后 */
+function seatMatchTotal(seat: number, fallback: number): number {
+  if (!matchRoundNets.length) return fallback;
+  return matchRoundNets.reduce((s, row) => s + (row[seat] ?? 0), 0);
+}
+
+/** 玩家为列：累计总分 + 各轮净胜 */
+function scoreBoardHtml(
+  players: { seat: number; name: string; isAi?: boolean; totalNet: number }[],
+  mySeat: number,
+  opts?: {
+    highlightRound?: number;
+    livePoints?: number[];
+    piles?: number[][];
   }
-  return matchRoundNets
-    .map((row, i) => {
-      const n = row[seat] ?? 0;
-      const on = highlightRound === i + 1 ? " on" : "";
-      return `<span class="sr ${netClass(n)}${on}">R${i + 1} ${formatNet(
-        n
-      )}</span>`;
+): string {
+  const cols = [...players].sort((a, b) => a.seat - b.seat);
+  const n = Math.max(2, cols.length);
+  const style = `--score-n:${n}`;
+
+  const head = cols
+    .map(
+      (p) =>
+        `<div class="sc${p.seat === mySeat ? " me" : ""}">${playerLabel(
+          p
+        )}</div>`
+    )
+    .join("");
+
+  const total = cols
+    .map((p) => {
+      const v = seatMatchTotal(p.seat, p.totalNet);
+      return `<div class="sc net ${netClass(v)}${
+        p.seat === mySeat ? " me" : ""
+      }">${formatNet(v)}</div>`;
     })
     .join("");
+
+  const live =
+    opts?.livePoints && opts.livePoints.length
+      ? `<div class="score-row live">
+          <div class="sl">本轮</div>
+          ${cols
+            .map((p) => {
+              const v = opts.livePoints![p.seat] ?? 0;
+              return `<div class="sc${
+                p.seat === mySeat ? " me" : ""
+              }">${v}</div>`;
+            })
+            .join("")}
+        </div>`
+      : "";
+
+  const rounds = matchRoundNets.length
+    ? matchRoundNets
+        .map((row, i) => {
+          const on = opts?.highlightRound === i + 1 ? " on" : "";
+          const cells = cols
+            .map((p) => {
+              const v = row[p.seat] ?? 0;
+              return `<div class="sc net ${netClass(v)}${
+                p.seat === mySeat ? " me" : ""
+              }">${formatNet(v)}</div>`;
+            })
+            .join("");
+          return `<div class="score-row${on}">
+            <div class="sl">R${i + 1}</div>
+            ${cells}
+          </div>`;
+        })
+        .join("")
+    : `<div class="score-empty">暂无轮次记录</div>`;
+
+  const piles =
+    opts?.piles && opts.piles.some((x) => x?.length)
+      ? `<div class="score-row piles">
+          <div class="sl">吃牌</div>
+          ${cols
+            .map((p) => {
+              const pile = opts.piles![p.seat] ?? [];
+              const chips = pile.length
+                ? pile
+                    .map((id) => {
+                      const cls = isRed(id) ? "pile-card red" : "pile-card";
+                      return `<span class="${cls}">${cardName(id)}</span>`;
+                    })
+                    .join("")
+                : `<span class="pile-empty">—</span>`;
+              return `<div class="sc pile${
+                p.seat === mySeat ? " me" : ""
+              }">${chips}</div>`;
+            })
+            .join("")}
+        </div>`
+      : "";
+
+  return `<div class="score-board" style="${style}">
+    <div class="score-row head">
+      <div class="sl"></div>
+      ${head}
+    </div>
+    <div class="score-row total">
+      <div class="sl">累计</div>
+      ${total}
+    </div>
+    ${rounds}
+    ${live}
+    ${piles}
+  </div>`;
 }
 
 function queueRoundOver(r: RoundOver): void {
@@ -598,43 +711,30 @@ function renderScores(): void {
   const state = playState();
   if (!state) return;
   const players = [...state.players.values()] as any[];
-  const rows = [...players].sort((a, b) => b.totalNet - a.totalNet);
   const mySeat = offline ? offline.mySeat : net.mySeat;
   $("scores-round").textContent = !state.round
     ? "尚未完成轮次"
     : state.phase === "PLAYING"
-      ? `第 ${state.round} 轮进行中 · 累计与分轮净胜`
-      : `已打 ${state.round} 轮 · 累计与分轮净胜`;
-  $("scores-list").innerHTML = rows
-    .map((p, i) => {
-      const mid =
-        state.phase === "PLAYING"
-          ? `<span class="score-mid">本轮得分 ${p.points}</span>`
-          : lastRound && !lastRound.allDone
-            ? `<span class="score-mid">本轮净胜 <b class="${netClass(
-                lastRound.net[p.seat] ?? 0
-              )}">${formatNet(lastRound.net[p.seat] ?? 0)}</b></span>`
-            : "";
-      return `
-      <div class="score-card${p.seat === mySeat ? " me" : ""}${
-        i === 0 ? " top" : ""
-      }">
-        <div class="score-head">
-          <span class="rank">${i + 1}</span>
-          <span class="who">${p.name}${
-            p.isAi && !String(p.name).startsWith("机器人")
-              ? '<span class="ai-tag">机</span>'
-              : ""
-          }</span>
-          <span class="net ${netClass(p.totalNet)}">${formatNet(
-            p.totalNet
-          )}</span>
-        </div>
-        ${mid}
-        <div class="score-rounds">${roundChipsHtml(p.seat)}</div>
-      </div>`;
-    })
-    .join("");
+      ? `第 ${state.round} 轮进行中`
+      : `已打 ${state.round} 轮`;
+  const bySeat: number[] | undefined =
+    state.phase === "PLAYING"
+      ? (() => {
+          const arr: number[] = [];
+          for (const p of players) arr[p.seat] = Number(p.points) || 0;
+          return arr;
+        })()
+      : undefined;
+  $("scores-list").innerHTML = scoreBoardHtml(
+    players.map((p) => ({
+      seat: p.seat,
+      name: p.name,
+      isAi: p.isAi,
+      totalNet: p.totalNet,
+    })),
+    mySeat,
+    { livePoints: bySeat }
+  );
   show("scores");
 }
 
@@ -867,26 +967,26 @@ function renderResult(r: RoundOver): void {
   const mySeat = offline ? offline.mySeat : net.mySeat;
   if (!state) return;
   const players = [...state.players.values()] as any[];
-  const rows = players
-    .map((p) => ({
-      p,
-      points: r.points[p.seat],
-      net: r.net[p.seat],
-      total: p.totalNet as number,
-    }))
-    .sort((a, b) =>
-      r.allDone ? b.total - a.total : b.net - a.net
-    );
+  const ranked = [...players].sort((a, b) => {
+    const ta = seatMatchTotal(a.seat, a.totalNet as number);
+    const tb = seatMatchTotal(b.seat, b.totalNet as number);
+    return r.allDone
+      ? tb - ta
+      : (r.net[b.seat] ?? 0) - (r.net[a.seat] ?? 0);
+  });
 
   $("result")
     .querySelector(".result-panel")
     ?.classList.toggle("is-final", !!r.allDone);
 
   const title = $("result").querySelector(".title") as HTMLElement;
-  const winner = rows[0];
+  const winner = ranked[0];
+  const winTotal = winner
+    ? seatMatchTotal(winner.seat, winner.totalNet as number)
+    : 0;
   const iWin =
-    winner?.p.seat === mySeat &&
-    (r.allDone ? winner.total >= 0 : winner.net >= 0);
+    winner?.seat === mySeat &&
+    (r.allDone ? winTotal >= 0 : (r.net[winner.seat] ?? 0) >= 0);
   title.textContent = r.allDone
     ? iWin
       ? "最终结算 · 胜"
@@ -905,51 +1005,26 @@ function renderResult(r: RoundOver): void {
     }
   }
 
-  $("result-list").innerHTML = rows
-    .map((row, i) => {
-      const roundLine = !(r.allDone && r.base === 0)
-        ? `<div class="score-mid">本轮净胜 <b class="${netClass(
-            row.net
-          )}">${formatNet(row.net)}</b>${
-            !r.allDone ? ` · ${row.points}−${r.base}` : ""
-          }</div>`
-        : "";
-      const pile = !r.allDone
-        ? [...(r.captured?.[row.p.seat] ?? [])]
-        : [];
-      const pileHtml =
-        !r.allDone && pile.length
-          ? `<div class="res-pile">${pile
-              .map((id) => {
-                const cls = isRed(id) ? "pile-card red" : "pile-card";
-                return `<span class="${cls}">${cardName(id)}</span>`;
-              })
-              .join("")}</div>`
-          : "";
-      return `
-      <div class="score-card${row.p.seat === mySeat ? " me" : ""}${
-        i === 0 ? " top" : ""
-      }">
-        <div class="score-head">
-          <span class="rank">${i === 0 ? "胜" : i + 1}</span>
-          <span class="who">${row.p.name}${
-            row.p.isAi && !String(row.p.name).startsWith("机器人")
-              ? '<span class="ai-tag">机</span>'
-              : ""
-          }</span>
-          <span class="net ${netClass(row.total)}">${formatNet(
-            row.total
-          )}</span>
-        </div>
-        ${roundLine}
-        <div class="score-rounds">${roundChipsHtml(
-          row.p.seat,
-          r.allDone ? undefined : r.round
-        )}</div>
-        ${pileHtml}
-      </div>`;
-    })
-    .join("");
+  const piles = !r.allDone
+    ? players.reduce<number[][]>((acc, p) => {
+        acc[p.seat] = [...(r.captured?.[p.seat] ?? [])];
+        return acc;
+      }, [])
+    : undefined;
+
+  $("result-list").innerHTML = scoreBoardHtml(
+    players.map((p) => ({
+      seat: p.seat,
+      name: p.name,
+      isAi: p.isAi,
+      totalNet: p.totalNet,
+    })),
+    mySeat,
+    {
+      highlightRound: r.allDone || r.base === 0 ? undefined : r.round,
+      piles,
+    }
+  );
 
   const btnAgain = $<HTMLButtonElement>("btn-again");
   const btnExit = $<HTMLButtonElement>("btn-exit");

@@ -486,16 +486,11 @@ input:focus {
 
 .result-panel,
 .scores-panel {
-  /* 轮间结算：按 4 人预留高度；最终结算见 .is-final */
-  --res-h: 72px;
-  --res-gap: 8px;
+  /* 表格结算：高度随内容；最终结算见 .is-final */
   box-sizing: border-box;
-  width: min(420px, calc(100vw - 28px));
+  width: min(520px, calc(100vw - 28px));
   height: auto;
-  min-height: calc(
-    12px + 28px + 18px + (4 * var(--res-h) + 3 * var(--res-gap)) + 14px + 52px +
-      12px
-  );
+  min-height: 0;
   max-height: calc(100dvh - 48px);
   margin-inline: auto;
   padding: 12px 14px 12px;
@@ -521,8 +516,13 @@ input:focus {
 }
 
 .scores-panel .result-list {
-  flex: none;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .result-panel > .result-actions {
@@ -592,8 +592,7 @@ input:focus {
 }
 
 .seat .ai-tag,
-.res .ai-tag,
-.score-card .ai-tag {
+.res .ai-tag {
   display: inline-block;
   margin-left: 6px;
   padding: 0 5px;
@@ -641,7 +640,7 @@ input:focus {
   color: rgba(243, 234, 214, 0.4);
 }
 
-/* 结算 / 积分：总积分 + 分轮净胜 */
+/* 结算 / 积分：玩家为列的表格 */
 .result-panel > .title.small,
 .scores-panel > .title.small {
   margin: 0 0 2px;
@@ -660,111 +659,143 @@ input:focus {
   margin: 2px 0 10px;
 }
 
-.score-card {
-  display: grid;
-  gap: 5px;
-  padding: 8px 10px 9px;
+.score-board {
+  --score-n: 4;
   border: 1px solid var(--gold-dim);
   border-radius: 10px;
+  overflow: hidden;
   background: rgba(0, 0, 0, 0.22);
 }
 
-.score-card.me {
-  border-color: var(--gold);
-  background: rgba(201, 169, 97, 0.12);
-}
-
-.score-card.top {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 35%, transparent);
-}
-
-.score-head {
+.score-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: 8px;
-  font-size: 14px;
-  line-height: 1.2;
+  grid-template-columns: 40px repeat(var(--score-n), minmax(0, 1fr));
+  align-items: stretch;
+  border-top: 1px solid color-mix(in srgb, var(--gold) 18%, transparent);
 }
 
-.score-head .rank {
-  color: var(--gold);
+.score-row:first-child {
+  border-top: none;
+}
+
+.score-row.head {
+  background: color-mix(in srgb, var(--gold) 10%, transparent);
+}
+
+.score-row.total {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.score-row.on {
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+}
+
+.score-row.live .sc {
+  color: rgba(243, 234, 214, 0.72);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.score-row .sl,
+.score-row .sc {
+  padding: 7px 4px;
+  text-align: center;
   font-size: 13px;
-  font-weight: 700;
-}
-
-.score-card.top .rank {
-  color: #f0c96a;
-}
-
-.score-head .who {
+  line-height: 1.25;
   min-width: 0;
+}
+
+.score-row .sl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(243, 234, 214, 0.55);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  border-right: 1px solid color-mix(in srgb, var(--gold) 16%, transparent);
+}
+
+.score-row.head .sc {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cream);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: left;
 }
 
-.score-head .net {
-  min-width: 52px;
-  text-align: right;
-  font-size: 18px;
+.score-row.total .sc {
+  font-size: 16px;
   font-weight: 700;
   font-family: "Helvetica Neue", Arial, sans-serif;
-  color: rgba(243, 234, 214, 0.85);
 }
 
-.score-head .net.win,
-.score-mid .win,
-.sr.win {
+.score-row .sc.net {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-weight: 600;
+}
+
+.score-row .sc.me {
+  background: rgba(201, 169, 97, 0.14);
+}
+
+.score-row.head .sc.me {
+  color: var(--gold);
+  box-shadow: inset 0 -2px 0 var(--gold);
+}
+
+.score-row .sc.net.win {
   color: #7dcea0;
 }
 
-.score-head .net.lose,
-.score-mid .lose,
-.sr.lose {
+.score-row .sc.net.lose {
   color: #e57373;
 }
 
-.score-mid {
+.score-empty {
+  padding: 10px 8px;
+  text-align: center;
+  color: rgba(243, 234, 214, 0.4);
   font-size: 12px;
-  color: rgba(243, 234, 214, 0.55);
-  line-height: 1.3;
+  border-top: 1px solid color-mix(in srgb, var(--gold) 18%, transparent);
 }
 
-.score-mid b {
-  font-weight: 700;
-  font-family: "Helvetica Neue", Arial, sans-serif;
+.score-row.piles {
+  align-items: start;
 }
 
-.score-rounds {
+.score-row.piles .sc.pile {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 2px;
+  justify-content: center;
+  align-content: flex-start;
+  padding: 5px 2px;
+  max-height: 72px;
+  overflow-y: auto;
 }
 
-.sr {
-  flex: none;
-  padding: 2px 7px;
-  border: 1px solid rgba(243, 234, 214, 0.22);
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.28);
-  color: rgba(243, 234, 214, 0.72);
-  font-size: 11px;
-  line-height: 1.45;
-  font-family: "Helvetica Neue", Arial, sans-serif;
-  white-space: nowrap;
+.score-row.piles .pile-card {
+  font-size: 10px;
+  padding: 0 3px;
 }
 
-.sr.on {
-  border-color: var(--gold);
-  background: color-mix(in srgb, var(--gold) 16%, transparent);
-  color: var(--gold);
+.score-row.piles .pile-empty {
+  color: rgba(243, 234, 214, 0.35);
+  font-size: 12px;
 }
 
-.sr.muted {
-  border-style: dashed;
-  color: rgba(243, 234, 214, 0.4);
+.score-board .ai-tag {
+  display: inline-block;
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--seal, #c45c48);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: middle;
+  line-height: 14px;
 }
 
 .res-block {
@@ -1491,9 +1522,8 @@ html[data-theme="mohong"] .social-panel {
 
 #ui.rot .result-panel,
 #ui.rot .scores-panel {
-  --res-h: 68px;
   box-sizing: border-box;
-  width: min(460px, 72%);
+  width: min(560px, 86%);
   height: auto;
   max-height: calc(100% - 48px);
   margin-inline: auto;
@@ -1560,21 +1590,19 @@ html[data-theme="mohong"] .social-panel {
   font-size: 13px;
 }
 
-#ui.rot .result-panel .score-card,
-#ui.rot .scores-panel .score-card {
-  padding: 6px 8px 7px;
-  gap: 4px;
+#ui.rot .score-row .sl,
+#ui.rot .score-row .sc {
+  padding: 5px 3px;
+  font-size: 12px;
 }
 
-#ui.rot .result-panel .res .net,
-#ui.rot .scores-panel .res .net,
-#ui.rot .result-panel .score-head .net,
-#ui.rot .scores-panel .score-head .net {
-  font-size: 16px;
+#ui.rot .score-row.total .sc {
+  font-size: 15px;
 }
 
 #ui.rot .result-panel .res .net,
 #ui.rot .scores-panel .res .net {
+  font-size: 16px;
   width: 48px;
 }
 
