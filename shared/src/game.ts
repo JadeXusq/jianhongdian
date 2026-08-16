@@ -42,6 +42,17 @@ export interface GameResult {
   net: number[];
 }
 
+/** 可序列化的对局快照（人机续玩等） */
+export interface GameSnapshot {
+  playerCount: number;
+  players: PlayerState[];
+  table: number[];
+  stock: number[];
+  currentPlayer: number;
+  phase: Phase;
+  pendingStockCard: number;
+}
+
 export class RuleError extends Error {}
 
 export class Game {
@@ -64,6 +75,40 @@ export class Game {
     this.currentPlayer =
       ((startSeat % playerCount) + playerCount) % playerCount;
     this.deal(mulberry32(seed));
+  }
+
+  toSnapshot(): GameSnapshot {
+    return {
+      playerCount: this.playerCount,
+      players: this.players.map((p) => ({
+        hand: [...p.hand],
+        captured: [...p.captured],
+      })),
+      table: [...this.table],
+      stock: [...this.stock],
+      currentPlayer: this.currentPlayer,
+      phase: this.phase,
+      pendingStockCard: this.pendingStockCard,
+    };
+  }
+
+  static restore(s: GameSnapshot): Game {
+    const n = s.playerCount;
+    if (n < 2 || n > 4) throw new RuleError("人数须为 2~4");
+    if (!Array.isArray(s.players) || s.players.length !== n)
+      throw new RuleError("快照玩家数不匹配");
+    const g = Object.create(Game.prototype) as Game;
+    (g as { playerCount: number }).playerCount = n;
+    (g as { players: PlayerState[] }).players = s.players.map((p) => ({
+      hand: [...(p.hand ?? [])],
+      captured: [...(p.captured ?? [])],
+    }));
+    g.table = [...(s.table ?? [])];
+    g.stock = [...(s.stock ?? [])];
+    g.currentPlayer = ((s.currentPlayer % n) + n) % n;
+    g.phase = s.phase;
+    g.pendingStockCard = s.pendingStockCard ?? -1;
+    return g;
   }
 
   /** 随机洗牌发牌；仅当初始桌面存在互配（会死锁，如双王）时重洗 */

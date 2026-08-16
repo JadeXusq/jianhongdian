@@ -266,7 +266,8 @@ export class TableView {
 
   /** 桌面明牌区：顶部给对手面板留白，避免与桌面牌重叠 */
   private get area() {
-    return { x: 236, y: 168, w: this.w - 472, h: 280 };
+    const tableCardH = TABLE_CARD_W * CARD_RATIO;
+    return { x: 236, y: 154 - tableCardH * 0.5, w: this.w - 472, h: 280 };
   }
 
   /**

@@ -17,7 +17,7 @@ import {
 import { sfx } from "./audio";
 import { loadCardAtlas } from "./cardRender";
 import { bindRotScroll, lockLandscape, onOrientationChange, shouldRotate } from "./layout";
-import { LocalPlay } from "./localPlay";
+import { LocalPlay, hasLocalSave } from "./localPlay";
 import { Net, RoundOver, deviceId, savedAccountId } from "./net";
 import { TableView } from "./table";
 import { applyTheme, currentThemeId, loadSavedTheme, type ThemeId } from "./theme";
@@ -125,6 +125,7 @@ function show(
     "settle-confirm",
     "room-code-dialog",
   ].forEach((s) => $(s).classList.toggle("hidden", s !== id));
+  if (id === "lobby") refreshPracticeBtn();
 }
 
 const shown = (id: string) => !$(id).classList.contains("hidden");
@@ -1161,16 +1162,17 @@ function stopOffline(): void {
   clearChatLog();
   clearMatchRoundNets();
   setMenuVisible(false);
+  refreshPracticeBtn();
 }
 
-function startOffline(): void {
-  stopOffline();
-  clearChatLog();
-  void net.leave().catch(() => undefined);
-  const session = new LocalPlay(playerName(), maxPlayers);
-  offline = session;
+function refreshPracticeBtn(): void {
+  const btn = $("btn-practice");
+  if (!btn) return;
+  btn.textContent = hasLocalSave() ? "继续人机练习" : "人机练习（可离线）";
+}
+
+function wireOfflineSession(session: LocalPlay): void {
   session.animBusy = () => view.animating || view.turnBlocked;
-  session.setTheme(currentThemeId());
   session.onState = (state) => {
     syncThemeFromState(state);
     applyPlayState(state, session.hand, session.mySeat);
@@ -1213,10 +1215,40 @@ function startOffline(): void {
     else show("none");
   };
   session.onRoundOver = (r) => {
+    if (r.allDone) refreshPracticeBtn();
     queueRoundOver(r);
   };
+}
+
+function startOffline(): void {
+  stopOffline();
+  clearChatLog();
+  void net.leave().catch(() => undefined);
+  const resumed = LocalPlay.tryResume(playerName());
+  const session = resumed ?? new LocalPlay(playerName(), maxPlayers);
+  offline = session;
+  wireOfflineSession(session);
+  if (resumed) {
+    maxPlayers = session.state.maxPlayers;
+    Array.from($("counts").children).forEach((b) =>
+      b.classList.toggle(
+        "on",
+        Number((b as HTMLElement).dataset.n) === maxPlayers
+      )
+    );
+    matchRoundNets = session.exportRoundNets();
+    lastDealRound = session.state.round;
+    dealRoundPending = false;
+    pendingRoundOver = null;
+    session.bootstrapAfterResume();
+    toast(`继续人机练习 · ${maxPlayers} 人`);
+    refreshPracticeBtn();
+    return;
+  }
+  session.setTheme(currentThemeId());
   session.start();
   toast(`人机练习（离线）· ${maxPlayers} 人`);
+  refreshPracticeBtn();
 }
 
 // ---------- 网络回调 ----------

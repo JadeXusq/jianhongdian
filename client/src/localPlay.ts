@@ -1,6 +1,7 @@
 /**
  * 浏览器内离线人机：不依赖 Colyseus，规则与 AI 直接用 shared。
  * 状态形态对齐 TableView 所需字段，便于复用牌桌渲染。
+ * 进行中的对局写入 localStorage，下次点「人机练习」可续玩。
  */
 import {
   AI_DELAY_MS,
@@ -16,6 +17,7 @@ import {
   type ThemeId,
   Game,
   type GameEvent,
+  type GameSnapshot,
 } from "@jhd/shared";
 
 export interface LocalPlayer {
@@ -61,6 +63,56 @@ export interface LocalRoundOver {
 }
 
 const HUMAN = "local-human";
+const SAVE_KEY = "jhd.localPlay";
+const SAVE_VER = 1;
+
+interface LocalSave {
+  v: number;
+  humanName: string;
+  playerCount: number;
+  round: number;
+  totals: number[];
+  roundStarter: number;
+  settleAfterRound: boolean;
+  matchClosed: boolean;
+  roundNets: number[][];
+  themeId: ThemeId;
+  phase: "PLAYING" | "ROUND_OVER";
+  game: GameSnapshot | null;
+  lastRoundOver: LocalRoundOver | null;
+}
+
+export function hasLocalSave(): boolean {
+  return !!readSave();
+}
+
+export function clearLocalSave(): void {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function readSave(): LocalSave | null {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as LocalSave;
+    if (data?.v !== SAVE_VER) return null;
+    if (data.matchClosed || data.phase === undefined) return null;
+    if (data.phase === "PLAYING" && !data.game) return null;
+    if (
+      !Array.isArray(data.totals) ||
+      data.totals.length < 2 ||
+      data.totals.length > 4
+    )
+      return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
 
 export class LocalPlay {
   game: Game | null = null;
@@ -78,6 +130,9 @@ export class LocalPlay {
   private settleAfterRound = false;
   private matchClosed = false;
   private roundNets: number[][] = [];
+  private lastRoundOver: LocalRoundOver | null = null;
+  /** 刚从存档恢复且停在轮间结算 */
+  pendingRestoredRoundOver: LocalRoundOver | null = null;
 
   onState?: (state: LocalState) => void;
   onEvents?: (events: GameEvent[]) => void;
@@ -93,6 +148,20 @@ export class LocalPlay {
     this.state = this.emptyState();
   }
 
+  /** 有存档则恢复；成功返回 true */
+  static tryResume(humanName: string): LocalPlay | null {
+    const data = readSave();
+    if (!data) return null;
+    try {
+      const session = new LocalPlay(humanName, data.playerCount);
+      session.applySave(data);
+      return session;
+    } catch {
+      clearLocalSave();
+      return null;
+    }
+  }
+
   start(): void {
     this.round = 0;
     this.roundStarter = -1;
@@ -100,12 +169,16 @@ export class LocalPlay {
     this.matchClosed = false;
     this.totals = Array.from({ length: this.playerCount }, () => 0);
     this.roundNets = [];
+    this.lastRoundOver = null;
+    this.pendingRestoredRoundOver = null;
+    clearLocalSave();
     this.nextRound();
   }
 
   stop(): void {
     clearTimeout(this.aiTimer);
     this.aiTimer = 0;
+    this.persist();
     this.game = null;
   }
 
@@ -167,6 +240,53 @@ export class LocalPlay {
     this.emitState();
   }
 
+  exportRoundNets(): number[][] {
+    return this.roundNets.map((row) => [...row]);
+  }
+
+  private applySave(data: LocalSave): void {
+    this.humanName = data.humanName || this.humanName;
+    this.playerCount = data.playerCount;
+    this.round = data.round;
+    this.totals = [...data.totals];
+    this.roundStarter = data.roundStarter;
+    this.settleAfterRound = !!data.settleAfterRound;
+    this.matchClosed = false;
+    this.roundNets = (data.roundNets ?? []).map((row) => [...row]);
+    this.lastRoundOver = data.lastRoundOver
+      ? {
+          ...data.lastRoundOver,
+          points: [...data.lastRoundOver.points],
+          net: [...data.lastRoundOver.net],
+          captured: data.lastRoundOver.captured.map((c) => [...c]),
+          roundNets: (data.lastRoundOver.roundNets ?? []).map((row) => [
+            ...row,
+          ]),
+        }
+      : null;
+    this.state = this.emptyState();
+    this.state.themeId = resolveThemeId(data.themeId ?? DEFAULT_THEME_ID);
+    this.state.round = this.round;
+    this.state.roundStarter = this.roundStarter;
+    this.state.maxPlayers = this.playerCount;
+    this.game = data.game ? Game.restore(data.game) : null;
+    if (data.phase === "PLAYING") {
+      if (!this.game || this.game.phase === "FINISHED")
+        throw new Error("bad playing save");
+      this.state.phase = "PLAYING";
+      this.syncFromGame();
+      this.pendingRestoredRoundOver = null;
+    } else {
+      this.state.phase = "ROUND_OVER";
+      if (!this.lastRoundOver || this.lastRoundOver.allDone)
+        throw new Error("bad round-over save");
+      if (this.game) this.syncFromGame();
+      else this.syncTotalsOnly();
+      this.state.phase = "ROUND_OVER";
+      this.pendingRestoredRoundOver = this.lastRoundOver;
+    }
+  }
+
   private aiId(seat: number): string {
     return `local-ai-${seat}`;
   }
@@ -202,6 +322,7 @@ export class LocalPlay {
     this.game = new Game(this.playerCount, Date.now(), this.roundStarter);
     this.round += 1;
     this.matchClosed = false;
+    this.lastRoundOver = null;
     this.syncFromGame();
     this.state.phase = "PLAYING";
     this.state.round = this.round;
@@ -239,8 +360,7 @@ export class LocalPlay {
     this.state.phase = "ROUND_OVER";
     this.syncFromGame();
     this.state.phase = "ROUND_OVER";
-    this.emitState();
-    this.onRoundOver?.({
+    const payload: LocalRoundOver = {
       points: result.points,
       net: result.net,
       base: result.base,
@@ -249,15 +369,21 @@ export class LocalPlay {
       totalRounds: allDone ? this.round : 0,
       allDone,
       roundNets: this.roundNets.map((row) => [...row]),
-    });
+    };
+    this.lastRoundOver = payload;
+    this.emitState();
+    if (allDone) clearLocalSave();
+    this.onRoundOver?.(payload);
   }
 
   private closeMatch(): void {
     this.matchClosed = true;
     this.settleAfterRound = false;
     this.state.phase = "ROUND_OVER";
-    this.emitState();
-    this.onRoundOver?.({
+    if (this.game) this.syncFromGame();
+    else this.syncTotalsOnly();
+    this.state.phase = "ROUND_OVER";
+    const payload: LocalRoundOver = {
       points: [...this.totals],
       net: [...this.totals],
       base: 0,
@@ -266,7 +392,11 @@ export class LocalPlay {
       totalRounds: this.round,
       allDone: true,
       roundNets: this.roundNets.map((row) => [...row]),
-    });
+    };
+    this.lastRoundOver = payload;
+    clearLocalSave();
+    this.emitState();
+    this.onRoundOver?.(payload);
   }
 
   private scheduleAi(animPadMs: number): void {
@@ -350,7 +480,102 @@ export class LocalPlay {
     this.hand = [...g.players[0].hand];
   }
 
+  /** 本场已结算、无牌局对象时只同步累计分 */
+  private syncTotalsOnly(): void {
+    const players = new Map<string, LocalPlayer>();
+    players.set(HUMAN, {
+      sessionId: HUMAN,
+      name: this.humanName,
+      seat: 0,
+      isAi: false,
+      connected: true,
+      ready: true,
+      points: 0,
+      handCount: 0,
+      captured: [],
+      totalNet: this.totals[0] ?? 0,
+    });
+    for (let seat = 1; seat < this.playerCount; seat++) {
+      const id = this.aiId(seat);
+      const label =
+        this.playerCount === 2 ? this.aiName : `${this.aiName} ${seat}`;
+      players.set(id, {
+        sessionId: id,
+        name: label,
+        seat,
+        isAi: true,
+        connected: true,
+        ready: true,
+        points: 0,
+        handCount: 0,
+        captured: [],
+        totalNet: this.totals[seat] ?? 0,
+      });
+    }
+    this.state.players = players;
+    this.state.maxPlayers = this.playerCount;
+    this.state.table = [];
+    this.state.stockCount = 0;
+    this.state.currentSeat = -1;
+    this.state.turnPhase = "PLAY_HAND";
+    this.state.pendingStockCard = -1;
+    this.state.round = this.round;
+    this.state.roundStarter = this.roundStarter;
+    this.hand = [];
+  }
+
+  private persist(): void {
+    if (this.matchClosed) {
+      clearLocalSave();
+      return;
+    }
+    if (this.state.phase !== "PLAYING" && this.state.phase !== "ROUND_OVER")
+      return;
+    if (this.state.phase === "PLAYING" && !this.game) return;
+    const data: LocalSave = {
+      v: SAVE_VER,
+      humanName: this.humanName,
+      playerCount: this.playerCount,
+      round: this.round,
+      totals: [...this.totals],
+      roundStarter: this.roundStarter,
+      settleAfterRound: this.settleAfterRound,
+      matchClosed: false,
+      roundNets: this.roundNets.map((row) => [...row]),
+      themeId: this.state.themeId,
+      phase: this.state.phase,
+      game: this.game ? this.game.toSnapshot() : null,
+      lastRoundOver: this.lastRoundOver
+        ? {
+            ...this.lastRoundOver,
+            points: [...this.lastRoundOver.points],
+            net: [...this.lastRoundOver.net],
+            captured: this.lastRoundOver.captured.map((c) => [...c]),
+            roundNets: this.lastRoundOver.roundNets.map((row) => [...row]),
+          }
+        : null,
+    };
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    } catch {
+      /* ignore quota */
+    }
+  }
+
   private emitState(): void {
     this.onState?.(this.state);
+    this.persist();
+  }
+
+  /** 恢复后由 main 调用：发状态并续 AI / 弹结算 */
+  bootstrapAfterResume(): void {
+    this.emitState();
+    if (this.state.phase === "PLAYING" && this.game) {
+      this.scheduleAi(400);
+      return;
+    }
+    const r = this.pendingRestoredRoundOver;
+    this.pendingRestoredRoundOver = null;
+    if (r && !r.allDone) this.onRoundOver?.(r);
   }
 }
