@@ -1506,6 +1506,8 @@ export class TableView {
       this.animating && this.visualTurnSeat !== null
         ? this.visualTurnSeat
         : this.state.currentSeat;
+    const tid = currentThemeId();
+    const radius = tid === "jilan" ? 14 : tid === "mohong" ? 8 : 12;
     for (const p of players) {
       const pos = this.panelPos(p.seat);
       const active = turnSeat === p.seat;
@@ -1515,26 +1517,40 @@ export class TableView {
       ctx.font = `600 17px "Songti SC", serif`;
       const nameW = ctx.measureText(name).width;
       const tagW = (p.isAi ? 22 : 0) + (starter ? 22 : 0);
-      const panelW = Math.min(220, Math.max(148, 78 + nameW + tagW));
-      const panelH = 84;
+      const panelW = Math.min(228, Math.max(152, 82 + nameW + tagW));
+      const panelH = 86;
       const left = pos.x - panelW / 2;
+      const top = pos.y - panelH / 2;
 
       ctx.save();
-      roundRect(ctx, left, pos.y - panelH / 2, panelW, panelH, 12);
-      ctx.fillStyle = "rgba(8,26,20,0.72)";
+      roundRect(ctx, left, top, panelW, panelH, radius);
+      const g = ctx.createLinearGradient(left, top, left, top + panelH);
+      g.addColorStop(0, C.feltInner);
+      g.addColorStop(1, C.feltOuter);
+      ctx.fillStyle = g;
+      ctx.globalAlpha = 0.88;
       ctx.fill();
-      ctx.strokeStyle = active ? C.gold : "rgba(201,169,97,0.3)";
-      ctx.lineWidth = active ? 2 : 1;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = C.panelBg;
+      ctx.fill();
+      ctx.strokeStyle = active ? C.gold : C.goldDim;
+      ctx.lineWidth = active ? 2.2 : 1.2;
       ctx.stroke();
+      if (active) {
+        ctx.strokeStyle = "rgba(255,255,255,0.12)";
+        ctx.lineWidth = 1;
+        roundRect(ctx, left + 2, top + 2, panelW - 4, panelH - 4, radius - 2);
+        ctx.stroke();
+      }
       ctx.restore();
 
       const ax = left + 28;
       const ay = pos.y;
       ctx.beginPath();
       ctx.arc(ax, ay, 22, 0, Math.PI * 2);
-      ctx.fillStyle = p.connected ? "#2b5c48" : "#4a4a4a";
+      ctx.fillStyle = p.connected ? C.feltInner : "rgba(70,70,70,0.9)";
       ctx.fill();
-      ctx.strokeStyle = C.goldDim;
+      ctx.strokeStyle = active ? C.gold : C.goldDim;
       ctx.lineWidth = 2;
       ctx.stroke();
       ctx.fillStyle = C.cream;
@@ -1568,14 +1584,14 @@ export class TableView {
       this.fillFitText(ctx, name, tx, pos.y - 16, maxTextW);
       if (starter) {
         const nw = Math.min(ctx.measureText(name).width, maxTextW);
-        ctx.fillStyle = C.goldDim;
+        ctx.fillStyle = C.gold;
         ctx.font = `600 12px "Songti SC", serif`;
         ctx.fillText("庄", tx + nw + 6, pos.y - 16);
       }
       ctx.fillStyle = C.cream;
       ctx.font = `600 15px "Helvetica Neue", Arial, sans-serif`;
       ctx.fillText(`${this.displayPoints(p)} 分`, tx, pos.y + 6);
-      ctx.fillStyle = "rgba(243,234,214,0.65)";
+      ctx.fillStyle = C.goldDim;
       ctx.font = `13px "Helvetica Neue", Arial, sans-serif`;
       ctx.fillText(`余 ${this.displayHandCount(p)} 张`, tx, pos.y + 26);
       if (!p.connected) {

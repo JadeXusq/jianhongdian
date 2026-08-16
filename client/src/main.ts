@@ -1350,14 +1350,17 @@ $("phrase-list").addEventListener("click", (e) => {
   const text = (btn as HTMLButtonElement).dataset.phrase;
   if (text) sendChatText(text);
 });
-$("phrase-list").addEventListener(
-  "touchmove",
-  (e) => e.stopPropagation(),
-  { passive: true }
-);
-$("phrase-list").addEventListener("wheel", (e) => e.stopPropagation(), {
-  passive: true,
-});
+const phraseScroll = document.querySelector(".phrase-scroll");
+if (phraseScroll) {
+  phraseScroll.addEventListener(
+    "touchmove",
+    (e) => e.stopPropagation(),
+    { passive: true }
+  );
+  phraseScroll.addEventListener("wheel", (e) => e.stopPropagation(), {
+    passive: true,
+  });
+}
 
 /** 居中提示：自己与他人都能看到本条消息 */
 function showSocialFlash(name: string, text: string, isEmote: boolean): void {

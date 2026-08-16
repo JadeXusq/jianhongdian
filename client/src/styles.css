@@ -133,8 +133,11 @@ body {
 
 #ui .screen,
 #ui .top-bar,
-#ui .menu-btn,
-#ui .social-panel {
+#ui .menu-btn {
+  pointer-events: auto;
+}
+
+#social-panel {
   pointer-events: auto;
 }
 
@@ -961,71 +964,74 @@ input:focus {
   right: calc(8px + env(safe-area-inset-top));
 }
 
-/* 社交面板：表情 + 快捷语 + 输入 / 记录 */
+/* 社交面板：表情 + 快捷语 + 输入 / 记录（独立于 #ui，避免旋转层破坏滚动） */
 .social-panel {
   position: fixed;
   left: 50%;
   top: 50%;
-  bottom: auto;
   transform: translate(-50%, -50%);
-  width: min(300px, 86vw);
-  height: min(52vh, 340px);
-  max-height: min(52vh, 340px);
-  display: flex;
-  flex-direction: column;
+  width: min(352px, 92vw);
+  height: min(72vh, 480px);
+  max-height: min(72vh, 480px);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0;
   overflow: hidden;
   background: color-mix(in srgb, var(--felt) 82%, #000 18%);
   border: 1px solid var(--gold-dim);
-  border-radius: 14px;
-  padding: 28px 10px 8px;
-  z-index: 26;
-  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(8px);
+  border-radius: var(--panel-radius, 14px);
+  padding: 30px 12px 10px;
+  z-index: 40;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
 }
 .social-panel.hidden { display: none; }
 .social-panel .panel-x {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
 }
 
 .social-pane {
-  flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
 }
 .social-pane.hidden { display: none; }
 
 #social-tab-speak {
+  height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 0;
+  grid-template-rows: auto minmax(180px, 1fr) auto;
+  gap: 8px;
+  min-height: 0;
+}
+
+#social-tab-log {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .emoji-row {
-  flex: none;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
   padding-bottom: 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--gold) 22%, transparent);
 }
 .emoji-row button {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
-  min-height: 42px;
-  padding: 4px 2px;
+  min-height: 36px;
+  padding: 4px 0;
   border: 1px solid var(--gold-dim);
-  border-radius: 10px;
+  border-radius: var(--ctrl-radius, 9px);
   background: color-mix(in srgb, var(--felt) 55%, transparent);
   color: var(--cream);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
 }
 .emoji-row button:active {
   border-color: var(--gold);
@@ -1033,43 +1039,43 @@ input:focus {
 }
 .emoji-row .emoji-ico {
   font-size: 18px;
-  line-height: 1.1;
+  line-height: 1;
 }
 .emoji-row .emoji-lab {
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  color: var(--gold);
-  opacity: 0.9;
+  display: none;
 }
 
-.phrase-list {
-  min-height: 0;
+.phrase-scroll {
+  min-height: 180px;
   height: 100%;
   overflow-x: hidden;
-  overflow-y: scroll;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  display: block;
-  padding: 8px 0;
+  border: 1px solid color-mix(in srgb, var(--gold) 18%, transparent);
+  border-radius: var(--ctrl-radius, 9px);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 6px;
+}
+.phrase-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .phrase-list button {
-  display: block;
+  flex: none;
   width: 100%;
   box-sizing: border-box;
-  margin: 0 0 5px;
   text-align: left;
-  padding: 7px 10px;
+  padding: 9px 11px;
   border: 1px solid color-mix(in srgb, var(--gold) 28%, transparent);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--ctrl-radius, 9px);
+  background: color-mix(in srgb, var(--felt) 40%, transparent);
   color: var(--cream);
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.35;
   cursor: pointer;
-}
-.phrase-list button:last-child {
-  margin-bottom: 0;
 }
 .phrase-list button:active {
   border-color: var(--gold);
@@ -1077,16 +1083,14 @@ input:focus {
 }
 
 .chat-input-row {
-  flex: none;
   display: flex;
   gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid color-mix(in srgb, var(--gold) 22%, transparent);
+  padding-top: 2px;
 }
 .chat-input-row input {
   flex: 1;
   min-width: 0;
-  padding: 7px 10px;
+  padding: 8px 11px;
   border: 1px solid var(--gold-dim);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.06);
@@ -1097,7 +1101,7 @@ input:focus {
 .chat-input-row input::placeholder { color: rgba(255, 243, 228, 0.35); }
 .chat-input-row button {
   flex: none;
-  padding: 7px 12px;
+  padding: 8px 14px;
   border: 1px solid var(--gold-dim);
   border-radius: 14px;
   background: color-mix(in srgb, var(--gold) 18%, transparent);
@@ -1115,7 +1119,7 @@ input:focus {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  padding: 2px 2px 6px;
+  padding: 4px 2px 6px;
   font-size: 13px;
   color: var(--cream);
   line-height: 1.55;
@@ -1136,7 +1140,6 @@ input:focus {
 }
 
 .social-tabs {
-  flex: none;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
@@ -1145,9 +1148,9 @@ input:focus {
   border-top: 1px solid color-mix(in srgb, var(--gold) 22%, transparent);
 }
 .social-tab {
-  padding: 7px 0;
+  padding: 8px 0;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: var(--ctrl-radius, 9px);
   background: transparent;
   color: rgba(243, 234, 214, 0.55);
   font-size: 13px;
@@ -1163,34 +1166,18 @@ input:focus {
 
 html[data-theme="jilan"] .social-panel {
   background: color-mix(in srgb, var(--felt) 78%, #0a1628 22%);
-  box-shadow: 0 10px 36px rgba(8, 20, 40, 0.55);
+  box-shadow: 0 12px 40px rgba(8, 20, 40, 0.55);
 }
 html[data-theme="mohong"] .social-panel {
   background: color-mix(in srgb, var(--felt) 78%, #1a0a0c 22%);
-  box-shadow: 0 10px 36px rgba(40, 8, 12, 0.5);
-}
-
-#ui.rot .social-panel {
-  left: 50%;
-  top: 50%;
-  right: auto;
-  bottom: auto;
-  transform: translate(-50%, -50%);
-  width: min(300px, 72%);
-  height: min(52vh, 320px);
-  max-height: min(52vh, 320px);
+  box-shadow: 0 12px 40px rgba(40, 8, 12, 0.5);
 }
 
 @media (pointer: coarse) and (orientation: landscape) {
   .social-panel {
-    left: 50%;
-    top: 50%;
-    right: auto;
-    bottom: auto;
-    transform: translate(-50%, -50%);
-    width: min(300px, 72%);
-    height: min(52vh, 320px);
-    max-height: min(52vh, 320px);
+    width: min(360px, 88vw);
+    height: min(74vh, 460px);
+    max-height: min(74vh, 460px);
   }
 }
 
