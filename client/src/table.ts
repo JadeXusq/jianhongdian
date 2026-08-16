@@ -592,9 +592,9 @@ export class TableView {
         hold: 0,
         visualSeat: ev.player,
       });
-      // 第 3 步：两张牌飞到屏幕正中展示
+      // 第 3 步：两张牌飞到屏幕中上展示（与桌面明牌区同向上移）
       const centerX = this.w / 2;
-      const centerY = H / 2;
+      const centerY = H / 2 - TABLE_CARD_W * CARD_RATIO * 0.5;
       const matchW = TABLE_CARD_W * 1.3;
       this.steps.push({
         flies: [
