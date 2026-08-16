@@ -57,6 +57,8 @@ export class GameRoom extends Room<RoomState> {
   private matchClosed = false;
   /** 房主点了结算：本轮结束后关闭本场 */
   private settleAfterRound = false;
+  /** 各轮净胜分：roundNets[roundIndex][seat] */
+  private roundNets: number[][] = [];
 
   onCreate(options: JoinOptions): void {
     const maxPlayers = clampPlayers(options.maxPlayers ?? 4);
@@ -253,6 +255,7 @@ export class GameRoom extends Room<RoomState> {
   private resetMatch(): void {
     this.matchClosed = false;
     this.settleAfterRound = false;
+    this.roundNets = [];
     this.state.round = 0;
     this.state.roundStarter = -1;
     this.state.players.forEach((p) => {
@@ -386,6 +389,7 @@ export class GameRoom extends Room<RoomState> {
       if (deviceId && !p.isAi)
         recordResult(deviceId, p.name, result.net[p.seat]);
     });
+    this.roundNets.push([...result.net]);
     this.state.phase = "ROUND_OVER";
     this.state.currentSeat = -1;
     this.state.turnDeadline = 0;
@@ -402,6 +406,7 @@ export class GameRoom extends Room<RoomState> {
       round: this.state.round,
       totalRounds: allDone ? this.state.round : this.state.totalRounds,
       allDone,
+      roundNets: this.roundNets,
     });
   }
 
@@ -421,6 +426,7 @@ export class GameRoom extends Room<RoomState> {
       round: this.state.round,
       totalRounds: this.state.round,
       allDone: true,
+      roundNets: this.roundNets,
     });
   }
 

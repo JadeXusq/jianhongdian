@@ -37,6 +37,8 @@ let selected = -1;
 /** 无目标的牌需二次点击确认弃牌，避免误操作 */
 let discardArmed = -1;
 let lastRound: RoundOver | null = null;
+/** 本场各轮净胜分：matchRoundNets[roundIndex][seat] */
+let matchRoundNets: number[][] = [];
 /** 用于判断“刚轮到我”的边沿，避免每帧重复提醒 */
 let wasMyTurn = false;
 /** 刚切到自己回合、事件动画尚未入队时的短锁截止时间（墙钟） */
@@ -128,7 +130,9 @@ function show(
 const shown = (id: string) => !$(id).classList.contains("hidden");
 
 function applyOrientation(): void {
-  $("ui").classList.toggle("rot", shouldRotate());
+  const rot = shouldRotate();
+  $("ui").classList.toggle("rot", rot);
+  document.getElementById("overlay-layer")?.classList.toggle("rot", rot);
 }
 applyOrientation();
 onOrientationChange(applyOrientation);
@@ -142,6 +146,7 @@ function bindOverlayScrolls(): void {
     ".guide-panel .guide-list",
     ".lobby-panel",
     ".chat-log",
+    ".phrase-scroll",
   ].forEach((sel) => {
     document.querySelectorAll<HTMLElement>(sel).forEach(bindRotScroll);
   });
@@ -308,7 +313,48 @@ function ensureDealAnimForRound(): void {
   armDealRound();
 }
 
+function rememberRoundNets(r: RoundOver): void {
+  if (r.roundNets?.length) {
+    matchRoundNets = r.roundNets.map((row) => [...row]);
+    return;
+  }
+  // 纯结算收场（无本轮对局数据）不追加
+  if (r.allDone && r.base === 0) return;
+  if (r.round > 0) {
+    matchRoundNets[r.round - 1] = [...r.net];
+    matchRoundNets.length = r.round;
+  }
+}
+
+function clearMatchRoundNets(): void {
+  matchRoundNets = [];
+}
+
+function formatNet(n: number): string {
+  return `${n > 0 ? "+" : ""}${n}`;
+}
+
+function netClass(n: number): string {
+  return n > 0 ? "win" : n < 0 ? "lose" : "";
+}
+
+function roundChipsHtml(seat: number, highlightRound?: number): string {
+  if (!matchRoundNets.length) {
+    return `<span class="sr muted">暂无轮次记录</span>`;
+  }
+  return matchRoundNets
+    .map((row, i) => {
+      const n = row[seat] ?? 0;
+      const on = highlightRound === i + 1 ? " on" : "";
+      return `<span class="sr ${netClass(n)}${on}">R${i + 1} ${formatNet(
+        n
+      )}</span>`;
+    })
+    .join("");
+}
+
 function queueRoundOver(r: RoundOver): void {
+  rememberRoundNets(r);
   lastRound = r;
   pendingRoundOver = r;
   roundOverWaitStarted = performance.now();
@@ -557,24 +603,37 @@ function renderScores(): void {
   $("scores-round").textContent = !state.round
     ? "尚未完成轮次"
     : state.phase === "PLAYING"
-      ? `第 ${state.round} 轮 · 累计`
-      : `已打 ${state.round} 轮 · 累计`;
+      ? `第 ${state.round} 轮进行中 · 累计与分轮净胜`
+      : `已打 ${state.round} 轮 · 累计与分轮净胜`;
   $("scores-list").innerHTML = rows
-    .map(
-      (p, i) => `
-      <div class="res${p.seat === mySeat ? " me" : ""}${i === 0 ? " top" : ""}">
-        <span class="rank">${i + 1}</span>
-        <span class="who">${p.name}${
-        p.isAi && !String(p.name).startsWith("机器人")
-          ? '<span class="ai-tag">机</span>'
-          : ""
-      }</span>
-        <span class="calc">本轮 ${p.points}</span>
-        <span class="net ${
-          p.totalNet > 0 ? "win" : p.totalNet < 0 ? "lose" : ""
-        }">${p.totalNet > 0 ? "+" : ""}${p.totalNet}</span>
-      </div>`
-    )
+    .map((p, i) => {
+      const mid =
+        state.phase === "PLAYING"
+          ? `<span class="score-mid">本轮得分 ${p.points}</span>`
+          : lastRound && !lastRound.allDone
+            ? `<span class="score-mid">本轮净胜 <b class="${netClass(
+                lastRound.net[p.seat] ?? 0
+              )}">${formatNet(lastRound.net[p.seat] ?? 0)}</b></span>`
+            : "";
+      return `
+      <div class="score-card${p.seat === mySeat ? " me" : ""}${
+        i === 0 ? " top" : ""
+      }">
+        <div class="score-head">
+          <span class="rank">${i + 1}</span>
+          <span class="who">${p.name}${
+            p.isAi && !String(p.name).startsWith("机器人")
+              ? '<span class="ai-tag">机</span>'
+              : ""
+          }</span>
+          <span class="net ${netClass(p.totalNet)}">${formatNet(
+            p.totalNet
+          )}</span>
+        </div>
+        ${mid}
+        <div class="score-rounds">${roundChipsHtml(p.seat)}</div>
+      </div>`;
+    })
     .join("");
   show("scores");
 }
@@ -779,11 +838,14 @@ function renderRoom(state: any): void {
 $("btn-again").onclick = () => {
   pendingRoundOver = null;
   if (offline) {
-    if (lastRound?.allDone) offline.start();
-    else offline.continueRound();
+    if (lastRound?.allDone) {
+      clearMatchRoundNets();
+      offline.start();
+    } else offline.continueRound();
     show("none");
     return;
   }
+  if (lastRound?.allDone) clearMatchRoundNets();
   net.nextRound();
   if (lastRound && !lastRound.allDone) toast("已确认，等待其他玩家…");
   show("none");
@@ -806,8 +868,15 @@ function renderResult(r: RoundOver): void {
   if (!state) return;
   const players = [...state.players.values()] as any[];
   const rows = players
-    .map((p) => ({ p, points: r.points[p.seat], net: r.net[p.seat] }))
-    .sort((a, b) => b.net - a.net);
+    .map((p) => ({
+      p,
+      points: r.points[p.seat],
+      net: r.net[p.seat],
+      total: p.totalNet as number,
+    }))
+    .sort((a, b) =>
+      r.allDone ? b.total - a.total : b.net - a.net
+    );
 
   $("result")
     .querySelector(".result-panel")
@@ -815,18 +884,21 @@ function renderResult(r: RoundOver): void {
 
   const title = $("result").querySelector(".title") as HTMLElement;
   const winner = rows[0];
-  const iWin = winner?.p.seat === mySeat && winner.net >= 0;
+  const iWin =
+    winner?.p.seat === mySeat &&
+    (r.allDone ? winner.total >= 0 : winner.net >= 0);
   title.textContent = r.allDone
     ? iWin
       ? "最终结算 · 胜"
       : `最终结算（${r.round} 轮）`
-    : `第 ${r.round} 轮`;
+    : `第 ${r.round} 轮结算`;
 
   const dots = $("result-dots");
   if (dots) {
-    if (r.allDone && r.round > 0) {
+    if (r.round > 0) {
       dots.innerHTML = Array.from({ length: r.round }, (_, i) => {
-        return `<span class="dot on"></span>`;
+        const on = i === r.round - 1 || r.allDone ? " on" : "";
+        return `<span class="dot${on}"></span>`;
       }).join("");
     } else {
       dots.innerHTML = `<span class="dot on"></span>`;
@@ -835,38 +907,46 @@ function renderResult(r: RoundOver): void {
 
   $("result-list").innerHTML = rows
     .map((row, i) => {
-      const scoreRow = `
-        <div class="res${row.p.seat === mySeat ? " me" : ""}${
-          i === 0 ? " top" : ""
-        }">
+      const roundLine = !(r.allDone && r.base === 0)
+        ? `<div class="score-mid">本轮净胜 <b class="${netClass(
+            row.net
+          )}">${formatNet(row.net)}</b>${
+            !r.allDone ? ` · ${row.points}−${r.base}` : ""
+          }</div>`
+        : "";
+      const pile = !r.allDone
+        ? [...(r.captured?.[row.p.seat] ?? [])]
+        : [];
+      const pileHtml =
+        !r.allDone && pile.length
+          ? `<div class="res-pile">${pile
+              .map((id) => {
+                const cls = isRed(id) ? "pile-card red" : "pile-card";
+                return `<span class="${cls}">${cardName(id)}</span>`;
+              })
+              .join("")}</div>`
+          : "";
+      return `
+      <div class="score-card${row.p.seat === mySeat ? " me" : ""}${
+        i === 0 ? " top" : ""
+      }">
+        <div class="score-head">
           <span class="rank">${i === 0 ? "胜" : i + 1}</span>
           <span class="who">${row.p.name}${
             row.p.isAi && !String(row.p.name).startsWith("机器人")
               ? '<span class="ai-tag">机</span>'
               : ""
           }</span>
-          <span class="calc">${
-            r.allDone
-              ? `累计 ${row.p.totalNet > 0 ? "+" : ""}${row.p.totalNet}`
-              : `${row.points}−${r.base}`
-          }</span>
-          <span class="net ${
-            row.net > 0 ? "win" : row.net < 0 ? "lose" : ""
-          }">${row.net > 0 ? "+" : ""}${row.net}</span>
-        </div>`;
-      // 仅轮间结算展示已吃牌（入堆顺序）；最终结算只比分
-      if (r.allDone) return scoreRow;
-      const pile = [...(r.captured?.[row.p.seat] ?? [])];
-      const chips = pile
-        .map((id) => {
-          const cls = isRed(id) ? "pile-card red" : "pile-card";
-          return `<span class="${cls}">${cardName(id)}</span>`;
-        })
-        .join("");
-      return `
-      <div class="res-block${row.p.seat === mySeat ? " me" : ""}">
-        ${scoreRow}
-        ${pile.length ? `<div class="res-pile">${chips}</div>` : ""}
+          <span class="net ${netClass(row.total)}">${formatNet(
+            row.total
+          )}</span>
+        </div>
+        ${roundLine}
+        <div class="score-rounds">${roundChipsHtml(
+          row.p.seat,
+          r.allDone ? undefined : r.round
+        )}</div>
+        ${pileHtml}
       </div>`;
     })
     .join("");
@@ -1004,6 +1084,7 @@ function stopOffline(): void {
   offline = null;
   $("btn-chat-toggle").classList.add("hidden");
   clearChatLog();
+  clearMatchRoundNets();
   setMenuVisible(false);
 }
 
@@ -1071,6 +1152,7 @@ net.onState = (state) => {
   applyPlayState(state, net.hand, net.mySeat);
 
   if (state.phase === "WAITING") {
+    if (!state.round) clearMatchRoundNets();
     renderRoom(state);
     $("btn-chat-toggle").classList.remove("hidden");
     $("btn-help").classList.add("hidden");
@@ -1437,6 +1519,7 @@ net.onError = (msg) => {
 
 net.onLeave = () => {
   clearChatLog();
+  clearMatchRoundNets();
   $("btn-chat-toggle").classList.add("hidden");
   if (offline || lastRound) return;
   toast("已断开连接");

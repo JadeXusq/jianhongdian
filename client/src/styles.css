@@ -141,6 +141,22 @@ body {
   pointer-events: auto;
 }
 
+#overlay-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+
+#overlay-layer.rot {
+  top: 0;
+  left: 0;
+  width: 100vh;
+  height: 100vw;
+  transform-origin: 0 0;
+  transform: translateX(100vw) rotate(90deg);
+}
+
 /* 竖屏手机：整个 UI 层顺时针旋 90°，与 canvas 的软件旋转对齐。
    transform 会成为子元素 position:fixed 的包含块，因此内部遮罩层会跟着旋转；
    浏览器会自行处理旋转后的点击命中，无需手动换算坐标。*/
@@ -471,8 +487,8 @@ input:focus {
 .result-panel,
 .scores-panel {
   /* 轮间结算：按 4 人预留高度；最终结算见 .is-final */
-  --res-h: 34px;
-  --res-gap: 4px;
+  --res-h: 72px;
+  --res-gap: 8px;
   box-sizing: border-box;
   width: min(420px, calc(100vw - 28px));
   height: auto;
@@ -576,7 +592,8 @@ input:focus {
 }
 
 .seat .ai-tag,
-.res .ai-tag {
+.res .ai-tag,
+.score-card .ai-tag {
   display: inline-block;
   margin-left: 6px;
   padding: 0 5px;
@@ -624,7 +641,7 @@ input:focus {
   color: rgba(243, 234, 214, 0.4);
 }
 
-/* 结算 / 积分：紧凑四行一屏 */
+/* 结算 / 积分：总积分 + 分轮净胜 */
 .result-panel > .title.small,
 .scores-panel > .title.small {
   margin: 0 0 2px;
@@ -641,6 +658,113 @@ input:focus {
   display: grid;
   gap: 8px;
   margin: 2px 0 10px;
+}
+
+.score-card {
+  display: grid;
+  gap: 5px;
+  padding: 8px 10px 9px;
+  border: 1px solid var(--gold-dim);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.score-card.me {
+  border-color: var(--gold);
+  background: rgba(201, 169, 97, 0.12);
+}
+
+.score-card.top {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 35%, transparent);
+}
+
+.score-head {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.score-head .rank {
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.score-card.top .rank {
+  color: #f0c96a;
+}
+
+.score-head .who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.score-head .net {
+  min-width: 52px;
+  text-align: right;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  color: rgba(243, 234, 214, 0.85);
+}
+
+.score-head .net.win,
+.score-mid .win,
+.sr.win {
+  color: #7dcea0;
+}
+
+.score-head .net.lose,
+.score-mid .lose,
+.sr.lose {
+  color: #e57373;
+}
+
+.score-mid {
+  font-size: 12px;
+  color: rgba(243, 234, 214, 0.55);
+  line-height: 1.3;
+}
+
+.score-mid b {
+  font-weight: 700;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+}
+
+.score-rounds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.sr {
+  flex: none;
+  padding: 2px 7px;
+  border: 1px solid rgba(243, 234, 214, 0.22);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(243, 234, 214, 0.72);
+  font-size: 11px;
+  line-height: 1.45;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  white-space: nowrap;
+}
+
+.sr.on {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
+  color: var(--gold);
+}
+
+.sr.muted {
+  border-style: dashed;
+  color: rgba(243, 234, 214, 0.4);
 }
 
 .res-block {
@@ -904,6 +1028,10 @@ input:focus {
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
 }
 
+#overlay-layer.rot .emote-bubble {
+  max-width: min(360px, 70%);
+}
+
 /* 右上：规则 / 音效 / 聊天 */
 .top-bar {
   position: fixed;
@@ -964,7 +1092,7 @@ input:focus {
   right: calc(8px + env(safe-area-inset-top));
 }
 
-/* 社交面板：表情 + 快捷语 + 输入 / 记录（独立于 #ui，避免旋转层破坏滚动） */
+/* 社交面板：表情 + 快捷语 + 输入 / 记录（在 #overlay-layer，与 #ui 同步软件横屏） */
 .social-panel {
   position: fixed;
   left: 50%;
@@ -1181,6 +1309,17 @@ html[data-theme="mohong"] .social-panel {
   }
 }
 
+#overlay-layer.rot .social-panel {
+  width: min(360px, 70%);
+  height: min(480px, 86%);
+  max-height: min(480px, 86%);
+}
+
+#overlay-layer.rot .phrase-scroll,
+#overlay-layer.rot .chat-log {
+  touch-action: none;
+}
+
 /* 对局内菜单 */
 .menu-btn {
   position: fixed;
@@ -1352,7 +1491,7 @@ html[data-theme="mohong"] .social-panel {
 
 #ui.rot .result-panel,
 #ui.rot .scores-panel {
-  --res-h: 32px;
+  --res-h: 68px;
   box-sizing: border-box;
   width: min(460px, 72%);
   height: auto;
@@ -1412,7 +1551,7 @@ html[data-theme="mohong"] .social-panel {
 #ui.rot .result-list,
 #ui.rot #rank .result-list {
   margin-bottom: 6px;
-  gap: 3px;
+  gap: 6px;
 }
 
 #ui.rot .result-panel .res,
@@ -1421,9 +1560,21 @@ html[data-theme="mohong"] .social-panel {
   font-size: 13px;
 }
 
+#ui.rot .result-panel .score-card,
+#ui.rot .scores-panel .score-card {
+  padding: 6px 8px 7px;
+  gap: 4px;
+}
+
+#ui.rot .result-panel .res .net,
+#ui.rot .scores-panel .res .net,
+#ui.rot .result-panel .score-head .net,
+#ui.rot .scores-panel .score-head .net {
+  font-size: 16px;
+}
+
 #ui.rot .result-panel .res .net,
 #ui.rot .scores-panel .res .net {
-  font-size: 16px;
   width: 48px;
 }
 

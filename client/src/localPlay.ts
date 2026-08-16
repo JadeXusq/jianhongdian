@@ -57,6 +57,7 @@ export interface LocalRoundOver {
   round: number;
   totalRounds: number;
   allDone: boolean;
+  roundNets: number[][];
 }
 
 const HUMAN = "local-human";
@@ -76,6 +77,7 @@ export class LocalPlay {
   private roundStarter = -1;
   private settleAfterRound = false;
   private matchClosed = false;
+  private roundNets: number[][] = [];
 
   onState?: (state: LocalState) => void;
   onEvents?: (events: GameEvent[]) => void;
@@ -97,6 +99,7 @@ export class LocalPlay {
     this.settleAfterRound = false;
     this.matchClosed = false;
     this.totals = Array.from({ length: this.playerCount }, () => 0);
+    this.roundNets = [];
     this.nextRound();
   }
 
@@ -229,6 +232,7 @@ export class LocalPlay {
     const result = this.game!.result();
     for (let i = 0; i < this.playerCount; i++)
       this.totals[i] += result.net[i];
+    this.roundNets.push([...result.net]);
     const allDone = this.settleAfterRound;
     this.settleAfterRound = false;
     if (allDone) this.matchClosed = true;
@@ -244,6 +248,7 @@ export class LocalPlay {
       round: this.round,
       totalRounds: allDone ? this.round : 0,
       allDone,
+      roundNets: this.roundNets.map((row) => [...row]),
     });
   }
 
@@ -260,6 +265,7 @@ export class LocalPlay {
       round: this.round,
       totalRounds: this.round,
       allDone: true,
+      roundNets: this.roundNets.map((row) => [...row]),
     });
   }
 

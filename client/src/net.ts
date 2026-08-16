@@ -124,6 +124,7 @@ export interface RoundOver {
   round: number;
   totalRounds: number;
   allDone: boolean;
+  roundNets?: number[][];
 }
 
 export class Net {
