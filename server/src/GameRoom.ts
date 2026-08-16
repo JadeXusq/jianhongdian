@@ -453,6 +453,9 @@ export class GameRoom extends Room<RoomState> {
     "厉害",
     "等等",
     "哈哈哈",
+    "谢谢",
+    "倒霉",
+    "再来",
   ]);
   private lastEmoteAt = new Map<string, number>();
   private lastChatAt = new Map<string, number>();

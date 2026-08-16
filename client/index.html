@@ -190,27 +190,29 @@
 
       <div id="toast" class="toast hidden"></div>
       <div id="turn-hint" class="turn-hint hidden"></div>
-      <div id="emotes" class="emotes hidden">
-        <button data-e="加油">加油</button>
-        <button data-e="好牌">好牌</button>
-        <button data-e="厉害">厉害</button>
-        <button data-e="等等">等等</button>
-        <button data-e="哈哈哈">哈哈哈</button>
-      </div>
       <div id="emote-bubble" class="emote-bubble hidden"></div>
-      <div id="chat-panel" class="chat-panel hidden">
-        <button id="btn-chat-close" class="panel-x" title="关闭">×</button>
-        <div class="chat-title">聊天记录</div>
-        <div id="chat-log" class="chat-log"></div>
-        <div class="chat-input-row">
-          <input id="chat-input" type="text" maxlength="200" placeholder="说点什么…" />
-          <button id="btn-chat-send">发送</button>
+      <div id="social-panel" class="social-panel hidden">
+        <button id="btn-social-close" class="panel-x" title="关闭" aria-label="关闭">×</button>
+        <div id="social-tab-speak" class="social-pane">
+          <div id="emoji-row" class="emoji-row"></div>
+          <div id="phrase-list" class="phrase-list"></div>
+          <div class="chat-input-row">
+            <input id="chat-input" type="text" maxlength="200" placeholder="说点什么…" autocomplete="off" />
+            <button id="btn-chat-send" type="button">发送</button>
+          </div>
+        </div>
+        <div id="social-tab-log" class="social-pane hidden">
+          <div id="chat-log" class="chat-log"></div>
+        </div>
+        <div class="social-tabs" role="tablist">
+          <button type="button" id="tab-speak" class="social-tab on" data-tab="speak" role="tab">发言</button>
+          <button type="button" id="tab-log" class="social-tab" data-tab="log" role="tab">记录</button>
         </div>
       </div>
       <div id="top-bar" class="top-bar">
         <button id="btn-help" class="tb-btn hidden" title="规则">?</button>
         <button id="btn-mute" class="tb-btn" title="音效">♪</button>
-        <button id="btn-chat-toggle" class="tb-btn hidden" title="聊天记录">
+        <button id="btn-chat-toggle" class="tb-btn hidden" title="聊天">
           💬<span id="chat-unread" class="chat-unread hidden">0</span>
         </button>
       </div>

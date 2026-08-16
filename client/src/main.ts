@@ -1002,7 +1002,6 @@ function syncSelection(): void {
 function stopOffline(): void {
   offline?.stop();
   offline = null;
-  $("emotes").classList.add("hidden");
   $("btn-chat-toggle").classList.add("hidden");
   clearChatLog();
   setMenuVisible(false);
@@ -1027,14 +1026,12 @@ function startOffline(): void {
         shown("scores") ||
         shown("settle-confirm");
       if (!overlay) show("none");
-      $("emotes").classList.toggle("hidden", overlay);
       $("btn-chat-toggle").classList.toggle("hidden", overlay);
       if (overlay) setChatPanelOpen(false);
       $("btn-help").classList.toggle("hidden", overlay);
       setMenuVisible(!overlay);
       if (!overlay) refreshTurnHint();
     } else if (state.phase === "ROUND_OVER") {
-      $("emotes").classList.add("hidden");
       $("btn-chat-toggle").classList.remove("hidden");
       setChatPanelOpen(false);
       setMenuVisible(!lastRound?.allDone);
@@ -1075,7 +1072,6 @@ net.onState = (state) => {
 
   if (state.phase === "WAITING") {
     renderRoom(state);
-    $("emotes").classList.add("hidden");
     $("btn-chat-toggle").classList.remove("hidden");
     $("btn-help").classList.add("hidden");
     setMenuVisible(false);
@@ -1095,14 +1091,12 @@ net.onState = (state) => {
       shown("scores") ||
       shown("settle-confirm");
     if (!overlay) show("none");
-    $("emotes").classList.toggle("hidden", overlay);
     $("btn-chat-toggle").classList.toggle("hidden", overlay);
     if (overlay) setChatPanelOpen(false);
     $("btn-help").classList.toggle("hidden", overlay);
     setMenuVisible(!overlay && !net.spectating);
     if (!overlay) refreshTurnHint();
   } else if (state.phase === "ROUND_OVER") {
-    $("emotes").classList.add("hidden");
     $("btn-chat-toggle").classList.remove("hidden");
     setChatPanelOpen(false);
     $("btn-help").classList.toggle("hidden", net.spectating);
@@ -1148,20 +1142,39 @@ net.onRoundOver = (r) => {
   queueRoundOver(r);
 };
 
-const EMOTE_ICON: Record<string, string> = {
-  加油: "💪",
-  好牌: "👏",
-  厉害: "👍",
-  等等: "⏳",
-  哈哈哈: "😄",
-};
+const EMOTE_ITEMS: Array<{ id: string; icon: string }> = [
+  { id: "加油", icon: "💪" },
+  { id: "好牌", icon: "👏" },
+  { id: "厉害", icon: "👍" },
+  { id: "等等", icon: "⏳" },
+  { id: "哈哈哈", icon: "😄" },
+  { id: "谢谢", icon: "🙏" },
+  { id: "倒霉", icon: "😅" },
+  { id: "再来", icon: "🔥" },
+];
+const EMOTE_ICON: Record<string, string> = Object.fromEntries(
+  EMOTE_ITEMS.map((e) => [e.id, e.icon])
+);
+const QUICK_PHRASES = [
+  "拜托给口好牌",
+  "这波稳了",
+  "小心红点",
+  "我先弃一手",
+  "等等我思考下",
+  "打得漂亮",
+  "别急，看牌",
+  "这牌太闷了",
+  "下一轮继续",
+  "友谊第一",
+];
 const EMOTE_COOLDOWN_MS = 1200;
 const CHAT_COOLDOWN_MS = 1200;
 let lastEmoteAt = 0;
 let lastChatAt = 0;
 let emoteTimer = 0;
+let socialTab: "speak" | "log" = "speak";
 
-// ---------- 聊天记录 ----------
+// ---------- 聊天 / 表情 ----------
 interface ChatEntry {
   seat: number;
   name: string;
@@ -1173,16 +1186,28 @@ const chatLog: ChatEntry[] = [];
 const CHAT_MAX_ENTRIES = 200;
 let chatUnread = 0;
 
+function fillSocialLists(): void {
+  const emojiRow = $("emoji-row");
+  emojiRow.innerHTML = EMOTE_ITEMS.map(
+    (e) =>
+      `<button type="button" data-e="${e.id}" title="${e.id}"><span class="emoji-ico">${e.icon}</span><span class="emoji-lab">${e.id}</span></button>`
+  ).join("");
+  const phrases = $("phrase-list");
+  phrases.innerHTML = QUICK_PHRASES.map(
+    (t) => `<button type="button" data-phrase="${escapeHtml(t)}">${escapeHtml(t)}</button>`
+  ).join("");
+}
+
 function clearChatLog(): void {
   chatLog.length = 0;
   chatUnread = 0;
   renderChatLog();
   updateChatBadge();
-  $("chat-panel").classList.add("hidden");
+  $("social-panel").classList.add("hidden");
 }
 
 function isChatOpen(): boolean {
-  return !$("chat-panel").classList.contains("hidden");
+  return !$("social-panel").classList.contains("hidden");
 }
 
 function updateChatBadge(): void {
@@ -1208,12 +1233,16 @@ function addChatEntry(e: ChatEntry): void {
 function renderChatLog(): void {
   const log = $("chat-log");
   if (!log) return;
+  if (!chatLog.length) {
+    log.innerHTML = `<div class="chat-empty">暂无聊天记录</div>`;
+    return;
+  }
   log.innerHTML = chatLog
     .map((e) => {
       const icon = e.isEmote ? EMOTE_ICON[e.text] ?? "💬" : "";
       const cls = `chat-msg${e.mine ? " chat-mine" : ""}`;
       const text = e.isEmote
-        ? `<span class="chat-emote">${icon} ${e.text}</span>`
+        ? `<span class="chat-emote">${icon} ${escapeHtml(e.text)}</span>`
         : escapeHtml(e.text);
       return `<div class="${cls}"><span class="chat-name">${escapeHtml(
         e.name
@@ -1231,22 +1260,34 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function setSocialTab(tab: "speak" | "log"): void {
+  socialTab = tab;
+  $("social-tab-speak").classList.toggle("hidden", tab !== "speak");
+  $("social-tab-log").classList.toggle("hidden", tab !== "log");
+  $("tab-speak").classList.toggle("on", tab === "speak");
+  $("tab-log").classList.toggle("on", tab === "log");
+  if (tab === "log") renderChatLog();
+}
+
 function setChatPanelOpen(open: boolean): void {
-  $("chat-panel").classList.toggle("hidden", !open);
+  $("social-panel").classList.toggle("hidden", !open);
   if (open) {
     chatUnread = 0;
     updateChatBadge();
-    renderChatLog();
+    setSocialTab(socialTab);
+    if (socialTab === "log") renderChatLog();
   }
 }
 
 function toggleChatPanel(): void {
-  setChatPanelOpen(!isChatOpen());
+  const opening = !isChatOpen();
+  if (opening && chatUnread > 0) socialTab = "log";
+  else if (opening) socialTab = "speak";
+  setChatPanelOpen(opening);
 }
 
-function sendChat(): void {
-  const input = $("chat-input") as HTMLInputElement;
-  const text = input.value.trim().slice(0, 200);
+function sendChatText(raw: string): void {
+  const text = raw.trim().slice(0, 200);
   if (!text) return;
   const now = Date.now();
   if (now - lastChatAt < CHAT_COOLDOWN_MS) {
@@ -1255,7 +1296,6 @@ function sendChat(): void {
   }
   if (offline) {
     lastChatAt = now;
-    input.value = "";
     addChatEntry({
       seat: offline.mySeat,
       name: playerName(),
@@ -1270,21 +1310,42 @@ function sendChat(): void {
     return;
   }
   lastChatAt = now;
-  input.value = "";
   net.chat(text);
+}
+
+function sendChat(): void {
+  const input = $("chat-input") as HTMLInputElement;
+  const text = input.value;
+  if (!text.trim()) return;
+  input.value = "";
+  sendChatText(text);
 }
 
 $("btn-chat-toggle").addEventListener("click", (e) => {
   e.stopPropagation();
   toggleChatPanel();
 });
-$("btn-chat-close").addEventListener("click", () => setChatPanelOpen(false));
+$("btn-social-close").addEventListener("click", () => setChatPanelOpen(false));
 $("btn-chat-send").addEventListener("click", sendChat);
 $("chat-input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
     sendChat();
   }
+});
+$("tab-speak").addEventListener("click", () => setSocialTab("speak"));
+$("tab-log").addEventListener("click", () => setSocialTab("log"));
+$("emoji-row").addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest("button");
+  if (!btn) return;
+  const id = (btn as HTMLButtonElement).dataset.e;
+  if (id) sendEmote(id);
+});
+$("phrase-list").addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest("button");
+  if (!btn) return;
+  const text = (btn as HTMLButtonElement).dataset.phrase;
+  if (text) sendChatText(text);
 });
 
 function showEmoteBubble(name: string, id: string): void {
@@ -1322,12 +1383,7 @@ function sendEmote(id: string): void {
   net.emote(id);
 }
 
-$("emotes").addEventListener("click", (e) => {
-  const btn = (e.target as HTMLElement).closest("button");
-  if (!btn) return;
-  const id = (btn as HTMLButtonElement).dataset.e;
-  if (id) sendEmote(id);
-});
+fillSocialLists();
 
 net.onEmote = (e) => {
   showEmoteBubble(e.name, e.id);
