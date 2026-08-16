@@ -884,18 +884,21 @@ input:focus {
 .emote-bubble {
   position: fixed;
   left: 50%;
-  top: 22%;
-  transform: translateX(-50%);
-  padding: 14px 28px;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(78vw, 360px);
+  padding: 14px 24px;
   border: 1px solid var(--gold);
   border-radius: 22px;
-  background: rgba(8, 24, 18, 0.94);
+  background: color-mix(in srgb, var(--felt) 88%, #000 12%);
   color: var(--gold);
-  font-size: 22px;
+  font-size: 18px;
   letter-spacing: 1px;
-  z-index: 25;
+  line-height: 1.4;
+  text-align: center;
+  z-index: 30;
   pointer-events: none;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
 }
 
 /* 右上：规则 / 音效 / 聊天 */
@@ -962,8 +965,9 @@ input:focus {
 .social-panel {
   position: fixed;
   left: 50%;
-  bottom: calc(12px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
+  top: 50%;
+  bottom: auto;
+  transform: translate(-50%, -50%);
   width: min(300px, 86vw);
   height: min(52vh, 340px);
   max-height: min(52vh, 340px);
@@ -993,6 +997,12 @@ input:focus {
   overflow: hidden;
 }
 .social-pane.hidden { display: none; }
+
+#social-tab-speak {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
+}
 
 .emoji-row {
   flex: none;
@@ -1033,20 +1043,21 @@ input:focus {
 }
 
 .phrase-list {
-  flex: 1 1 auto;
   min-height: 0;
+  height: 100%;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: scroll;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: pan-y;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  display: block;
   padding: 8px 0;
 }
 .phrase-list button {
-  flex: none;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 5px;
   text-align: left;
   padding: 7px 10px;
   border: 1px solid color-mix(in srgb, var(--gold) 28%, transparent);
@@ -1056,6 +1067,9 @@ input:focus {
   font-size: 12px;
   line-height: 1.35;
   cursor: pointer;
+}
+.phrase-list button:last-child {
+  margin-bottom: 0;
 }
 .phrase-list button:active {
   border-color: var(--gold);
@@ -1157,26 +1171,26 @@ html[data-theme="mohong"] .social-panel {
 }
 
 #ui.rot .social-panel {
-  left: auto;
-  right: 12px;
+  left: 50%;
+  top: 50%;
+  right: auto;
   bottom: auto;
-  top: calc(46px + env(safe-area-inset-left));
-  transform: none;
-  width: min(280px, calc(100% - 120px));
-  height: min(48vh, 300px);
-  max-height: min(48vh, 300px);
+  transform: translate(-50%, -50%);
+  width: min(300px, 72%);
+  height: min(52vh, 320px);
+  max-height: min(52vh, 320px);
 }
 
 @media (pointer: coarse) and (orientation: landscape) {
   .social-panel {
-    left: auto;
-    right: 12px;
+    left: 50%;
+    top: 50%;
+    right: auto;
     bottom: auto;
-    top: calc(46px + env(safe-area-inset-top));
-    transform: none;
-    width: min(280px, calc(100% - 120px));
-    height: min(48vh, 300px);
-    max-height: min(48vh, 300px);
+    transform: translate(-50%, -50%);
+    width: min(300px, 72%);
+    height: min(52vh, 320px);
+    max-height: min(52vh, 320px);
   }
 }
 

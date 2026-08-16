@@ -1296,6 +1296,7 @@ function sendChatText(raw: string): void {
   }
   if (offline) {
     lastChatAt = now;
+    setChatPanelOpen(false);
     addChatEntry({
       seat: offline.mySeat,
       name: playerName(),
@@ -1303,6 +1304,7 @@ function sendChatText(raw: string): void {
       isEmote: false,
       mine: true,
     });
+    showSocialFlash(playerName(), text, false);
     return;
   }
   if (!net.room) {
@@ -1310,6 +1312,7 @@ function sendChatText(raw: string): void {
     return;
   }
   lastChatAt = now;
+  setChatPanelOpen(false);
   net.chat(text);
 }
 
@@ -1347,11 +1350,22 @@ $("phrase-list").addEventListener("click", (e) => {
   const text = (btn as HTMLButtonElement).dataset.phrase;
   if (text) sendChatText(text);
 });
+$("phrase-list").addEventListener(
+  "touchmove",
+  (e) => e.stopPropagation(),
+  { passive: true }
+);
+$("phrase-list").addEventListener("wheel", (e) => e.stopPropagation(), {
+  passive: true,
+});
 
-function showEmoteBubble(name: string, id: string): void {
+/** 居中提示：自己与他人都能看到本条消息 */
+function showSocialFlash(name: string, text: string, isEmote: boolean): void {
   const el = $("emote-bubble");
-  const icon = EMOTE_ICON[id] ?? "💬";
-  el.textContent = `${icon} ${name}：${id}`;
+  const icon = isEmote ? EMOTE_ICON[text] ?? "💬" : "💬";
+  el.textContent = isEmote
+    ? `${icon} ${name}：${text}`
+    : `${icon} ${name}：${text}`;
   el.classList.remove("hidden");
   clearTimeout(emoteTimer);
   emoteTimer = window.setTimeout(() => el.classList.add("hidden"), 2800);
@@ -1366,6 +1380,7 @@ function sendEmote(id: string): void {
   }
   lastEmoteAt = now;
   if (offline) {
+    setChatPanelOpen(false);
     addChatEntry({
       seat: offline.mySeat,
       name: playerName(),
@@ -1373,20 +1388,21 @@ function sendEmote(id: string): void {
       isEmote: true,
       mine: true,
     });
-    showEmoteBubble(playerName(), id);
+    showSocialFlash(playerName(), id, true);
     return;
   }
   if (!net.room) {
     toast("未连接房间");
     return;
   }
+  setChatPanelOpen(false);
   net.emote(id);
 }
 
 fillSocialLists();
 
 net.onEmote = (e) => {
-  showEmoteBubble(e.name, e.id);
+  showSocialFlash(e.name, e.id, true);
   const mine = e.seat === (offline?.mySeat ?? net.mySeat);
   addChatEntry({
     seat: e.seat,
@@ -1398,6 +1414,7 @@ net.onEmote = (e) => {
 };
 
 net.onChat = (e) => {
+  showSocialFlash(e.name, e.text, false);
   const mine = e.seat === (offline?.mySeat ?? net.mySeat);
   addChatEntry({
     seat: e.seat,
