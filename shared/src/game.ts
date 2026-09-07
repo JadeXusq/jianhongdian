@@ -11,6 +11,7 @@ import {
   createDeck,
   findTargets,
   INITIAL_TABLE_CARDS,
+  isRed,
   TOTAL_HAND_CARDS,
   TOTAL_SCORE,
 } from "./cards";
@@ -111,7 +112,7 @@ export class Game {
     return g;
   }
 
-  /** 随机洗牌发牌；仅当初始桌面存在互配（会死锁，如双王）时重洗 */
+  /** 随机洗牌发牌；初始桌面互配或任一手牌全黑则重发 */
   private deal(rng: Rng): void {
     const handSize = TOTAL_HAND_CARDS / this.playerCount;
     for (;;) {
@@ -124,8 +125,13 @@ export class Game {
         table.slice(i + 1).some((b) => canPair(a, b))
       );
       if (hasPair) continue;
+      const hands = Array.from({ length: this.playerCount }, (_, i) =>
+        deck.slice(i * handSize, (i + 1) * handSize)
+      );
+      // 全黑（无红牌）触发重新发牌
+      if (hands.some((h) => !h.some((id) => isRed(id)))) continue;
       this.players.forEach((p, i) => {
-        p.hand = deck.slice(i * handSize, (i + 1) * handSize);
+        p.hand = hands[i];
       });
       this.table = table;
       this.stock = deck.slice(TOTAL_HAND_CARDS + INITIAL_TABLE_CARDS);
@@ -218,7 +224,9 @@ export class Game {
       this.phase = "FINISHED";
       return;
     }
-    this.currentPlayer = (this.currentPlayer + 1) % this.playerCount;
+    // 顺时针：座位号递减（牌桌布局下一家在左手侧）
+    this.currentPlayer =
+      (this.currentPlayer - 1 + this.playerCount) % this.playerCount;
     this.phase = "PLAY_HAND";
   }
 

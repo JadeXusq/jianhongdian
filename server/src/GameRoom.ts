@@ -17,7 +17,7 @@ import {
   AI_DELAY_MS,
   RECONNECT_MS,
   captureAnimMs,
-  dealAnimMs,
+  dealOpenMs,
   discardAnimMs,
   NAME_MAX_LEN,
   resolveThemeId,
@@ -271,7 +271,7 @@ export class GameRoom extends Room<RoomState> {
     // 座位须为 0..n-1 连续，规则引擎以座位号作为玩家索引
     this.compactSeats();
     const count = this.state.players.size;
-    // 首轮随机庄；之后按逆时针（座位号递减，与牌桌布局一致）
+    // 首轮随机庄；之后按顺时针（座位号递减，与出牌方向一致）
     if (this.state.roundStarter < 0) {
       this.state.roundStarter = Math.floor(Math.random() * count);
     } else {
@@ -292,8 +292,8 @@ export class GameRoom extends Room<RoomState> {
     this.syncGame();
     this.broadcast("roundStart", { round: this.state.round });
     this.state.players.forEach((p) => this.sendHand(p.seat));
-    // 等客户端发牌动画播完再让 AI/托管出手
-    this.animPadMs = dealAnimMs(count);
+    // 发牌动画 + 看牌后再让 AI/托管出手
+    this.animPadMs = dealOpenMs(count);
     this.beginTurn();
   }
 
@@ -343,7 +343,10 @@ export class GameRoom extends Room<RoomState> {
     const seat = g.currentPlayer;
     const p = this.playerBySeat(seat);
     const auto = !p || p.isAi || !p.connected;
-    const wait = auto ? AI_DELAY_MS + this.animPadMs : TURN_MS;
+    // 人类首回合也要等发牌+看牌垫时结束，再开始超时计时
+    const wait = auto
+      ? AI_DELAY_MS + this.animPadMs
+      : TURN_MS + this.animPadMs;
     this.animPadMs = 0;
 
     this.state.currentSeat = seat;

@@ -9,7 +9,9 @@ import { TOTAL_HAND_CARDS } from "./cards";
 /** 人类回合超时（超时后 AI 代打） */
 export const TURN_MS = 180_000;
 /** AI / 托管出牌「思考」间隔（动画垫时另加，见 captureAnimMs） */
-export const AI_DELAY_MS = 900;
+export const AI_DELAY_MS = 5_000;
+/** 发牌动画结束后的看牌时间，再正式开局 */
+export const LOOK_HAND_MS = 10_000;
 /** 断线保留座位 */
 export const RECONNECT_MS = 60_000;
 /** 吃牌 MATCH 居中展示 */
@@ -71,6 +73,11 @@ export function dealAnimMs(playerCount: number): number {
     DEAL_TABLE_PAUSE_MS +
     200
   );
+}
+
+/** 发牌动画 + 看牌时间（首回合开局垫时） */
+export function dealOpenMs(playerCount: number): number {
+  return dealAnimMs(playerCount) + LOOK_HAND_MS;
 }
 
 export const MATCH_HOLD_S = MATCH_HOLD_MS / 1000;

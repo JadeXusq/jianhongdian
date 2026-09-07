@@ -6,6 +6,7 @@ import {
   autoTarget,
   cardName,
   cardScore,
+  dealOpenMs,
   findTargets,
   isRed,
   turnHint,
@@ -48,6 +49,8 @@ let pendingRoundOver: RoundOver | null = null;
 let roundOverWaitStarted = 0;
 let dealRoundPending = false;
 let lastDealRound = 0;
+/** 发牌+看牌结束墙钟（此前进攻屏蔽） */
+let handLookUntil = 0;
 let roomCodeMode: "join" | "spectate" = "join";
 
 const assetBase = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
@@ -221,8 +224,16 @@ function refreshTurnHint(): void {
   if (view.animating) turnUiLockUntil = 0;
   if (turnUiLockUntil > 0 && now >= turnUiLockUntil) turnUiLockUntil = 0;
 
-  const busy = view.animating || now < turnUiLockUntil;
+  const looking = now < handLookUntil;
+  const busy = view.animating || now < turnUiLockUntil || looking;
   view.turnBlocked = busy;
+
+  if (looking && !view.animating) {
+    const left = Math.max(1, Math.ceil((handLookUntil - now) / 1000));
+    hint(`看牌中 · ${left}s 后开局`);
+    wasMyTurn = false;
+    return;
+  }
 
   const text = turnHint({
     spectating,
@@ -265,6 +276,8 @@ function tryStartDealAnim(): void {
 function armDealRound(): void {
   dealRoundPending = true;
   view.prepDealAnim();
+  const n = playState()?.maxPlayers ?? maxPlayers;
+  handLookUntil = performance.now() + dealOpenMs(n);
   tryStartDealAnim();
 }
 
@@ -1162,6 +1175,9 @@ function stopOffline(): void {
   clearChatLog();
   clearMatchRoundNets();
   setMenuVisible(false);
+  handLookUntil = 0;
+  view.turnBlocked = false;
+  view.resetAnimVisuals();
   refreshPracticeBtn();
 }
 
@@ -1240,6 +1256,9 @@ function startOffline(): void {
     lastDealRound = session.state.round;
     dealRoundPending = false;
     pendingRoundOver = null;
+    handLookUntil = 0;
+    view.resetAnimVisuals();
+    view.turnBlocked = false;
     session.bootstrapAfterResume();
     toast(`继续人机练习 · ${maxPlayers} 人`);
     refreshPracticeBtn();
@@ -1670,3 +1689,10 @@ function frame(now: number): void {
   }
 }
 requestAnimationFrame(frame);
+
+window.addEventListener("pagehide", () => {
+  offline?.flushSave();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") offline?.flushSave();
+});

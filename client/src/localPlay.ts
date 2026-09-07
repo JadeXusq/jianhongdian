@@ -10,7 +10,7 @@ import {
   captureAnimMs,
   cardScore,
   chooseHandPlay,
-  dealAnimMs,
+  dealOpenMs,
   discardAnimMs,
   DEFAULT_THEME_ID,
   resolveThemeId,
@@ -156,7 +156,8 @@ export class LocalPlay {
       const session = new LocalPlay(humanName, data.playerCount);
       session.applySave(data);
       return session;
-    } catch {
+    } catch (e) {
+      console.warn("[jhd] local resume failed", e);
       clearLocalSave();
       return null;
     }
@@ -271,8 +272,28 @@ export class LocalPlay {
     this.state.maxPlayers = this.playerCount;
     this.game = data.game ? Game.restore(data.game) : null;
     if (data.phase === "PLAYING") {
-      if (!this.game || this.game.phase === "FINISHED")
-        throw new Error("bad playing save");
+      // 崩溃时可能停在 FINISHED 未写入 ROUND_OVER：当作轮间续看
+      if (this.game?.phase === "FINISHED") {
+        this.state.phase = "ROUND_OVER";
+        this.syncFromGame();
+        this.state.phase = "ROUND_OVER";
+        if (!this.lastRoundOver) {
+          const result = this.game.result();
+          this.lastRoundOver = {
+            points: result.points,
+            net: result.net,
+            base: result.base,
+            captured: this.game.players.map((p) => [...p.captured]),
+            round: this.round,
+            totalRounds: 0,
+            allDone: false,
+            roundNets: this.roundNets.map((row) => [...row]),
+          };
+        }
+        this.pendingRestoredRoundOver = this.lastRoundOver;
+        return;
+      }
+      if (!this.game) throw new Error("bad playing save");
       this.state.phase = "PLAYING";
       this.syncFromGame();
       this.pendingRestoredRoundOver = null;
@@ -313,6 +334,7 @@ export class LocalPlay {
 
   private nextRound(): void {
     clearTimeout(this.aiTimer);
+    // 首轮随机庄；之后顺时针（座位号递减）
     if (this.roundStarter < 0) {
       this.roundStarter = Math.floor(Math.random() * this.playerCount);
     } else {
@@ -329,7 +351,7 @@ export class LocalPlay {
     this.state.roundStarter = this.roundStarter;
     this.onRoundStart?.();
     this.emitState();
-    this.scheduleAi(dealAnimMs(this.playerCount));
+    this.scheduleAi(dealOpenMs(this.playerCount));
   }
 
   private afterMove(events: GameEvent[]): void {
@@ -404,7 +426,8 @@ export class LocalPlay {
     const g = this.game;
     if (!g || g.phase === "FINISHED") return;
     if (g.currentPlayer === this.mySeat) {
-      this.state.turnDeadline = Date.now() + TURN_MS;
+      // 人类：垫时内不可操作（看牌/动画），超时从垫时结束后起算
+      this.state.turnDeadline = Date.now() + TURN_MS + animPadMs;
       this.emitState();
       return;
     }
@@ -564,6 +587,11 @@ export class LocalPlay {
 
   private emitState(): void {
     this.onState?.(this.state);
+    this.persist();
+  }
+
+  /** 页面隐藏时强制落盘 */
+  flushSave(): void {
     this.persist();
   }
 

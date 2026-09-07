@@ -494,6 +494,7 @@ input:focus {
   max-height: calc(100dvh - 48px);
   margin-inline: auto;
   padding: 12px 14px 12px;
+  overflow: hidden;
 }
 
 .result-panel.is-final {
@@ -511,8 +512,13 @@ input:focus {
 }
 
 .result-panel.is-final .result-list {
-  flex: none;
-  overflow: visible;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .scores-panel .result-list {
@@ -663,7 +669,7 @@ input:focus {
   --score-n: 4;
   border: 1px solid var(--gold-dim);
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
   background: rgba(0, 0, 0, 0.22);
 }
 
