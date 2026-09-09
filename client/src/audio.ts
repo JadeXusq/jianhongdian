@@ -144,14 +144,21 @@ class Sfx {
     this.tone(180, 0.14, "triangle", 0.06);
   }
 
-  /** 吃牌：清脆双音；高分牌额外加一段上行琶音 */
+  /** 吃牌：有得分即播清脆双音+琶音；高分再加码 */
   capture(score: number): void {
+    // 无得分（全黑互吃）仅轻提示，不抢得分反馈
+    if (score <= 0) {
+      this.tone(660, 0.1, "triangle", 0.05);
+      this.tone(880, 0.12, "triangle", 0.04, 0.05);
+      return;
+    }
     this.tone(880, 0.12, "triangle", 0.1);
     this.tone(1320, 0.16, "triangle", 0.08, 0.06);
+    // 只要有得分都触发得分琶音
+    this.tone(1046, 0.12, "sine", 0.08, 0.14);
+    this.tone(1318, 0.14, "sine", 0.08, 0.22);
     if (score >= 20) {
-      this.tone(1046, 0.14, "sine", 0.09, 0.16);
-      this.tone(1318, 0.14, "sine", 0.09, 0.24);
-      this.tone(1568, 0.28, "sine", 0.1, 0.32);
+      this.tone(1568, 0.28, "sine", 0.1, 0.3);
     }
     if (score >= 30) {
       this.tone(1760, 0.2, "sine", 0.08, 0.4);
