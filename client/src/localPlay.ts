@@ -431,10 +431,25 @@ export class LocalPlay {
       this.emitState();
       return;
     }
-    const wait = AI_DELAY_MS + animPadMs;
-    this.state.turnDeadline = Date.now() + wait;
+    // 机器人：先等上一步动画，再固定思考 AI_DELAY_MS（不与动画重叠）
+    this.state.turnDeadline = Date.now() + Math.max(0, animPadMs) + AI_DELAY_MS;
     this.emitState();
-    this.aiTimer = window.setTimeout(() => this.aiAct(), wait);
+    this.aiTimer = window.setTimeout(
+      () => this.aiThink(),
+      Math.max(0, animPadMs)
+    );
+  }
+
+  /** 动画结束后再进入出牌前停顿 */
+  private aiThink(): void {
+    const g = this.game;
+    if (!g || g.phase === "FINISHED") return;
+    if (g.currentPlayer === this.mySeat) return;
+    if (this.animBusy?.()) {
+      this.aiTimer = window.setTimeout(() => this.aiThink(), 120);
+      return;
+    }
+    this.aiTimer = window.setTimeout(() => this.aiAct(), AI_DELAY_MS);
   }
 
   private aiAct(): void {

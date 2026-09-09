@@ -235,6 +235,19 @@ function refreshTurnHint(): void {
     return;
   }
 
+  if (!mine && !view.animating && state.turnDeadline) {
+    const left = Math.ceil((Number(state.turnDeadline) - Date.now()) / 1000);
+    if (left > 0) {
+      hint(
+        offline
+          ? `机器人思考中 · ${left}s`
+          : `对手出牌中 · ${left}s`
+      );
+      wasMyTurn = false;
+      return;
+    }
+  }
+
   const text = turnHint({
     spectating,
     offline: !!offline,

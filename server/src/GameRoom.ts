@@ -343,20 +343,27 @@ export class GameRoom extends Room<RoomState> {
     const seat = g.currentPlayer;
     const p = this.playerBySeat(seat);
     const auto = !p || p.isAi || !p.connected;
-    // 人类首回合也要等发牌+看牌垫时结束，再开始超时计时
-    const wait = auto
-      ? AI_DELAY_MS + this.animPadMs
-      : TURN_MS + this.animPadMs;
+    const pad = this.animPadMs;
     this.animPadMs = 0;
 
     this.state.currentSeat = seat;
     this.state.turnPhase = g.phase as TurnPhase;
     this.state.pendingStockCard = g.pendingStockCard;
-    this.state.turnDeadline = Date.now() + wait;
 
     this.turnTimer?.clear();
-    // 人类超时则由 AI 代打本回合，避免卡住整局
-    this.turnTimer = this.clock.setTimeout(() => this.autoPlay(), wait);
+    if (auto) {
+      // 先等动画垫时，再固定思考 AI_DELAY_MS，避免与动画重叠导致“秒出”
+      this.state.turnDeadline = Date.now() + pad + AI_DELAY_MS;
+      this.turnTimer = this.clock.setTimeout(() => {
+        this.turnTimer = this.clock.setTimeout(
+          () => this.autoPlay(),
+          AI_DELAY_MS
+        );
+      }, Math.max(0, pad));
+      return;
+    }
+    this.state.turnDeadline = Date.now() + TURN_MS + pad;
+    this.turnTimer = this.clock.setTimeout(() => this.autoPlay(), TURN_MS + pad);
   }
 
   /** 若当前回合属于 AI/掉线玩家，重新安排一次自动出牌 */
