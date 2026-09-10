@@ -5,7 +5,6 @@
 import {
   autoTarget,
   cardName,
-  cardScore,
   dealOpenMs,
   findTargets,
   isRed,
@@ -79,6 +78,9 @@ const view = new TableView($<HTMLCanvasElement>("table"), {
     if (kind === "shuffle") sfx.dealShuffle();
     else if (kind === "round") sfx.dealRound();
     else sfx.dealTable();
+  },
+  onCaptureSfx: (score) => {
+    if (score > 0) sfx.capture(score);
   },
 });
 
@@ -233,19 +235,6 @@ function refreshTurnHint(): void {
     hint(`看牌中 · ${left}s 后开局`);
     wasMyTurn = false;
     return;
-  }
-
-  if (!mine && !view.animating && state.turnDeadline) {
-    const left = Math.ceil((Number(state.turnDeadline) - Date.now()) / 1000);
-    if (left > 0) {
-      hint(
-        offline
-          ? `机器人思考中 · ${left}s`
-          : `对手出牌中 · ${left}s`
-      );
-      wasMyTurn = false;
-      return;
-    }
   }
 
   const text = turnHint({
@@ -1232,9 +1221,6 @@ function wireOfflineSession(session: LocalPlay): void {
       roundOverWaitStarted = performance.now();
     for (const ev of events) {
       if (ev.target === undefined) sfx.discard();
-      else if (ev.type === "FLIP")
-        sfx.flipCapture(cardScore(ev.card) + cardScore(ev.target));
-      else sfx.capture(cardScore(ev.card) + cardScore(ev.target));
     }
   };
   session.onRoundStart = () => {
@@ -1352,9 +1338,6 @@ net.onEvents = (events) => {
     roundOverWaitStarted = performance.now();
   for (const ev of events) {
     if (ev.target === undefined) sfx.discard();
-    else if (ev.type === "FLIP")
-      sfx.flipCapture(cardScore(ev.card) + cardScore(ev.target));
-    else sfx.capture(cardScore(ev.card) + cardScore(ev.target));
   }
 };
 

@@ -84,6 +84,8 @@ interface Step {
   visualSeat?: number;
   /** 发牌动效配套音效 */
   dealSfx?: "shuffle" | "round" | "table";
+  /** MATCH 展示时按得分播吃牌音（>0 才算得分） */
+  captureSfx?: number;
 }
 
 export interface TableCallbacks {
@@ -93,6 +95,7 @@ export interface TableCallbacks {
   onCancelSelection?(): void;
   onReorderHand?(order: number[]): void;
   onDealSfx?(kind: "shuffle" | "round" | "table"): void;
+  onCaptureSfx?(score: number): void;
 }
 
 export class TableView {
@@ -633,6 +636,7 @@ export class TableView {
         hold: MATCH_HOLD_S,
         clearLinger: [ev.target],
         visualSeat: ev.player,
+        captureSfx: gain,
       });
       // 第 4 步：两张牌飞入得分堆
       this.steps.push({
@@ -950,6 +954,8 @@ export class TableView {
         this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
       if (this.current.dealSfx)
         this.cb.onDealSfx?.(this.current.dealSfx);
+      if ((this.current.captureSfx ?? 0) > 0)
+        this.cb.onCaptureSfx?.(this.current.captureSfx!);
     }
     const s = this.current;
     let done = true;
