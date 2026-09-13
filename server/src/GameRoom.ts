@@ -97,6 +97,7 @@ export class GameRoom extends Room<RoomState> {
     this.onMessage("setTheme", (client, msg: { themeId?: string }) =>
       this.onSetTheme(client, msg)
     );
+    this.onMessage("ping", () => undefined);
     this.state.themeId = resolveThemeId(options.themeId);
   }
 

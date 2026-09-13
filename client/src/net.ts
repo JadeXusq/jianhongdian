@@ -3,7 +3,7 @@
  * 不含任何渲染逻辑，将来接 Cocos 时可原样复用。
  */
 import { Client, Room } from "colyseus.js";
-import type { GameEvent } from "@jhd/shared";
+import { RECONNECT_MS, type GameEvent } from "@jhd/shared";
 
 const WS_URL =
   (import.meta.env.VITE_WS as string | undefined)?.trim() ||
@@ -147,7 +147,10 @@ export class Net {
     ts: number;
   }) => void;
   onError?: (message: string) => void;
-  onLeave?: () => void;
+  onLeave?: (consented: boolean) => void;
+  onDropped?: () => void;
+  onRecoverHold?: () => void;
+  onReconnected?: () => void;
 
   get state(): any {
     return this.room?.state;
@@ -156,6 +159,9 @@ export class Net {
   onProgress?: (msg: string) => void;
 
   private joining = false;
+  private intentionalLeave = false;
+  private recoverAborted = false;
+  private pingTimer = 0;
 
   async create(
     name: string,
@@ -273,7 +279,9 @@ export class Net {
     const token = sessionStorage.getItem(TOKEN_KEY);
     if (!token) return false;
     try {
-      this.bind(await this.client.reconnect(token));
+      this.bind(
+        await withWake(() => this.client.reconnect(token), this.onProgress)
+      );
       return true;
     } catch {
       sessionStorage.removeItem(TOKEN_KEY);
@@ -281,9 +289,79 @@ export class Net {
     }
   }
 
+  private clearPing(): void {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = 0;
+    }
+  }
+
+  private startPing(): void {
+    this.clearPing();
+    this.pingTimer = window.setInterval(() => {
+      try {
+        this.room?.send("ping");
+      } catch {
+        /* 断开时由 onLeave 处理 */
+      }
+    }, 20_000);
+  }
+
+  abandonRecover(): void {
+    this.recoverAborted = true;
+    this.intentionalLeave = true;
+    sessionStorage.removeItem(TOKEN_KEY);
+  }
+
+  private async recoverAfterDrop(): Promise<void> {
+    const token = sessionStorage.getItem(TOKEN_KEY);
+    if (!token || this.joining || this.intentionalLeave || this.recoverAborted) {
+      this.finishGone();
+      return;
+    }
+    this.recoverAborted = false;
+    this.onProgress?.("连接断开，正在重连…");
+    const deadline = Date.now() + Math.max(8_000, RECONNECT_MS - 3_000);
+    let delay = 800;
+    let attempt = 0;
+    let quickFails = 0;
+    while (Date.now() < deadline) {
+      if (this.joining || this.intentionalLeave || this.recoverAborted) return;
+      const t0 = Date.now();
+      try {
+        this.bind(await this.client.reconnect(token));
+        this.onProgress?.("已重新连上");
+        this.onReconnected?.();
+        return;
+      } catch {
+        attempt++;
+        if (Date.now() - t0 < 500) quickFails++;
+        else quickFails = 0;
+        if (attempt === 2 || quickFails === 2) this.onRecoverHold?.();
+        if (quickFails >= 3) break;
+        const left = deadline - Date.now();
+        if (left <= 0) break;
+        await new Promise((r) => setTimeout(r, Math.min(delay, left)));
+        delay = Math.min(delay + 500, 3_000);
+      }
+    }
+    if (this.joining || this.intentionalLeave || this.recoverAborted) return;
+    sessionStorage.removeItem(TOKEN_KEY);
+    this.finishGone();
+  }
+
+  private finishGone(): void {
+    this.mySeat = -1;
+    this.spectating = false;
+    this.hand = [];
+    this.onLeave?.(false);
+  }
+
   private bind(room: Room<any>): void {
+    this.recoverAborted = false;
     this.room = room;
     sessionStorage.setItem(TOKEN_KEY, room.reconnectionToken);
+    this.startPing();
 
     room.onMessage("joined", (m: { seat: number; spectate?: boolean }) => {
       this.mySeat = m.seat;
@@ -308,6 +386,8 @@ export class Net {
       this.onError?.(e.message)
     );
     room.onStateChange((state) => {
+      if (room.reconnectionToken)
+        sessionStorage.setItem(TOKEN_KEY, room.reconnectionToken);
       if (this.mySeat < 0 && !this.spectating) {
         const me = state.players.get(room.sessionId);
         if (me) this.mySeat = me.seat;
@@ -315,12 +395,20 @@ export class Net {
       this.onState?.(state);
     });
     room.onLeave(() => {
-      sessionStorage.removeItem(TOKEN_KEY);
+      this.clearPing();
+      const consented = this.intentionalLeave;
+      this.intentionalLeave = false;
       this.room = null;
-      this.mySeat = -1;
       this.hand = [];
-      this.spectating = false;
-      this.onLeave?.();
+      if (consented) {
+        sessionStorage.removeItem(TOKEN_KEY);
+        this.mySeat = -1;
+        this.spectating = false;
+        this.onLeave?.(true);
+        return;
+      }
+      this.onDropped?.();
+      void this.recoverAfterDrop();
     });
   }
 
@@ -355,7 +443,15 @@ export class Net {
     this.room?.send("setTheme", { themeId });
   }
   async leave(): Promise<void> {
+    this.recoverAborted = true;
+    this.intentionalLeave = true;
+    this.clearPing();
     sessionStorage.removeItem(TOKEN_KEY);
-    await this.room?.leave(true);
+    const room = this.room;
+    if (!room) {
+      this.intentionalLeave = false;
+      return;
+    }
+    await room.leave(true);
   }
 }

@@ -39,6 +39,19 @@ let discardArmed = -1;
 let lastRound: RoundOver | null = null;
 /** 本场各轮净胜分：matchRoundNets[roundIndex][seat] */
 let matchRoundNets: number[][] = [];
+type ScorePlayer = {
+  seat: number;
+  name: string;
+  isAi?: boolean;
+  totalNet: number;
+};
+const MATCH_SAVE_KEY = "jhd.onlineMatch";
+let lastScorePlayers: ScorePlayer[] = [];
+let lastScoreMySeat = 0;
+let lastScoreRound = 0;
+let lastScoreCode = "";
+let lastLivePoints: number[] = [];
+let matchDetached = false;
 /** 用于判断“刚轮到我”的边沿，避免每帧重复提醒 */
 let wasMyTurn = false;
 /** 刚切到自己回合、事件动画尚未入队时的短锁截止时间（墙钟） */
@@ -135,7 +148,10 @@ function show(
     "settle-confirm",
     "room-code-dialog",
   ].forEach((s) => $(s).classList.toggle("hidden", s !== id));
-  if (id === "lobby") refreshPracticeBtn();
+  if (id === "lobby") {
+    refreshPracticeBtn();
+    refreshLastMatchBtn();
+  }
 }
 
 const shown = (id: string) => !$(id).classList.contains("hidden");
@@ -316,6 +332,8 @@ function applyPlayState(state: any, hand: number[], mySeat: number): void {
   view.state = state;
   adoptHand(hand);
   view.mySeat = mySeat;
+  if (!offline && (state.phase === "PLAYING" || state.phase === "ROUND_OVER"))
+    rememberScoreCast(state, mySeat);
   const newRound =
     state.phase === "PLAYING" &&
     (state.round !== lastDealRound || prev?.phase === "ROUND_OVER");
@@ -349,6 +367,7 @@ function ensureDealAnimForRound(): void {
 function rememberRoundNets(r: RoundOver): void {
   if (r.roundNets?.length) {
     matchRoundNets = r.roundNets.map((row) => [...row]);
+    persistOnlineMatch();
     return;
   }
   // 纯结算收场（无本轮对局数据）不追加
@@ -357,6 +376,175 @@ function rememberRoundNets(r: RoundOver): void {
     matchRoundNets[r.round - 1] = [...r.net];
     matchRoundNets.length = r.round;
   }
+  persistOnlineMatch();
+}
+
+function scorePlayersFromState(state: any): ScorePlayer[] {
+  return [...state.players.values()].map((p: any) => ({
+    seat: Number(p.seat) || 0,
+    name: String(p.name || "玩家"),
+    isAi: !!p.isAi,
+    totalNet: Number(p.totalNet) || 0,
+  }));
+}
+
+function rememberScoreCast(state: any, mySeat: number): void {
+  if (offline) return;
+  lastScorePlayers = scorePlayersFromState(state);
+  lastScoreMySeat = mySeat;
+  lastScoreCode = String(state.code || lastScoreCode);
+  lastScoreRound = Number(state.round) || 0;
+  if (state.phase === "PLAYING") {
+    const live: number[] = [];
+    state.players.forEach((p: any) => {
+      live[Number(p.seat) || 0] = Number(p.points) || 0;
+    });
+    lastLivePoints = live;
+  } else {
+    lastLivePoints = [];
+  }
+  persistOnlineMatch();
+}
+
+type MatchSave = {
+  v: number;
+  code: string;
+  mySeat: number;
+  players: ScorePlayer[];
+  roundNets: number[][];
+  round: number;
+  lastRound: RoundOver | null;
+  livePoints: number[];
+  ts: number;
+};
+
+function persistOnlineMatch(): void {
+  if (offline) return;
+  if (!lastScorePlayers.length && !matchRoundNets.length && !lastRound)
+    return;
+  if (
+    lastScoreRound < 1 &&
+    !matchRoundNets.length &&
+    !lastRound
+  )
+    return;
+  const data: MatchSave = {
+    v: 1,
+    code: lastScoreCode,
+    mySeat: lastScoreMySeat,
+    players: lastScorePlayers.map((p) => ({ ...p })),
+    roundNets: matchRoundNets.map((row) => [...row]),
+    round: lastScoreRound,
+    lastRound: lastRound
+      ? {
+          ...lastRound,
+          points: [...lastRound.points],
+          net: [...lastRound.net],
+          captured: (lastRound.captured ?? []).map((c) => [...c]),
+          roundNets: lastRound.roundNets?.map((row) => [...row]),
+        }
+      : null,
+    livePoints: [...lastLivePoints],
+    ts: Date.now(),
+  };
+  try {
+    localStorage.setItem(MATCH_SAVE_KEY, JSON.stringify(data));
+  } catch {
+    /* 配额满时忽略 */
+  }
+  refreshLastMatchBtn();
+}
+
+function readOnlineMatch(): MatchSave | null {
+  try {
+    const raw = localStorage.getItem(MATCH_SAVE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as MatchSave;
+    if (!data || data.v !== 1 || !Array.isArray(data.players)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function hasOnlineMatchSave(): boolean {
+  const s = readOnlineMatch();
+  if (!s) return false;
+  return !!(
+    s.roundNets?.length ||
+    s.lastRound ||
+    s.round > 0 ||
+    s.livePoints?.some((n) => n)
+  );
+}
+
+function refreshLastMatchBtn(): void {
+  const btn = document.getElementById("btn-last-match");
+  if (!btn) return;
+  btn.classList.toggle("hidden", !hasOnlineMatchSave());
+}
+
+function adoptOnlineMatch(s: MatchSave): void {
+  lastScorePlayers = s.players.map((p) => ({ ...p }));
+  lastScoreMySeat = s.mySeat;
+  lastScoreCode = s.code;
+  lastScoreRound = s.round;
+  lastLivePoints = [...(s.livePoints ?? [])];
+  matchRoundNets = (s.roundNets ?? []).map((row) => [...row]);
+  lastRound = s.lastRound;
+}
+
+function savedMatchTitle(reason: "disconnect" | "review"): string {
+  const done = matchRoundNets.length;
+  const inPlay =
+    !!lastLivePoints.some((x) => x) || lastScoreRound > done;
+  if (reason === "disconnect") {
+    if (inPlay && lastScoreRound)
+      return `连接已断开 · 第 ${lastScoreRound} 轮进行中`;
+    if (done) return `连接已断开 · 已打完 ${done} 轮`;
+    return "连接已断开 · 本场积分";
+  }
+  if (inPlay && lastScoreRound) return `上次对局 · 第 ${lastScoreRound} 轮进行中`;
+  if (done) return `上次对局 · ${done} 轮`;
+  return "上次对局积分";
+}
+
+function renderSavedMatch(reason: "disconnect" | "review"): void {
+  const snap = readOnlineMatch();
+  if (!lastScorePlayers.length && snap) adoptOnlineMatch(snap);
+  if (!lastScorePlayers.length && snap?.players)
+    lastScorePlayers = snap.players.map((p) => ({ ...p }));
+  const players = lastScorePlayers;
+  const mySeat = lastScoreMySeat;
+  if (!players.length) return;
+  matchDetached = true;
+  $("result")
+    .querySelector(".result-panel")
+    ?.classList.add("is-final");
+  const title = $("result").querySelector(".title") as HTMLElement;
+  const n = matchRoundNets.length || lastScoreRound;
+  title.textContent = savedMatchTitle(reason);
+  const dots = $("result-dots");
+  if (dots) {
+    dots.innerHTML = n
+      ? Array.from({ length: n }, (_, i) =>
+          `<span class="dot${i === n - 1 ? " on" : ""}"></span>`
+        ).join("")
+      : `<span class="dot on"></span>`;
+  }
+  $("result-list").innerHTML = scoreBoardHtml(players, mySeat, {
+    livePoints: lastLivePoints.some((x) => x) ? lastLivePoints : undefined,
+  });
+  const btnAgain = $<HTMLButtonElement>("btn-again");
+  const btnExit = $<HTMLButtonElement>("btn-exit");
+  const btnSettle = $<HTMLButtonElement>("btn-result-settle");
+  btnAgain.classList.add("hidden");
+  btnSettle.classList.add("hidden");
+  btnExit.style.display = "";
+  btnExit.textContent = "返回大厅";
+  setMenuVisible(false);
+  $("btn-help").classList.add("hidden");
+  show("result");
 }
 
 function clearMatchRoundNets(): void {
@@ -501,6 +689,7 @@ function scoreBoardHtml(
 function queueRoundOver(r: RoundOver): void {
   rememberRoundNets(r);
   lastRound = r;
+  persistOnlineMatch();
   pendingRoundOver = r;
   roundOverWaitStarted = performance.now();
   view.roundEnding = true;
@@ -828,6 +1017,15 @@ $("btn-rank").onclick = () =>
   });
 $("btn-rank-close").onclick = () => show("lobby");
 $("btn-rank-back").onclick = () => show("lobby");
+$("btn-last-match").onclick = () => {
+  const snap = readOnlineMatch();
+  if (snap) adoptOnlineMatch(snap);
+  if (!lastScorePlayers.length) {
+    toast("没有可查看的对局积分");
+    return;
+  }
+  renderSavedMatch("review");
+};
 
 $("btn-account").onclick = () => {
   const acc = savedAccountId();
@@ -968,6 +1166,7 @@ function renderRoom(state: any): void {
 // ---------- 结算 ----------
 
 $("btn-again").onclick = () => {
+  if (matchDetached) return;
   pendingRoundOver = null;
   if (offline) {
     if (lastRound?.allDone) {
@@ -983,6 +1182,12 @@ $("btn-again").onclick = () => {
   show("none");
 };
 $("btn-exit").onclick = () => {
+  if (matchDetached) {
+    matchDetached = false;
+    net.abandonRecover();
+    show("lobby");
+    return;
+  }
   if (offline) {
     stopOffline();
     show("lobby");
@@ -1061,6 +1266,9 @@ function renderResult(r: RoundOver): void {
   const btnAgain = $<HTMLButtonElement>("btn-again");
   const btnExit = $<HTMLButtonElement>("btn-exit");
   const btnSettle = $<HTMLButtonElement>("btn-result-settle");
+  matchDetached = false;
+  btnAgain.classList.remove("hidden");
+  btnExit.textContent = "返回大厅";
   if (r.allDone) {
     btnAgain.textContent = offline ? "再练一局" : "再来一局";
     btnAgain.classList.add("primary");
@@ -1675,20 +1883,51 @@ net.onError = (msg) => {
   syncSelection();
 };
 
-net.onLeave = () => {
+net.onDropped = () => {
+  persistOnlineMatch();
+  toast("连接断开，正在重连…", 8000);
+};
+
+net.onRecoverHold = () => {
+  persistOnlineMatch();
+  if (hasOnlineMatchSave() || lastScorePlayers.length || matchRoundNets.length) {
+    renderSavedMatch("disconnect");
+    toast("仍在尝试重连，可先查看本场积分", 5000);
+  }
+};
+
+net.onReconnected = () => {
+  matchDetached = false;
+  toast("已重新连上");
+};
+
+net.onLeave = (consented) => {
   unlockPlay();
   clearChatLog();
-  clearMatchRoundNets();
   $("btn-chat-toggle").classList.add("hidden");
-  if (offline || lastRound) return;
+  if (offline) return;
+  persistOnlineMatch();
+  if (consented) {
+    refreshLastMatchBtn();
+    if (lastRound) return;
+    show("lobby");
+    return;
+  }
+  if (hasOnlineMatchSave() || lastScorePlayers.length || matchRoundNets.length) {
+    renderSavedMatch("disconnect");
+    toast("无法重连，本场积分已保存在本机", 4000);
+    return;
+  }
   toast("已断开连接");
   show("lobby");
 };
 
 // 刷新页面后尝试回到原对局（纯静态托管时会静默失败）
+refreshLastMatchBtn();
 if (!import.meta.env.VITE_OFFLINE_ONLY)
   net.tryReconnect().then((ok) => {
     if (ok) toast("已重连回到对局");
+    else refreshLastMatchBtn();
   });
 
 if (import.meta.env.DEV)
