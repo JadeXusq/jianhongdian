@@ -166,6 +166,8 @@ export class TableView {
   private layoutBufW = 0;
   private layoutBufH = 0;
   private layoutDpr = 0;
+  private layoutCssW = 0;
+  private layoutCssH = 0;
   /** 本帧绘制/命中共用的 CSS 视口，避免读到不一致尺寸 */
   private viewCw = 0;
   private viewCh = 0;
@@ -302,10 +304,15 @@ export class TableView {
       this.layoutBufW = bufW;
       this.layoutBufH = bufH;
       this.layoutDpr = dpr;
+      this.layoutCssW = 0;
     }
-    // 安卓改 buffer 后常丢掉 CSS 尺寸与 transform；每帧强制钉回
-    this.canvas.style.width = `${cw}px`;
-    this.canvas.style.height = `${ch}px`;
+    // 只在 CSS 尺寸变化时写 style，避免安卓每帧回流把 RAF 拖慢
+    if (cw !== this.layoutCssW || ch !== this.layoutCssH) {
+      this.canvas.style.width = `${cw}px`;
+      this.canvas.style.height = `${ch}px`;
+      this.layoutCssW = cw;
+      this.layoutCssH = ch;
+    }
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     this.rotated = shouldRotate();
@@ -936,49 +943,63 @@ export class TableView {
     return true;
   }
 
+  private beginStep(s: Step): void {
+    this.hidden = new Set(s.hide ?? []);
+    if (s.visualSeat !== undefined) this.visualTurnSeat = s.visualSeat;
+    if (s.clearLinger) {
+      for (const id of s.clearLinger) {
+        this.lingerTable.delete(id);
+        this.lingerHold.delete(id);
+      }
+    }
+    if (s.decStock)
+      this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
+    if (s.dealSfx) this.cb.onDealSfx?.(s.dealSfx);
+    if ((s.captureSfx ?? 0) > 0) this.cb.onCaptureSfx?.(s.captureSfx!);
+  }
+
+  private finishStep(s: Step): void {
+    if (s.revealOnDone) {
+      for (const id of s.revealOnDone) this.deferredReveal.delete(id);
+    }
+    if (s.commitCapture) this.applyCaptureCommit(s.commitCapture);
+    if (s.commitHand !== undefined) this.applyHandCommit(s.commitHand);
+    this.current = null;
+    this.hidden.clear();
+    if (!this.steps.length) {
+      this.visualTurnSeat = null;
+      if (this.openingDeal) this.openingDeal = false;
+      this.releaseTableLayoutFreeze();
+    }
+  }
+
+  /** 一帧内按真实耗时推进，低帧率时不把动画拉长 */
   private stepAnim(dt: number): void {
     this.animClock += dt;
-    if (!this.current) {
-      this.current = this.steps.shift() ?? null;
-      this.hidden = new Set(this.current?.hide ?? []);
-      if (!this.current) return;
-      if (this.current.visualSeat !== undefined)
-        this.visualTurnSeat = this.current.visualSeat;
-      if (this.current.clearLinger) {
-        for (const id of this.current.clearLinger) {
-          this.lingerTable.delete(id);
-          this.lingerHold.delete(id);
-        }
+    let left = dt;
+    for (let n = 0; n < 12 && left > 0; n++) {
+      if (!this.current) {
+        this.current = this.steps.shift() ?? null;
+        if (!this.current) return;
+        this.beginStep(this.current);
       }
-      if (this.current.decStock)
-        this.stockAnimCredit = Math.max(0, this.stockAnimCredit - 1);
-      if (this.current.dealSfx)
-        this.cb.onDealSfx?.(this.current.dealSfx);
-      if ((this.current.captureSfx ?? 0) > 0)
-        this.cb.onCaptureSfx?.(this.current.captureSfx!);
-    }
-    const s = this.current;
-    let done = true;
-    for (const f of s.flies) {
-      f.t = Math.min(f.dur, f.t + dt);
-      if (f.t < f.dur) done = false;
-    }
-    for (const p of s.popups) p.t += dt;
-    if (!done) return;
-    s.hold -= dt;
-    if (s.hold <= 0) {
-      if (s.revealOnDone) {
-        for (const id of s.revealOnDone) this.deferredReveal.delete(id);
+      const s = this.current;
+      let flyLeft = 0;
+      for (const f of s.flies) {
+        const remain = f.dur - f.t;
+        if (remain > flyLeft) flyLeft = remain;
       }
-      if (s.commitCapture) this.applyCaptureCommit(s.commitCapture);
-      if (s.commitHand !== undefined) this.applyHandCommit(s.commitHand);
-      this.current = null;
-      this.hidden.clear();
-      if (!this.steps.length) {
-        this.visualTurnSeat = null;
-        if (this.openingDeal) this.openingDeal = false;
-        this.releaseTableLayoutFreeze();
+      const spend = Math.min(left, flyLeft > 0 ? flyLeft : s.hold);
+      for (const f of s.flies) f.t = Math.min(f.dur, f.t + spend);
+      for (const p of s.popups) p.t += spend;
+      left -= spend;
+      if (flyLeft > 0) {
+        if (spend < flyLeft) return;
+        continue;
       }
+      s.hold -= spend;
+      if (s.hold > 0) return;
+      this.finishStep(s);
     }
   }
 

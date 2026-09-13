@@ -1665,7 +1665,7 @@ if (import.meta.env.DEV)
 
 let last = performance.now();
 function frame(now: number): void {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = Math.min(0.12, (now - last) / 1000);
   last = now;
   if ($("ui").classList.contains("rot") !== shouldRotate()) applyOrientation();
   try {
