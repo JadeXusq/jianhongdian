@@ -43,6 +43,11 @@ let matchRoundNets: number[][] = [];
 let wasMyTurn = false;
 /** 刚切到自己回合、事件动画尚未入队时的短锁截止时间（墙钟） */
 let turnUiLockUntil = 0;
+/** 已提交出牌/选目标，等动画或阶段切换后再解锁 */
+let playLocked = false;
+let playAwaitingAnim = false;
+let playLockAt = 0;
+const PLAY_LOCK_FALLBACK_MS = 2500;
 /** 待展示的结算（等动画结束或超时） */
 let pendingRoundOver: RoundOver | null = null;
 let roundOverWaitStarted = 0;
@@ -227,7 +232,17 @@ function refreshTurnHint(): void {
   if (turnUiLockUntil > 0 && now >= turnUiLockUntil) turnUiLockUntil = 0;
 
   const looking = now < handLookUntil;
-  const busy = view.animating || now < turnUiLockUntil || looking;
+  if (playLocked && view.animating) playAwaitingAnim = false;
+  if (playLocked && !view.animating && !looking) {
+    if (
+      !playAwaitingAnim &&
+      (!mine || state.turnPhase === "CHOOSE_STOCK_TARGET")
+    )
+      unlockPlay();
+    else if (now - playLockAt > PLAY_LOCK_FALLBACK_MS) unlockPlay();
+  }
+  const busy =
+    view.animating || now < turnUiLockUntil || looking || playLocked;
   view.turnBlocked = busy;
 
   if (looking && !view.animating) {
@@ -284,6 +299,7 @@ function armDealRound(): void {
 }
 
 function onDealRoundStart(): void {
+  unlockPlay();
   selected = -1;
   discardArmed = -1;
   lastRound = null;
@@ -1081,9 +1097,25 @@ function myTurn(): boolean {
   return net.state?.phase === "PLAYING" && net.state.currentSeat === net.mySeat;
 }
 
+function lockPlay(): boolean {
+  if (playLocked) return false;
+  playLocked = true;
+  playAwaitingAnim = true;
+  playLockAt = performance.now();
+  view.turnBlocked = true;
+  return true;
+}
+
+function unlockPlay(): void {
+  playLocked = false;
+  playAwaitingAnim = false;
+  playLockAt = 0;
+}
+
 function pickHand(id: number): void {
   const state = playState();
   if (
+    playLocked ||
     !myTurn() ||
     !state ||
     state.turnPhase !== "PLAY_HAND" ||
@@ -1111,10 +1143,11 @@ function pickHand(id: number): void {
 
 function pickTable(id: number): void {
   const state = playState();
-  if (!state || view.animating || view.turnBlocked) return;
+  if (playLocked || !state || view.animating || view.turnBlocked) return;
   if (state.turnPhase === "CHOOSE_STOCK_TARGET") {
     if (!myTurn()) return;
     if (view.targets.includes(id)) {
+      if (!lockPlay()) return;
       if (offline) offline.chooseTarget(id);
       else net.chooseTarget(id);
     }
@@ -1134,6 +1167,7 @@ function clearSelection(): void {
 }
 
 function send(cardId: number, targetId?: number): void {
+  if (!lockPlay()) return;
   if (offline) {
     offline.play(cardId, targetId);
     offline.hand = offline.hand.filter((c) => c !== cardId);
@@ -1171,6 +1205,7 @@ function syncSelection(): void {
 }
 
 function stopOffline(): void {
+  unlockPlay();
   offline?.stop();
   offline = null;
   $("btn-chat-toggle").classList.add("hidden");
@@ -1634,12 +1669,14 @@ net.onChat = (e) => {
 
 net.onError = (msg) => {
   toast(msg);
+  unlockPlay();
   selected = -1;
   discardArmed = -1;
   syncSelection();
 };
 
 net.onLeave = () => {
+  unlockPlay();
   clearChatLog();
   clearMatchRoundNets();
   $("btn-chat-toggle").classList.add("hidden");
