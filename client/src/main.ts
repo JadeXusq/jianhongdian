@@ -151,6 +151,7 @@ function show(
   if (id === "lobby") {
     refreshPracticeBtn();
     refreshLastMatchBtn();
+    void refreshResumeBtn();
   }
 }
 
@@ -482,6 +483,17 @@ function refreshLastMatchBtn(): void {
   const btn = document.getElementById("btn-last-match");
   if (!btn) return;
   btn.classList.toggle("hidden", !hasOnlineMatchSave());
+}
+
+async function refreshResumeBtn(): Promise<void> {
+  const btn = document.getElementById("btn-resume-match");
+  if (!btn) return;
+  if (offline || net.room || import.meta.env.VITE_OFFLINE_ONLY) {
+    btn.classList.add("hidden");
+    return;
+  }
+  const hit = await net.activeMatch();
+  btn.classList.toggle("hidden", !hit);
 }
 
 function adoptOnlineMatch(s: MatchSave): void {
@@ -1017,6 +1029,17 @@ $("btn-rank").onclick = () =>
   });
 $("btn-rank-close").onclick = () => show("lobby");
 $("btn-rank-back").onclick = () => show("lobby");
+$("btn-resume-match").onclick = () => {
+  guard(async () => {
+    const ok = await net.tryResumeSeat(playerName());
+    if (!ok) {
+      toast("没有可回到的对局");
+      await refreshResumeBtn();
+      return;
+    }
+    toast("已回到未完成的对局");
+  });
+};
 $("btn-last-match").onclick = () => {
   const snap = readOnlineMatch();
   if (snap) adoptOnlineMatch(snap);
@@ -1909,6 +1932,7 @@ net.onLeave = (consented) => {
   persistOnlineMatch();
   if (consented) {
     refreshLastMatchBtn();
+    void refreshResumeBtn();
     if (lastRound) return;
     show("lobby");
     return;
@@ -1925,9 +1949,10 @@ net.onLeave = (consented) => {
 // 刷新页面后尝试回到原对局（纯静态托管时会静默失败）
 refreshLastMatchBtn();
 if (!import.meta.env.VITE_OFFLINE_ONLY)
-  net.tryReconnect().then((ok) => {
-    if (ok) toast("已重连回到对局");
-    else refreshLastMatchBtn();
+  net.tryResumeSeat(playerName()).then((ok) => {
+    if (ok) toast("已回到未完成的对局");
+    refreshLastMatchBtn();
+    void refreshResumeBtn();
   });
 
 if (import.meta.env.DEV)

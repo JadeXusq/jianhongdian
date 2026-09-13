@@ -20,3 +20,34 @@ export function resolveCode(code: string): string | undefined {
 export function unregisterCode(code: string): void {
   codeToRoomId.delete(code);
 }
+
+export type DeviceSeat = {
+  roomId: string;
+  code: string;
+  seat: number;
+  phase: string;
+};
+
+const deviceSeats = new Map<string, DeviceSeat>();
+
+export function registerDeviceSeat(
+  deviceId: string,
+  seat: DeviceSeat
+): void {
+  if (!deviceId) return;
+  deviceSeats.set(deviceId, seat);
+}
+
+export function lookupDeviceSeat(deviceId: string): DeviceSeat | undefined {
+  return deviceSeats.get(deviceId);
+}
+
+export function unregisterDeviceSeat(deviceId: string): void {
+  if (deviceId) deviceSeats.delete(deviceId);
+}
+
+export function unregisterRoomDevices(roomId: string): void {
+  for (const [id, seat] of [...deviceSeats]) {
+    if (seat.roomId === roomId) deviceSeats.delete(id);
+  }
+}

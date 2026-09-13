@@ -4,7 +4,7 @@ import { createServer } from "http";
 import { Server } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { GameRoom } from "./GameRoom";
-import { resolveCode } from "./roomCodes";
+import { lookupDeviceSeat, resolveCode } from "./roomCodes";
 import {
   bindDevice,
   boundAccountId,
@@ -36,6 +36,12 @@ app.get("/api/room/:code", (req, res) => {
 });
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+app.get("/api/active-match/:deviceId", (req, res) => {
+  const seat = lookupDeviceSeat(String(req.params.deviceId || ""));
+  if (!seat) return res.status(404).json({ error: "没有进行中的对局" });
+  res.json(seat);
+});
 
 /** 排行榜：按累计净分降序 */
 app.get("/api/leaderboard", (_req, res) => res.json(leaderboard()));

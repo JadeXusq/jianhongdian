@@ -23,7 +23,13 @@ import {
   resolveThemeId,
   isThemeInput,
 } from "@jhd/shared";
-import { registerCode, unregisterCode } from "./roomCodes";
+import {
+  registerCode,
+  registerDeviceSeat,
+  unregisterCode,
+  unregisterDeviceSeat,
+  unregisterRoomDevices,
+} from "./roomCodes";
 import { recordResult } from "./store";
 import { PlayerSchema, RoomState, TurnPhase } from "./state";
 
@@ -123,6 +129,13 @@ export class GameRoom extends Room<RoomState> {
       });
       return;
     }
+    if (options.deviceId) {
+      const mine = this.playerByDevice(options.deviceId);
+      if (mine) {
+        this.reclaimSeat(client, mine, options);
+        return;
+      }
+    }
     if (this.state.phase !== "WAITING") {
       throw new Error("对局已开始，请选择观战加入");
     }
@@ -138,6 +151,7 @@ export class GameRoom extends Room<RoomState> {
     if (options.deviceId) this.devices.set(p, options.deviceId);
     this.state.players.set(client.sessionId, p);
     if (!this.state.hostSessionId) this.state.hostSessionId = client.sessionId;
+    this.syncDeviceSeat(p);
     client.send("joined", { seat, code: this.state.code, spectate: false });
   }
 
@@ -151,24 +165,31 @@ export class GameRoom extends Room<RoomState> {
 
     // 等待阶段直接离座；对局中保留座位，由 AI 临时托管
     if (this.state.phase === "WAITING" || consented) {
+      const id = this.devices.get(p);
+      this.devices.delete(p);
+      if (id) unregisterDeviceSeat(id);
       this.state.players.delete(client.sessionId);
       this.reassignHost();
       return;
     }
 
     p.connected = false;
+    this.syncDeviceSeat(p);
     this.driveIfAutoTurn();
+    const leftSession = client.sessionId;
     try {
       await this.allowReconnection(client, RECONNECT_MS / 1000);
+      if (p.sessionId !== leftSession) return;
       p.connected = true;
       p.sessionId = client.sessionId;
       this.sendHand(p.seat);
     } catch {
-      p.isAi = true; // 超时未回：永久交给 AI，保证对局能打完
+      if (p.sessionId === leftSession && !p.connected) p.isAi = true;
     }
   }
 
   onDispose(): void {
+    unregisterRoomDevices(this.roomId);
     unregisterCode(this.state.code);
   }
 
@@ -291,6 +312,7 @@ export class GameRoom extends Room<RoomState> {
       p.captured = new ArraySchema<number>();
     });
     this.syncGame();
+    this.syncAllDeviceSeats();
     this.broadcast("roundStart", { round: this.state.round });
     this.state.players.forEach((p) => this.sendHand(p.seat));
     // 发牌动画 + 看牌后再让 AI/托管出手
@@ -402,6 +424,7 @@ export class GameRoom extends Room<RoomState> {
     });
     this.roundNets.push([...result.net]);
     this.state.phase = "ROUND_OVER";
+    this.syncAllDeviceSeats();
     this.state.currentSeat = -1;
     this.state.turnDeadline = 0;
     const fixedDone =
@@ -426,6 +449,7 @@ export class GameRoom extends Room<RoomState> {
     this.matchClosed = true;
     this.settleAfterRound = false;
     this.state.phase = "ROUND_OVER";
+    this.syncAllDeviceSeats();
     const bySeat = [...this.state.players.values()].sort(
       (a, b) => a.seat - b.seat
     );
@@ -522,11 +546,63 @@ export class GameRoom extends Room<RoomState> {
       if (p.isAi || p.sessionId === keepSessionId) continue;
       if (this.devices.get(p) !== deviceId) continue;
       this.devices.delete(p);
+      unregisterDeviceSeat(deviceId);
       this.state.players.delete(p.sessionId);
       const old = this.clients.find((c) => c.sessionId === p.sessionId);
       old?.leave(4000);
       if (this.state.hostSessionId === p.sessionId) this.reassignHost();
     }
+  }
+
+  private playerByDevice(deviceId: string): PlayerSchema | undefined {
+    if (!deviceId) return undefined;
+    return [...this.state.players.values()].find(
+      (p) => this.devices.get(p) === deviceId
+    );
+  }
+
+  private reclaimSeat(
+    client: Client,
+    p: PlayerSchema,
+    options: JoinOptions
+  ): void {
+    const oldSession = p.sessionId;
+    if (oldSession && oldSession !== client.sessionId) {
+      this.state.players.delete(oldSession);
+      const old = this.clients.find((c) => c.sessionId === oldSession);
+      old?.leave(4000);
+    }
+    p.sessionId = client.sessionId;
+    p.connected = true;
+    p.isAi = false;
+    if (options.name) p.name = options.name.slice(0, NAME_MAX_LEN);
+    if (options.deviceId) this.devices.set(p, options.deviceId);
+    this.state.players.set(client.sessionId, p);
+    if (!this.state.hostSessionId || this.state.hostSessionId === oldSession)
+      this.state.hostSessionId = client.sessionId;
+    this.syncDeviceSeat(p);
+    client.send("joined", {
+      seat: p.seat,
+      code: this.state.code,
+      spectate: false,
+    });
+    this.sendHand(p.seat);
+    if (this.state.phase === "PLAYING") this.driveIfAutoTurn();
+  }
+
+  private syncDeviceSeat(p: PlayerSchema): void {
+    const id = this.devices.get(p);
+    if (!id) return;
+    registerDeviceSeat(id, {
+      roomId: this.roomId,
+      code: this.state.code,
+      seat: p.seat,
+      phase: this.state.phase,
+    });
+  }
+
+  private syncAllDeviceSeats(): void {
+    this.state.players.forEach((p) => this.syncDeviceSeat(p));
   }
 
   /** 把座位号压缩为 0..n-1 连续（有人在等待阶段离开时会出现空缺） */

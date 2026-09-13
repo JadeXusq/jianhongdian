@@ -274,6 +274,37 @@ export class Net {
     }, this.onProgress);
   }
 
+  async activeMatch(): Promise<{
+    roomId: string;
+    code: string;
+    seat: number;
+    phase: string;
+  } | null> {
+    try {
+      const res = await fetch(`${HTTP_URL}/api/active-match/${deviceId()}`);
+      if (!res.ok) return null;
+      return res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  /** 同一设备：先用断线 token，再用 deviceId 认领原座位 */
+  async tryResumeSeat(name: string): Promise<boolean> {
+    if (this.room) return true;
+    if (await this.tryReconnect()) return true;
+    const hit = await this.activeMatch();
+    if (!hit) return false;
+    try {
+      await this.enterRoom(() =>
+        this.client.joinById(hit.roomId, { name, deviceId: deviceId() })
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   /** 刷新页面后尝试回到原对局；无有效凭据则返回 false */
   async tryReconnect(): Promise<boolean> {
     const token = sessionStorage.getItem(TOKEN_KEY);
