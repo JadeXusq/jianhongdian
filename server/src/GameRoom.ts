@@ -45,6 +45,14 @@ export interface JoinOptions {
   spectate?: boolean;
   /** 建房时的默认主题（仅 onCreate / 首进房生效） */
   themeId?: string;
+  /** 续开已关闭房间时占用原 6 位房号 */
+  preferredCode?: string;
+  resumeSeat?: number;
+  resume?: {
+    round: number;
+    roundNets: number[][];
+    players: { seat: number; name: string; isAi?: boolean; totalNet: number }[];
+  };
 }
 
 export class GameRoom extends Room<RoomState> {
@@ -65,6 +73,8 @@ export class GameRoom extends Room<RoomState> {
   private settleAfterRound = false;
   /** 各轮净胜分：roundNets[roundIndex][seat] */
   private roundNets: number[][] = [];
+  private pendingResume: JoinOptions["resume"] | null = null;
+  private pendingResumeSeat = 0;
 
   onCreate(options: JoinOptions): void {
     const maxPlayers = clampPlayers(options.maxPlayers ?? 4);
@@ -74,8 +84,12 @@ export class GameRoom extends Room<RoomState> {
     const tr = options.totalRounds;
     this.state.totalRounds =
       tr === undefined ? 0 : Math.min(20, Math.max(0, Math.floor(tr)));
-    this.state.code = registerCode(this.roomId);
+    this.state.code = registerCode(this.roomId, options.preferredCode);
     this.setMetadata({ code: this.state.code, maxPlayers });
+    if (options.resume?.players?.length) {
+      this.pendingResume = options.resume;
+      this.pendingResumeSeat = Number(options.resumeSeat) || 0;
+    }
 
     this.onMessage("ready", (client, ready: boolean) =>
       this.onReady(client, ready)
@@ -133,11 +147,22 @@ export class GameRoom extends Room<RoomState> {
       const mine = this.playerByDevice(options.deviceId);
       if (mine) {
         this.reclaimSeat(client, mine, options);
+        this.sendHistory(client);
         return;
       }
     }
+    if (this.pendingResume) {
+      this.applyResume(client, options);
+      return;
+    }
     if (this.state.phase !== "WAITING") {
       throw new Error("对局已开始，请选择观战加入");
+    }
+    const hold = this.takeHoldSeat(options.name);
+    if (hold) {
+      this.reclaimSeat(client, hold, options);
+      this.sendHistory(client);
+      return;
     }
     // 同设备重复进房（iOS 双击/重连）时挤掉旧座位，避免占两席
     if (options.deviceId) this.evictDevice(options.deviceId, client.sessionId);
@@ -153,6 +178,7 @@ export class GameRoom extends Room<RoomState> {
     if (!this.state.hostSessionId) this.state.hostSessionId = client.sessionId;
     this.syncDeviceSeat(p);
     client.send("joined", { seat, code: this.state.code, spectate: false });
+    this.sendHistory(client);
   }
 
   async onLeave(client: Client, consented: boolean): Promise<void> {
@@ -168,6 +194,15 @@ export class GameRoom extends Room<RoomState> {
       const id = this.devices.get(p);
       this.devices.delete(p);
       if (id) unregisterDeviceSeat(id);
+      if (this.roundNets.length && this.state.phase === "WAITING" && !p.isAi) {
+        this.state.players.delete(client.sessionId);
+        p.sessionId = `hold:${p.seat}`;
+        p.connected = false;
+        p.ready = false;
+        this.state.players.set(p.sessionId, p);
+        this.reassignHost();
+        return;
+      }
       this.state.players.delete(client.sessionId);
       this.reassignHost();
       return;
@@ -290,8 +325,7 @@ export class GameRoom extends Room<RoomState> {
   // ---------- 对局 ----------
 
   private startRound(): void {
-    // 座位须为 0..n-1 连续，规则引擎以座位号作为玩家索引
-    this.compactSeats();
+    if (!this.roundNets.length) this.compactSeats();
     const count = this.state.players.size;
     // 首轮随机庄；之后按顺时针（座位号递减，与出牌方向一致）
     if (this.state.roundStarter < 0) {
@@ -552,6 +586,78 @@ export class GameRoom extends Room<RoomState> {
       old?.leave(4000);
       if (this.state.hostSessionId === p.sessionId) this.reassignHost();
     }
+  }
+
+  private sendHistory(client: Client): void {
+    if (!this.roundNets.length) return;
+    client.send("matchHistory", {
+      roundNets: this.roundNets,
+      round: this.state.round,
+    });
+  }
+
+  private takeHoldSeat(name?: string): PlayerSchema | undefined {
+    const holds = [...this.state.players.values()].filter(
+      (p) => !p.isAi && String(p.sessionId).startsWith("hold:")
+    );
+    if (!holds.length) return undefined;
+    const n = String(name || "").trim();
+    return (n && holds.find((p) => p.name === n)) || holds[0];
+  }
+
+  private applyResume(client: Client, options: JoinOptions): void {
+    const resume = this.pendingResume;
+    this.pendingResume = null;
+    if (!resume?.players?.length) return;
+    this.roundNets = (resume.roundNets ?? []).map((row) => [...row]);
+    this.state.round = Math.max(
+      0,
+      Math.floor(Number(resume.round)) || this.roundNets.length
+    );
+    const rows = [...resume.players].sort((a, b) => a.seat - b.seat);
+    this.state.maxPlayers = clampPlayers(rows.length);
+    let mySeat = this.pendingResumeSeat;
+    if (!rows.some((r) => r.seat === mySeat)) mySeat = rows[0].seat;
+    for (const row of rows) {
+      const total = Number(row.totalNet) || 0;
+      const name = String(row.name || `玩家${row.seat + 1}`).slice(
+        0,
+        NAME_MAX_LEN
+      );
+      if (row.seat === mySeat) {
+        const p = new PlayerSchema();
+        p.sessionId = client.sessionId;
+        p.seat = row.seat;
+        p.name = (options.name || name).slice(0, NAME_MAX_LEN);
+        p.totalNet = total;
+        p.connected = true;
+        if (options.deviceId) this.devices.set(p, options.deviceId);
+        this.state.players.set(client.sessionId, p);
+        this.state.hostSessionId = client.sessionId;
+        this.syncDeviceSeat(p);
+        client.send("joined", {
+          seat: p.seat,
+          code: this.state.code,
+          spectate: false,
+        });
+        continue;
+      }
+      const p = new PlayerSchema();
+      if (row.isAi) {
+        p.sessionId = `ai:${++this.aiCounter}`;
+        p.isAi = true;
+        p.ready = true;
+        p.connected = true;
+      } else {
+        p.sessionId = `hold:${row.seat}`;
+        p.connected = false;
+      }
+      p.seat = row.seat;
+      p.name = name;
+      p.totalNet = total;
+      this.state.players.set(p.sessionId, p);
+    }
+    this.sendHistory(client);
   }
 
   private playerByDevice(deviceId: string): PlayerSchema | undefined {

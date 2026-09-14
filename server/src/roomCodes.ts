@@ -4,7 +4,14 @@
  */
 const codeToRoomId = new Map<string, string>();
 
-export function registerCode(roomId: string): string {
+export function registerCode(roomId: string, preferred?: string): string {
+  const want = String(preferred || "").replace(/\D/g, "").slice(0, 6);
+  if (want) {
+    if (want.length !== 6) throw new Error("房号无效");
+    if (codeToRoomId.has(want)) throw new Error("房号已被占用");
+    codeToRoomId.set(want, roomId);
+    return want;
+  }
   let code: string;
   do {
     code = String(Math.floor(100000 + Math.random() * 900000));

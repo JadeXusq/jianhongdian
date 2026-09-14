@@ -536,6 +536,7 @@ function renderSavedMatch(reason: "disconnect" | "review"): void {
   const title = $("result").querySelector(".title") as HTMLElement;
   const n = matchRoundNets.length || lastScoreRound;
   title.textContent = savedMatchTitle(reason);
+  showRoomCode("result-code", lastScoreCode);
   const dots = $("result-dots");
   if (dots) {
     dots.innerHTML = n
@@ -550,13 +551,56 @@ function renderSavedMatch(reason: "disconnect" | "review"): void {
   const btnAgain = $<HTMLButtonElement>("btn-again");
   const btnExit = $<HTMLButtonElement>("btn-exit");
   const btnSettle = $<HTMLButtonElement>("btn-result-settle");
-  btnAgain.classList.add("hidden");
   btnSettle.classList.add("hidden");
   btnExit.style.display = "";
   btnExit.textContent = "返回大厅";
+  if (lastScoreCode) {
+    btnAgain.classList.remove("hidden");
+    btnAgain.classList.add("primary");
+    btnAgain.textContent = "用此房号续开";
+  } else {
+    btnAgain.classList.add("hidden");
+  }
   setMenuVisible(false);
   $("btn-help").classList.add("hidden");
   show("result");
+}
+
+function showRoomCode(id: string, code: string | undefined): void {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const c = String(code || "").trim();
+  el.classList.toggle("hidden", !c);
+  el.textContent = c ? `房号 ${c}` : "";
+}
+
+async function reopenSavedMatch(): Promise<void> {
+  const snap = readOnlineMatch();
+  if (!snap?.code) throw new Error("没有可续开的房号");
+  matchDetached = false;
+  stopOffline();
+  try {
+    await net.joinByCode(playerName(), snap.code);
+    toast(`已加入房间 ${snap.code}`);
+    return;
+  } catch {
+    /* 房间已关，下面按原房号重建 */
+  }
+  await net.create(
+    playerName(),
+    Math.max(2, snap.players.length),
+    currentThemeId(),
+    {
+      preferredCode: snap.code,
+      resumeSeat: snap.mySeat,
+      resume: {
+        round: snap.round,
+        roundNets: snap.roundNets,
+        players: snap.players,
+      },
+    }
+  );
+  toast(`已用房号 ${snap.code} 续开`);
 }
 
 function clearMatchRoundNets(): void {
@@ -950,6 +994,7 @@ function renderScores(): void {
     : state.phase === "PLAYING"
       ? `第 ${state.round} 轮进行中`
       : `已打 ${state.round} 轮`;
+  showRoomCode("scores-code", offline ? "" : String(state.code || ""));
   const bySeat: number[] | undefined =
     state.phase === "PLAYING"
       ? (() => {
@@ -1189,7 +1234,10 @@ function renderRoom(state: any): void {
 // ---------- 结算 ----------
 
 $("btn-again").onclick = () => {
-  if (matchDetached) return;
+  if (matchDetached) {
+    void guard(reopenSavedMatch);
+    return;
+  }
   pendingRoundOver = null;
   if (offline) {
     if (lastRound?.allDone) {
@@ -1252,6 +1300,7 @@ function renderResult(r: RoundOver): void {
       ? "最终结算 · 胜"
       : `最终结算（${r.round} 轮）`
     : `第 ${r.round} 轮结算`;
+  showRoomCode("result-code", offline ? "" : String(state.code || ""));
 
   const dots = $("result-dots");
   if (dots) {
@@ -1896,6 +1945,13 @@ net.onChat = (e) => {
     isEmote: false,
     mine,
   });
+};
+
+net.onMatchHistory = (m) => {
+  if (!m?.roundNets?.length) return;
+  matchRoundNets = m.roundNets.map((row) => [...row]);
+  if (m.round) lastScoreRound = m.round;
+  persistOnlineMatch();
 };
 
 net.onError = (msg) => {

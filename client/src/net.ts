@@ -148,6 +148,7 @@ export class Net {
   }) => void;
   onError?: (message: string) => void;
   onLeave?: (consented: boolean) => void;
+  onMatchHistory?: (m: { roundNets: number[][]; round: number }) => void;
   onDropped?: () => void;
   onRecoverHold?: () => void;
   onReconnected?: () => void;
@@ -166,7 +167,21 @@ export class Net {
   async create(
     name: string,
     maxPlayers: number,
-    themeId?: string
+    themeId?: string,
+    extra?: {
+      preferredCode?: string;
+      resumeSeat?: number;
+      resume?: {
+        round: number;
+        roundNets: number[][];
+        players: {
+          seat: number;
+          name: string;
+          isAi?: boolean;
+          totalNet: number;
+        }[];
+      };
+    }
   ): Promise<void> {
     await this.enterRoom(() =>
       this.client.create("game", {
@@ -174,6 +189,7 @@ export class Net {
         maxPlayers,
         deviceId: deviceId(),
         themeId,
+        ...extra,
       })
     );
   }
@@ -405,6 +421,11 @@ export class Net {
     room.onMessage("roundStart", () => this.onRoundStart?.());
     room.onMessage("events", (e: GameEvent[]) => this.onEvents?.(e));
     room.onMessage("roundOver", (r: RoundOver) => this.onRoundOver?.(r));
+    room.onMessage(
+      "matchHistory",
+      (m: { roundNets: number[][]; round: number }) =>
+        this.onMatchHistory?.(m)
+    );
     room.onMessage("emote", (e: { seat: number; name: string; id: string }) =>
       this.onEmote?.(e)
     );
