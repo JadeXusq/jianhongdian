@@ -75,6 +75,7 @@ export class GameRoom extends Room<RoomState> {
   private roundNets: number[][] = [];
   private pendingResume: JoinOptions["resume"] | null = null;
   private pendingResumeSeat = 0;
+  private seatSwap: { from: string; to: string } | null = null;
 
   onCreate(options: JoinOptions): void {
     const maxPlayers = clampPlayers(options.maxPlayers ?? 4);
@@ -118,6 +119,13 @@ export class GameRoom extends Room<RoomState> {
       this.onSetTheme(client, msg)
     );
     this.onMessage("ping", () => undefined);
+    this.onMessage("sit", (client, seat: number) => this.onSit(client, seat));
+    this.onMessage("swapAsk", (client, seat: number) =>
+      this.onSwapAsk(client, seat)
+    );
+    this.onMessage("swapReply", (client, accept: boolean) =>
+      this.onSwapReply(client, accept)
+    );
     this.state.themeId = resolveThemeId(options.themeId);
   }
 
@@ -195,6 +203,7 @@ export class GameRoom extends Room<RoomState> {
       this.devices.delete(p);
       if (id) unregisterDeviceSeat(id);
       if (this.roundNets.length && this.state.phase === "WAITING" && !p.isAi) {
+        this.clearSeatSwap(client.sessionId);
         this.state.players.delete(client.sessionId);
         p.sessionId = `hold:${p.seat}`;
         p.connected = false;
@@ -205,6 +214,7 @@ export class GameRoom extends Room<RoomState> {
       }
       this.state.players.delete(client.sessionId);
       this.reassignHost();
+      this.clearSeatSwap(client.sessionId);
       return;
     }
 
@@ -229,6 +239,103 @@ export class GameRoom extends Room<RoomState> {
   }
 
   // ---------- 等待阶段 ----------
+
+  private waitingPlayer(client: Client): PlayerSchema | null {
+    if (this.state.phase !== "WAITING") {
+      client.send("error", { message: "对局已开始，不能换座" });
+      return null;
+    }
+    return this.state.players.get(client.sessionId) ?? null;
+  }
+
+  private clearSeatSwap(sessionId?: string): void {
+    const ask = this.seatSwap;
+    if (!ask) return;
+    if (sessionId && ask.from !== sessionId && ask.to !== sessionId) return;
+    this.seatSwap = null;
+    for (const id of [ask.from, ask.to]) {
+      if (id === sessionId) continue;
+      this.clients.find((c) => c.sessionId === id)?.send("swapCancel", {});
+    }
+  }
+
+  private swapSeats(a: PlayerSchema, b: PlayerSchema): void {
+    const seat = a.seat;
+    a.seat = b.seat;
+    b.seat = seat;
+    a.ready = false;
+    if (!b.isAi) b.ready = false;
+    this.syncDeviceSeat(a);
+    this.syncDeviceSeat(b);
+    this.seatSwap = null;
+  }
+
+  private onSit(client: Client, seat: number): void {
+    const me = this.waitingPlayer(client);
+    if (!me) return;
+    const to = Math.floor(Number(seat));
+    if (to < 0 || to >= this.state.maxPlayers || to === me.seat) return;
+    const occ = this.playerBySeat(to);
+    if (!occ) {
+      me.seat = to;
+      me.ready = false;
+      this.syncDeviceSeat(me);
+      this.clearSeatSwap(me.sessionId);
+      return;
+    }
+    if (
+      occ.isAi ||
+      String(occ.sessionId).startsWith("hold:") ||
+      !occ.connected
+    ) {
+      this.swapSeats(me, occ);
+      return;
+    }
+    client.send("error", { message: "该座位有人，请点对方申请对换" });
+  }
+
+  private onSwapAsk(client: Client, seat: number): void {
+    const me = this.waitingPlayer(client);
+    if (!me) return;
+    const to = Math.floor(Number(seat));
+    const occ = this.playerBySeat(to);
+    if (!occ || occ.sessionId === me.sessionId) return;
+    if (
+      occ.isAi ||
+      String(occ.sessionId).startsWith("hold:") ||
+      !occ.connected
+    ) {
+      this.swapSeats(me, occ);
+      return;
+    }
+    if (this.seatSwap) this.clearSeatSwap();
+    this.seatSwap = { from: me.sessionId, to: occ.sessionId };
+    const target = this.clients.find((c) => c.sessionId === occ.sessionId);
+    target?.send("swapAsk", {
+      fromName: me.name,
+      fromSeat: me.seat,
+      seat: occ.seat,
+    });
+  }
+
+  private onSwapReply(client: Client, accept: boolean): void {
+    const ask = this.seatSwap;
+    if (!ask || ask.to !== client.sessionId) {
+      client.send("error", { message: "换座申请已失效" });
+      return;
+    }
+    const from = this.state.players.get(ask.from);
+    const to = this.state.players.get(ask.to);
+    this.seatSwap = null;
+    if (!accept) {
+      this.clients
+        .find((c) => c.sessionId === ask.from)
+        ?.send("error", { message: "对方拒绝换座" });
+      return;
+    }
+    if (!from || !to || this.state.phase !== "WAITING") return;
+    this.swapSeats(from, to);
+  }
 
   private onReady(client: Client, ready: boolean): void {
     if (this.state.phase === "PLAYING") return;
@@ -325,6 +432,7 @@ export class GameRoom extends Room<RoomState> {
   // ---------- 对局 ----------
 
   private startRound(): void {
+    this.clearSeatSwap();
     if (!this.roundNets.length) this.compactSeats();
     const count = this.state.players.size;
     // 首轮随机庄；之后按顺时针（座位号递减，与出牌方向一致）

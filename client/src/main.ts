@@ -133,6 +133,7 @@ function show(
     | "scores"
     | "settle-confirm"
     | "room-code-dialog"
+    | "seat-swap-confirm"
     | "none"
 ): void {
   [
@@ -147,6 +148,7 @@ function show(
     "scores",
     "settle-confirm",
     "room-code-dialog",
+    "seat-swap-confirm",
   ].forEach((s) => $(s).classList.toggle("hidden", s !== id));
   if (id === "lobby") {
     refreshPracticeBtn();
@@ -1136,6 +1138,29 @@ $("btn-acc-bind").onclick = () =>
 
 // ---------- 房间 ----------
 
+$("seats").onclick = (e) => {
+  const el = (e.target as HTMLElement).closest(".seat") as HTMLElement | null;
+  if (!el || !net.room || net.spectating) return;
+  const state = net.state;
+  if (!state || state.phase !== "WAITING") return;
+  const seat = Number(el.dataset.seat);
+  if (!Number.isFinite(seat)) return;
+  const me = state.players.get(net.room.sessionId);
+  if (!me || me.seat === seat) return;
+  const occ = [...state.players.values()].find((p: any) => p.seat === seat);
+  if (
+    !occ ||
+    occ.isAi ||
+    String(occ.sessionId).startsWith("hold:") ||
+    !occ.connected
+  ) {
+    net.sit(seat);
+    return;
+  }
+  net.swapAsk(seat);
+  toast(`已向 ${occ.name} 申请换座`);
+};
+
 $("btn-ai").onclick = () => net.addAi();
 $("btn-ready").onclick = () => {
   const me = net.state?.players.get(net.room!.sessionId);
@@ -1187,25 +1212,34 @@ function renderRoom(state: any): void {
   for (const p of players)
     nameCount.set(p.name, (nameCount.get(p.name) ?? 0) + 1);
 
+  const canPick =
+    state.phase === "WAITING" && !net.spectating && !!net.room;
   for (let i = 0; i < state.maxPlayers; i++) {
     const p = bySeat.get(i);
     const div = document.createElement("div");
-    div.className = "seat" + (p ? "" : " empty");
+    const mine = !!p && p.sessionId === net.room?.sessionId;
+    const hold = !!p && String(p.sessionId).startsWith("hold:");
+    div.dataset.seat = String(i);
+    div.className =
+      "seat" +
+      (p ? "" : " empty") +
+      (mine ? " mine" : "") +
+      (canPick && !mine ? " can-sit" : "");
     if (p) {
       const dup = (nameCount.get(p.name) ?? 0) > 1;
       const label = dup ? `${p.name}·座${i + 1}` : p.name;
-      const mine = p.sessionId === net.room?.sessionId;
+      const tag = hold ? "待归座" : p.ready ? "已准备" : "等待中";
       div.innerHTML = `<div class="avatar">${label.slice(0, 1)}</div>
          <div class="who">${label}${
         p.isAi && !String(p.name).startsWith("机器人")
           ? '<span class="ai-tag">机</span>'
           : ""
       }${mine ? "（我）" : ""}</div>
-         <div class="tag">${p.ready ? "已准备" : "等待中"}</div>`;
+         <div class="tag">${tag}</div>`;
     } else {
       div.innerHTML = `<div class="avatar">＋</div><div class="who">座位 ${
         i + 1
-      } · 空</div>`;
+      } · 空${canPick ? " · 点此入座" : ""}</div>`;
     }
     seats.appendChild(div);
   }
@@ -1220,6 +1254,8 @@ function renderRoom(state: any): void {
   } else {
     status.textContent = "全员已准备 · 即将开局";
   }
+  if (canPick)
+    status.textContent += " · 点空位入座，点玩家申请对换";
 
   const me = players.find((x) => x.sessionId === net.room?.sessionId);
   $<HTMLButtonElement>("btn-ready").textContent = me?.ready
@@ -1601,7 +1637,8 @@ net.onState = (state) => {
       !shown("result") &&
       !shown("rules") &&
       !shown("rank") &&
-      !shown("guide")
+      !shown("guide") &&
+      !shown("seat-swap-confirm")
     )
       show("room");
   } else if (state.phase === "PLAYING") {
@@ -1952,6 +1989,27 @@ net.onMatchHistory = (m) => {
   matchRoundNets = m.roundNets.map((row) => [...row]);
   if (m.round) lastScoreRound = m.round;
   persistOnlineMatch();
+};
+
+net.onSwapAsk = (m) => {
+  $("seat-swap-text").textContent = `${m.fromName} 想和你对换座位（对方座位 ${
+    m.fromSeat + 1
+  }）`;
+  show("seat-swap-confirm");
+};
+net.onSwapCancel = () => {
+  if (shown("seat-swap-confirm")) {
+    show("room");
+    toast("换座申请已取消");
+  }
+};
+$("btn-seat-swap-yes").onclick = () => {
+  net.swapReply(true);
+  show("room");
+};
+$("btn-seat-swap-no").onclick = () => {
+  net.swapReply(false);
+  show("room");
 };
 
 net.onError = (msg) => {

@@ -147,6 +147,12 @@ export class Net {
     ts: number;
   }) => void;
   onError?: (message: string) => void;
+  onSwapAsk?: (m: {
+    fromName: string;
+    fromSeat: number;
+    seat: number;
+  }) => void;
+  onSwapCancel?: () => void;
   onLeave?: (consented: boolean) => void;
   onMatchHistory?: (m: { roundNets: number[][]; round: number }) => void;
   onDropped?: () => void;
@@ -437,13 +443,17 @@ export class Net {
     room.onMessage("error", (e: { message: string }) =>
       this.onError?.(e.message)
     );
+    room.onMessage(
+      "swapAsk",
+      (m: { fromName: string; fromSeat: number; seat: number }) =>
+        this.onSwapAsk?.(m)
+    );
+    room.onMessage("swapCancel", () => this.onSwapCancel?.());
     room.onStateChange((state) => {
       if (room.reconnectionToken)
         sessionStorage.setItem(TOKEN_KEY, room.reconnectionToken);
-      if (this.mySeat < 0 && !this.spectating) {
-        const me = state.players.get(room.sessionId);
-        if (me) this.mySeat = me.seat;
-      }
+      const me = state.players.get(room.sessionId);
+      if (me) this.mySeat = me.seat;
       this.onState?.(state);
     });
     room.onLeave(() => {
@@ -466,6 +476,15 @@ export class Net {
 
   ready(v: boolean): void {
     this.room?.send("ready", v);
+  }
+  sit(seat: number): void {
+    this.room?.send("sit", seat);
+  }
+  swapAsk(seat: number): void {
+    this.room?.send("swapAsk", seat);
+  }
+  swapReply(accept: boolean): void {
+    this.room?.send("swapReply", accept);
   }
   addAi(): void {
     this.room?.send("addAi");

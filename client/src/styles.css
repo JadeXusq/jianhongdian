@@ -646,6 +646,14 @@ input:focus {
   color: rgba(243, 234, 214, 0.4);
 }
 
+.seat.can-sit {
+  cursor: pointer;
+}
+
+.seat.mine {
+  border-color: var(--gold);
+}
+
 /* 结算 / 积分：玩家为列的表格 */
 .result-panel > .title.small,
 .scores-panel > .title.small {
