@@ -654,6 +654,33 @@ input:focus {
   border-color: var(--gold);
 }
 
+.seat-act {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--gold-dim);
+  border-radius: 50%;
+  background: rgba(184, 53, 43, 0.88);
+  color: #fff5e6;
+  cursor: pointer;
+}
+
+.seat-act svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.seat-act:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: rgba(0, 0, 0, 0.28);
+}
+
 /* 结算 / 积分：玩家为列的表格 */
 .result-panel > .title.small,
 .scores-panel > .title.small {
@@ -1571,6 +1598,16 @@ html[data-theme="mohong"] .social-panel {
 
 #ui.rot .room-panel .seat {
   padding: 7px 10px;
+}
+
+#ui.rot .seat-act {
+  width: 28px;
+  height: 28px;
+}
+
+#ui.rot .seat-act svg {
+  width: 14px;
+  height: 14px;
 }
 
 #ui.rot .room-panel > .field {

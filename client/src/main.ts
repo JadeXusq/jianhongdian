@@ -1172,6 +1172,9 @@ $("btn-quit").onclick = () =>
     show("lobby");
   });
 
+const SEAT_SWAP_ICON =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 7h11l-3-3 1.4-1.4L22.8 8 16.4 14.4 15 13l3-3H7V7zm10 10H6l3 3-1.4 1.4L1.2 16 7.6 9.6 9 11l-3 3h11v3z"/></svg>';
+
 function listRoomPlayers(state: any): Array<{
   sessionId: string;
   name: string;
@@ -1229,17 +1232,28 @@ function renderRoom(state: any): void {
       const dup = (nameCount.get(p.name) ?? 0) > 1;
       const label = dup ? `${p.name}·座${i + 1}` : p.name;
       const tag = hold ? "待归座" : p.ready ? "已准备" : "等待中";
+      const act = canPick
+        ? `<button type="button" class="seat-act" ${
+            mine ? "disabled" : ""
+          } title="${mine ? "当前座位" : "换座"}" aria-label="${
+            mine ? "当前座位" : "换座"
+          }">${SEAT_SWAP_ICON}</button>`
+        : "";
       div.innerHTML = `<div class="avatar">${label.slice(0, 1)}</div>
          <div class="who">${label}${
         p.isAi && !String(p.name).startsWith("机器人")
           ? '<span class="ai-tag">机</span>'
           : ""
       }${mine ? "（我）" : ""}</div>
-         <div class="tag">${tag}</div>`;
+         <div class="tag">${tag}</div>${act}`;
     } else {
       div.innerHTML = `<div class="avatar">＋</div><div class="who">座位 ${
         i + 1
-      } · 空${canPick ? " · 点此入座" : ""}</div>`;
+      } · 空</div>${
+        canPick
+          ? `<button type="button" class="seat-act" title="入座" aria-label="入座">${SEAT_SWAP_ICON}</button>`
+          : ""
+      }`;
     }
     seats.appendChild(div);
   }
@@ -1254,8 +1268,7 @@ function renderRoom(state: any): void {
   } else {
     status.textContent = "全员已准备 · 即将开局";
   }
-  if (canPick)
-    status.textContent += " · 点空位入座，点玩家申请对换";
+  if (canPick) status.textContent += " · 点座位旁按钮换座";
 
   const me = players.find((x) => x.sessionId === net.room?.sessionId);
   $<HTMLButtonElement>("btn-ready").textContent = me?.ready
