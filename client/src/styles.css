@@ -636,6 +636,31 @@ input:focus {
   min-height: 40px;
 }
 
+@keyframes btn-next-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+#btn-again.is-next {
+  animation: btn-next-pop 1.05s ease-in-out infinite;
+}
+
+#btn-again.is-next:active {
+  animation: none;
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #btn-again.is-next {
+    animation: none;
+  }
+}
+
 .seat .tag {
   font-size: 13px;
   color: var(--gold);

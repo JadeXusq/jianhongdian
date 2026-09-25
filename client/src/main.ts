@@ -554,6 +554,7 @@ function renderSavedMatch(reason: "disconnect" | "review"): void {
   const btnExit = $<HTMLButtonElement>("btn-exit");
   const btnSettle = $<HTMLButtonElement>("btn-result-settle");
   btnSettle.classList.add("hidden");
+  btnAgain.classList.remove("is-next");
   btnExit.style.display = "";
   btnExit.textContent = "返回大厅";
   if (lastScoreCode) {
@@ -1389,6 +1390,7 @@ function renderResult(r: RoundOver): void {
   const btnSettle = $<HTMLButtonElement>("btn-result-settle");
   matchDetached = false;
   btnAgain.classList.remove("hidden");
+  btnAgain.classList.toggle("is-next", !r.allDone);
   btnExit.textContent = "返回大厅";
   if (r.allDone) {
     btnAgain.textContent = offline ? "再练一局" : "再来一局";
