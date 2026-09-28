@@ -1,0 +1,10 @@
+{
+  "compileType": "game",
+  "appid": "wx731dbf969faf4ce2",
+  "projectname": "jianhongdian-minigame",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "minified": false
+  }
+}

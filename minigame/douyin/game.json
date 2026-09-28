@@ -1,0 +1,8 @@
+{
+  "deviceOrientation": "landscape",
+  "showStatusBar": false,
+  "networkTimeout": {
+    "request": 15000,
+    "connectSocket": 15000
+  }
+}

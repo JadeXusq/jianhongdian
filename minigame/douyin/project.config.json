@@ -1,0 +1,9 @@
+{
+  "appid": "testappid",
+  "projectname": "jianhongdian-minigame",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "minified": false
+  }
+}
