@@ -57,6 +57,10 @@ h.onFrame(() => {
   }
 
   if (stage === "A") {
+    if (leaveStep === 1 && j.screen === "lobby") {
+      if (net.room || Date.now() - leaveAt > 500) failed = `离开房间太慢或未脱离：${Date.now() - leaveAt}ms`;
+      leaveStep = 2;
+    }
     if (j.screen === "lobby" && !seen.length) {
       act();
       h.tapButton("2 人");
@@ -73,6 +77,10 @@ h.onFrame(() => {
           failed = `邀请分享不对：${JSON.stringify(s)}`;
         else if (m?.query !== `room=${code}`) failed = `菜单转发未带房号：${JSON.stringify(m)}`;
         inviteChecked = true;
+      } else if (leaveStep === 0) {
+        h.tapButton("离开房间");
+        leaveAt = Date.now();
+        leaveStep = 1;
       } else if (net.state.players.size < 2) h.tapButton("＋ 添加机器人");
       else if (!me.ready) h.tapButton("准备");
     } else if (j.screen === "result" && j.lastRound) {
@@ -144,6 +152,8 @@ let emoteSent = false;
 let emoteSeen = false;
 let droppedRoom: unknown = null;
 let reconnected = false;
+let leaveStep = 0;
+let leaveAt = 0;
 
 /** Node 端房主：按 AI 策略自动出牌，首轮结束后结束本场 */
 async function startHostBot(): Promise<void> {
@@ -197,6 +207,7 @@ if (!failed && stage === "done") {
   else if (!droppedRoom) failed = "未触发断线";
   else if (!reconnected) failed = "断线后未自动重连";
   else if (!inviteChecked || !resultShared) failed = "未完成分享检查";
+  else if (leaveStep !== 2) failed = "未完成离开房间检查";
   else if (!privacyRefused || !h.exited()) failed = "隐私页「不同意并退出」未退出小游戏";
   else console.log("   表情送达 ✓  断线自动重连后打完本轮 ✓");
 }

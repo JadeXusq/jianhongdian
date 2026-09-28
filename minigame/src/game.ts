@@ -1253,12 +1253,19 @@ api.onTouchStart((e) => {
     sfx.startBgm();
   }
   const t = e.changedTouches[0];
-  if (!t || overlay.hit(t.clientX, t.clientY)) return;
+  if (!t || overlay.press(t.clientX, t.clientY)) return;
   if (screen === "none") view.touchStart(t);
 });
 api.onTouchMove((e) => forEachTouch(e, (t) => view.touchMove(t)));
-api.onTouchEnd((e) => forEachTouch(e, (t) => view.touchEnd(t)));
-api.onTouchCancel((e) => forEachTouch(e, (t) => view.touchEnd(t)));
+api.onTouchEnd((e) => {
+  const t = e.changedTouches[0];
+  if (t) overlay.release(t.clientX, t.clientY);
+  forEachTouch(e, (t) => view.touchEnd(t));
+});
+api.onTouchCancel((e) => {
+  overlay.cancel();
+  forEachTouch(e, (t) => view.touchEnd(t));
+});
 api.onHide(() => {
   offline?.flushSave();
   sfx.stopBgm();

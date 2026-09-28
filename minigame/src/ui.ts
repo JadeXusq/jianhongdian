@@ -81,15 +81,32 @@ export class Overlay {
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  hit(x: number, y: number): boolean {
+  private pressed: Hit | null = null;
+
+  private find(x: number, y: number): Hit | undefined {
     for (let i = this.hits.length - 1; i >= 0; i--) {
       const b = this.hits[i];
-      if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
-        b.onTap();
-        return true;
-      }
+      if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b;
     }
-    return false;
+    return undefined;
+  }
+
+  /** 按下：命中弹层则记住按钮并吞掉本次触摸 */
+  press(x: number, y: number): boolean {
+    this.pressed = this.find(x, y) ?? null;
+    return !!this.pressed;
+  }
+
+  /** 抬起仍在同一按钮上才触发：分享、键盘、隐私同意等平台接口只认 touchend 中的调用 */
+  release(x: number, y: number): void {
+    const p = this.pressed;
+    this.pressed = null;
+    const b = p && this.find(x, y);
+    if (b && b.label === p.label && b.x === p.x && b.y === p.y && b.w === p.w && b.h === p.h) b.onTap();
+  }
+
+  cancel(): void {
+    this.pressed = null;
   }
 
   /** 吞掉整屏点击（弹层下方不透传给牌桌）；传 onDismiss 则点遮罩关闭 */

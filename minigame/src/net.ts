@@ -424,11 +424,16 @@ export class Net {
     this.intentionalLeave = true;
     this.clearPing();
     storage.remove(TOKEN_KEY);
+    this.intentionalLeave = false;
     const room = this.room;
-    if (!room) {
-      this.intentionalLeave = false;
-      return;
-    }
-    await room.leave(true);
+    if (!room) return;
+    this.room = null;
+    this.mySeat = -1;
+    this.spectating = false;
+    this.hand = [];
+    // 不等关闭握手（真机 connectSocket 关闭回调很慢），本地立即脱离；服务端照常收到离开
+    void room.leave(true).catch(() => undefined);
+    room.removeAllListeners();
+    this.onLeave?.(true);
   }
 }

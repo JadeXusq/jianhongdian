@@ -106,8 +106,8 @@ export function installWx(virtual: boolean): Harness {
     | null = null;
   let exited = false;
   let privacyExposures = 0;
-  let canvasTouched = false;
-  const acceptAgree = (r: { event: string }) => r.event === "agree" && canvasTouched;
+  let inTouchEnd = false;
+  const acceptAgree = (r: { event: string }) => r.event === "agree" && inTouchEnd;
 
   g.wx = {
     getSystemInfoSync: () => ({
@@ -128,7 +128,10 @@ export function installWx(virtual: boolean): Harness {
         toTempFilePathSync: () => `wxfile://tmp/canvas${n}-${++exported}.png`,
       };
     },
-    shareAppMessage: (o: any) => shares.push(o),
+    shareAppMessage: (o: any) => {
+      if (!inTouchEnd) errors.push("shareAppMessage 未在 touchend 中调用");
+      shares.push(o);
+    },
     onShareAppMessage: (cb: () => any) => (menuShareCb = cb),
     showShareMenu: () => undefined,
     getSetting: (o: any) => setTimeout(() => o.success({ authSetting: {} }), 5),
@@ -142,7 +145,7 @@ export function installWx(virtual: boolean): Harness {
       }
       needPrivacyCb((r: { event: string }) => {
         if (r.event === "exposureAuthorization") return void privacyExposures++;
-        // 与真实基础库一致：resolve 前须有画布点击，否则报 click action before resolve is needed
+        // 与真机一致：须在 touchend 回调中 resolve，否则报 click action before resolve is needed
         if (acceptAgree(r)) {
           privacyAgreed = true;
           o.success();
@@ -151,7 +154,15 @@ export function installWx(virtual: boolean): Harness {
     },
     getPrivacySetting: (o: any) =>
       setTimeout(() => o.success({ needAuthorization: !privacyAgreed, privacyContractName: "《测试隐私保护指引》" }), 5),
-    openPrivacyContract: () => undefined,
+    openPrivacyContract: () => {
+      if (!inTouchEnd) errors.push("openPrivacyContract 未在 touchend 中调用");
+    },
+    showKeyboard: () => {
+      if (!inTouchEnd) errors.push("showKeyboard 未在 touchend 中调用");
+    },
+    onKeyboardConfirm: () => undefined,
+    offKeyboardConfirm: () => undefined,
+    hideKeyboard: () => undefined,
     exitMiniProgram: () => (exited = true),
     createUserInfoButton: (o: { style: Record<string, number | string> }) => {
       nickBtn = {
@@ -258,9 +269,10 @@ export function installWx(virtual: boolean): Harness {
     errors,
     tap(x, y) {
       const t = { identifier: ++touchId, clientX: x, clientY: y };
-      canvasTouched = true;
       touch.start?.forEach((cb) => cb({ touches: [t], changedTouches: [t] }));
+      inTouchEnd = true;
       touch.end?.forEach((cb) => cb({ touches: [], changedTouches: [t] }));
+      inTouchEnd = false;
     },
     tapButton(label) {
       const b = hook().overlay.hits.find((x: any) => x.label === label);
